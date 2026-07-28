@@ -158,12 +158,74 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| | | |
+| INFR-01 | Phase 1 | Pending |
+| INFR-02 | Phase 1 | Pending |
+| INFR-03 | Phase 1 | Pending |
+| INFR-04 | Phase 1 | Pending |
+| INFR-05 | Phase 1 | Pending |
+| CHAR-01 | Phase 2 | Pending |
+| CHAR-02 | Phase 2 | Pending |
+| CHAR-03 | Phase 2 | Pending |
+| CHAR-04 | Phase 2 | Pending |
+| CHAR-05 | Phase 2 | Pending |
+| CHAR-06 | Phase 2 | Pending |
+| CHAR-07 | Phase 2 | Pending |
+| CHAR-08 | Phase 2 | Pending |
+| CHAR-09 | Phase 2 | Pending |
+| ASST-01 | Phase 2 | Pending |
+| ASST-02 | Phase 2 | Pending |
+| ASST-03 | Phase 2 | Pending |
+| ASST-04 | Phase 2 | Pending |
+| STORY-01 | Phase 3 | Pending |
+| STORY-02 | Phase 3 | Pending |
+| STORY-03 | Phase 3 | Pending |
+| STORY-04 | Phase 3 | Pending |
+| MUSC-01 | Phase 3 | Pending |
+| MUSC-02 | Phase 3 | Pending |
+| MUSC-03 | Phase 3 | Pending |
+| MUSC-04 | Phase 3 | Pending |
+| VOIC-01 | Phase 5 | Pending |
+| VOIC-02 | Phase 5 | Pending |
+| VOIC-03 | Phase 5 | Pending |
+| IMG-01 | Phase 4 | Pending |
+| IMG-02 | Phase 4 | Pending |
+| IMG-03 | Phase 4 | Pending |
+| IMG-04 | Phase 4 | Pending |
+| ANIM-01 | Phase 4 | Pending |
+| ANIM-02 | Phase 4 | Pending |
+| ANIM-03 | Phase 4 | Pending |
+| ANIM-04 | Phase 4 | Pending |
+| LIPS-01 | Phase 5 | Pending |
+| LIPS-02 | Phase 5 | Pending |
+| LIPS-03 | Phase 5 | Pending |
+| LIPS-04 | Phase 5 | Pending |
+| SUBS-01 | Phase 5 | Pending |
+| SUBS-02 | Phase 5 | Pending |
+| SUBS-03 | Phase 5 | Pending |
+| EDIT-01 | Phase 5 | Pending |
+| EDIT-02 | Phase 5 | Pending |
+| EDIT-03 | Phase 5 | Pending |
+| EDIT-04 | Phase 5 | Pending |
+| THMB-01 | Phase 5 | Pending |
+| THMB-02 | Phase 5 | Pending |
+| THMB-03 | Phase 5 | Pending |
+| MLNG-01 | Phase 6 | Pending |
+| MLNG-02 | Phase 6 | Pending |
+| MLNG-03 | Phase 6 | Pending |
+| BAT-01 | Phase 6 | Pending |
+| BAT-02 | Phase 6 | Pending |
+| BAT-03 | Phase 6 | Pending |
+| BAT-04 | Phase 6 | Pending |
+| BAT-05 | Phase 6 | Pending |
+| PUB-01 | Phase 6 | Pending |
+| PUB-02 | Phase 6 | Pending |
+| PUB-03 | Phase 6 | Pending |
+| PUB-04 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 60 total
-- Mapped to phases: 0
-- Unmapped: 60 ⚠️
+- v1 requirements: 63 total
+- Mapped to phases: 63
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-28*
