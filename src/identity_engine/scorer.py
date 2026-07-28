@@ -66,20 +66,16 @@ class IdentityScorer:
         self.plugins = plugins or self._default_plugins()
 
     def _default_plugins(self) -> list[ScoringPlugin]:
-        """Return the default set of scoring plugins with D-06 weights."""
-        # D-06 weights: DINOv2 40%, CLIP 20%, Color 10%, Part 10%,
-        # Pose 5%, Expression 5%, Style 10%
-        # For the tracer, we use MockScorerPlugin placeholders.
-        # Real plugins are wired in Plan 01-02 (Identity Engine).
-        return [
-            MockScorerPlugin(weight=0.40),
-            MockScorerPlugin(weight=0.20),
-            MockScorerPlugin(weight=0.10),
-            MockScorerPlugin(weight=0.10),
-            MockScorerPlugin(weight=0.05),
-            MockScorerPlugin(weight=0.05),
-            MockScorerPlugin(weight=0.10),
-        ]
+        """Return the default set of scoring plugins with D-06 weights.
+
+        D-06 weights: DINOv2 40%, CLIP 20%, Color 10%, Part 10%,
+        Pose 5%, Expression 5%, Style 10%.
+        Each plugin class carries its own weight default; we instantiate
+        from ALL_PLUGINS so future plugins auto-register.
+        """
+        from src.identity_engine.plugins import ALL_PLUGINS
+
+        return [cls() for cls in ALL_PLUGINS]
 
     def score_all(self, image: Image.Image, **kwargs) -> dict[str, float]:
         """Run all plugins and return a dict of {name: score}."""
