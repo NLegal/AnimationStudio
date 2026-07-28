@@ -21,6 +21,7 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "pydantic>=2.0.0",
     "timm>=1.0.0",
+    "python-multipart>=0.0.32",
 ]
 
 [project.optional-dependencies]
