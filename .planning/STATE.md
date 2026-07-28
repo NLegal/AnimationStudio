@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: character-universe
 status: executing
-stopped_at: Phase 1 Plan 1 complete (Foundation & Tracer)
-last_updated: "2026-07-28T20:30:00.000Z"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-07-28T22:50:00.216Z"
 last_activity: 2026-07-28
-last_activity_desc: Phase 01 Plan 01 complete — Foundation & Tracer
+last_activity_desc: Plan 01-01 (Foundation & Tracer) complete
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 4
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 ## Current Position
 
 Phase: 01 (character-universe) — EXECUTING
-Plan: 2 of 5 (01-01 complete)
-Status: Executing Phase 01
+Plan: 3 of 5 (01-01 complete)
+Status: Ready to execute
 Last activity: 2026-07-28 — Plan 01-01 (Foundation & Tracer) complete
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -54,6 +54,11 @@ Progress: [██░░░░░░░░] 20%
 - Trend: 47min
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P04 | 32min | - tasks | - files |
 
 ## Accumulated Context
 
@@ -71,6 +76,9 @@ Recent decisions affecting current work:
 - Plan 01-01: SQLite connection caching for :memory: support — each connect() creates a new in-memory DB, connections must be cached per instance
 - Plan 01-01: MockScorerPlugin for tracer verification enables end-to-end testing without ML models; real plugins arrive in Plan 01-02
 - Plan 01-01: Package install with --no-deps to avoid heavy ML deps (torch, diffusers) during initial scaffolding; full install at GPU setup time
+- [Phase ?]: Age variant wraps base prompt with descriptor (e.g. 'toddler version, smaller, rounder features') rather than replacing the template entirely
+- [Phase ?]: Rotation and lighting are dedicated template variants (not modifiers on base types) because they produce fundamentally different output formats
+- [Phase ?]: Application factory pattern (create_app) for Review UI enables testing without a live database
 
 ### Pending Todos
 
@@ -88,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-28T20:30:00.000Z
-Stopped at: Phase 1 Plan 1 complete (Foundation & Tracer)
-Resume file: .planning/phases/01-character-universe/01-CONTEXT.md
+Last session: 2026-07-28T22:49:59.981Z
+Stopped at: Completed 01-04-PLAN.md
+Resume file: None
