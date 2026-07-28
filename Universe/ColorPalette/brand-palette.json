@@ -1,0 +1,24 @@
+{
+  "palette_name": "Cocomelon-inspired Pastel",
+  "version": "1.0",
+  "primary": {
+    "blue": {"hex": "#4A90D9", "name": "Sky Blue", "usage": "Sky, water, Ben Bear"},
+    "yellow": {"hex": "#F5D442", "name": "Sunshine Yellow", "usage": "Sun, Charlie Fox, school bus"},
+    "pink": {"hex": "#F0A0C0", "name": "Bunny Pink", "usage": "Lily Bunny, flowers, hearts"},
+    "green": {"hex": "#7EC850", "name": "Grass Green", "usage": "Grass, trees, nature"},
+    "orange": {"hex": "#F5A623", "name": "Warm Orange", "usage": "Autumn, building accents"}
+  },
+  "pastel": {
+    "lavender": {"hex": "#C8A0D0", "usage": "Fantasy characters, magic"},
+    "mint": {"hex": "#A8E6CF", "usage": "Bathroom, swimming, some outfits"},
+    "peach": {"hex": "#FFDAB9", "usage": "Skin tones, warm accents"},
+    "baby_blue": {"hex": "#B5D8F7", "usage": "Sky gradients, pajamas"},
+    "cream": {"hex": "#FFF5E6", "usage": "Backgrounds, interiors"}
+  },
+  "rules": {
+    "avoid": ["#000000 (pure black)", "#FF0000 (pure red)", "neon colors", "dark desaturated colors"],
+    "background": "Always light pastel or gradient, never solid dark",
+    "text": "High contrast with background for accessibility",
+    "child_friendly": "Warm, bright, inviting tones — avoid cold or harsh colors"
+  }
+}
