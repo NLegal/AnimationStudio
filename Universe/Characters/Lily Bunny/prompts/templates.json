@@ -1,0 +1,24 @@
+{
+  "character": {
+    "name": "Lily Bunny",
+    "species": "Cute bunny rabbit",
+    "appearance": "soft white fur, large bright green eyes, small pink nose, long floppy ears with blue bow, round rosy cheeks, cute buck teeth, light pink paw pads",
+    "default_outfit": "light pink dress with white collar, blue bow on left ear",
+    "style": "Pixar-quality, Cocomelon-inspired, bright colorful nursery world, highly detailed, soft lighting, vibrant colors"
+  },
+  "templates": {
+    "reference": "{name}, {species}, {appearance}, wearing {outfit}, {angle} angle, standing, {style}",
+    "expression": "{name}, {species}, {appearance}, wearing {outfit}, {expression} expression, portrait shot, {style}",
+    "pose": "{name}, {species}, {appearance}, wearing {outfit}, {pose} pose, full body, {style}",
+    "outfit": "{name}, {species}, {appearance}, wearing {outfit_variant}, standing, front view, full body, {style}",
+    "rotation": "{name}, {species}, {appearance}, wearing {outfit}, {angle} view, {style}",
+    "age_variant": "{age_description} version of {name}, {species}, {appearance}, wearing {outfit}, {style}",
+    "lighting": "{name}, {species}, {appearance}, wearing {outfit}, {lighting} lighting, {style}"
+  },
+  "age_descriptors": {
+    "toddler": "toddler, smaller body, rounder features, oversized head, 2 years old",
+    "preschool": "preschool age, 4-5 years old",
+    "kindergarten": "kindergarten age, 5-6 years old, slightly taller"
+  },
+  "negative_prompt": "low quality, blurry, deformed, mutated, duplicate, extra arms, extra legs, extra fingers, missing fingers, cross eyed, cropped, watermark, text, logo, dark, scary, horror, realistic skin, adult, violence, blood, ugly, noise, anime, watercolor, 3D render, photorealistic, sketch, line art, black and white, grayscale, low contrast, oversaturated"
+}
