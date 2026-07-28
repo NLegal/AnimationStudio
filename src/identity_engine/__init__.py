@@ -1,4 +1,4 @@
-from .scorer import IdentityScorer, ScoringPlugin
+from .scorer import IdentityScorer, MockScorerPlugin, ScoringPlugin
 from .brand_score import BrandScore
 
-__all__ = ["IdentityScorer", "ScoringPlugin", "BrandScore"]
+__all__ = ["IdentityScorer", "MockScorerPlugin", "ScoringPlugin", "BrandScore"]

@@ -30,6 +30,14 @@ class GenerationOutput:
     metadata: dict = field(default_factory=dict)
 
 
+class ModelLoadError(Exception):
+    """Raised when a model fails to load (import, download, or OOM).
+
+    All backends catch this in generate() and return error metadata
+    instead of crashing the pipeline.
+    """
+
+
 class GenerationBackend(ABC):
     """Abstract base class for all generation backends."""
 
