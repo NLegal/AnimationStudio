@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if page == "dashboard" %}
+    Dashboard — Character Review Studio
+  {% elif page == "character" and character %}
+    {{ character.name }} — Character Review Studio
+  {% elif page == "review" and character %}
+    Review {{ character.name }} — Character Review Studio
+  {% else %}
+    Character Review Studio
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if page == "dashboard" %}
+  <!-- ============================================================ -->
+  <!--  DASHBOARD                                                   -->
+  <!-- ============================================================ -->
+  <h1>Character Dashboard</h1>
+
+  {% if characters %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Assets</th>
+          <th>Pending Review</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for char in characters %}
+        <tr>
+          <td><strong>{{ char.name }}</strong></td>
+          <td>{{ char.category }}</td>
+          <td>{{ char.get("asset_count", "—") }}</td>
+          <td>
+            <span class="badge badge-pending">{{ char.get("pending_count", 0) }}</span>
+          </td>
+          <td>
+            <a href="/character/{{ char.id }}" class="btn btn-sm">View</a>
+            <a href="/review/{{ char.id }}?asset_type=expression" class="btn btn-sm btn-primary">Review</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No characters yet.  Generate your first character to get started.</p>
+  {% endif %}
+
+{% elif page == "character" and character %}
+  <!-- ============================================================ -->
+  <!--  CHARACTER DETAIL                                            -->
+  <!-- ============================================================ -->
+  <h1>{{ character.name }}</h1>
+  <p class="character-meta">
+    <strong>Species:</strong> {{ character.species | default("—") }} &bull;
+    <strong>Category:</strong> {{ character.category | default("—") }}
+  </p>
+
+  {% if character.bio_data %}
+    <section class="bio-section">
+      <h2>Bio</h2>
+      <ul>
+        {% for key, value in character.bio_data.items() %}
+          <li><strong>{{ key | replace("_", " ") | title }}:</strong>
+            {% if value is iterable and value is not string %}
+              {{ value | join(", ") }}
+            {% else %}
+              {{ value }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% set asset_types = ["reference", "expression", "pose", "outfit"] %}
+  {% for atype in asset_types %}
+    {% set assets = assets_by_type.get(atype, []) %}
+    <section class="asset-section">
+      <h2>{{ atype | title }}s</h2>
+      {% if assets %}
+        <div class="asset-grid">
+          {% for asset in assets %}
+            <div class="asset-card">
+              <span class="asset-state {{ asset.state }}">{{ asset.state }}</span>
+              <p class="asset-prompt">{{ asset.prompt | truncate(60) }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty-state">No {{ atype }} assets yet.</p>
+      {% endif %}
+      <a href="/review/{{ character.id }}?asset_type={{ atype }}" class="btn btn-sm btn-primary">
+        Review {{ atype }}s
+      </a>
+    </section>
+  {% endfor %}
+
+{% elif page == "review" and character %}
+  <!-- ============================================================ -->
+  <!--  REVIEW PAGE  (side-by-side comparison)                     -->
+  <!-- ============================================================ -->
+  <div class="review-header">
+    <h1>Review: {{ character.name }} &mdash; {{ asset_type | title }}s</h1>
+    <div class="review-controls">
+      <a href="/character/{{ character.id }}" class="btn btn-sm">Back to Character</a>
+      {% if not batch_mode %}
+        <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true" class="btn btn-sm btn-secondary">
+          Batch Compare (4-up)
+        </a>
+      {% else %}
+        <a href="/review/{{ character.id }}?asset_type={{ asset_type }}" class="btn btn-sm btn-secondary">
+          Single View
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if batch_mode %}
+    <!-- ============================================================ -->
+    <!--  BATCH COMPARE MODE  (2x2 grid)                             -->
+    <!-- ============================================================ -->
+    <div class="batch-grid">
+      {% for card in candidates[:4] %}
+        <div class="batch-card">
+          <div class="candidate-image placeholder-img">
+            <span class="placeholder-text">[{{ card.asset.get("id", "candidate") }}]</span>
+          </div>
+          <div class="score-summary">
+            <span class="brand-score">{{ "%.2f" | format(card.scores.total) }}</span>
+            <span class="drift-badge {% if card.visual_drift < 0.5 %}drift-high{% elif card.visual_drift < 0.7 %}drift-medium{% else %}drift-low{% endif %}">
+              Drift: {{ "%.2f" | format(card.visual_drift) }}
+            </span>
+          </div>
+          <div class="action-row">
+            <form action="/approve/{{ card.asset.id }}" method="post" style="display:inline">
+              <button type="submit" class="btn btn-approve btn-sm">✓ Approve</button>
+            </form>
+            <form action="/reject/{{ card.asset.id }}" method="post" style="display:inline">
+              <button type="submit" class="btn btn-reject btn-sm">✗ Reject</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+  {% else %}
+    <!-- ============================================================ -->
+    <!--  SINGLE REVIEW  (two-column: reference | candidate)         -->
+    <!-- ============================================================ -->
+    <div class="review-two-column">
+      <!-- LEFT: Reference -->
+      <div class="reference-panel">
+        <h2>Reference</h2>
+        {% if approved %}
+          <div class="reference-image placeholder-img">
+            <span class="placeholder-text">[Approved {{ asset_type }}]</span>
+          </div>
+          <p class="reference-label">{{ approved[0].get("prompt", "") | truncate(80) }}</p>
+        {% else %}
+          <div class="reference-image placeholder-img placeholder-empty">
+            <span class="placeholder-text">No approved reference</span>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- RIGHT: Candidate -->
+      <div class="candidate-panel">
+        <h2>Candidates ({{ candidates | length }})</h2>
+
+        {% for card in candidates %}
+          <div class="candidate-card">
+            <div class="candidate-image placeholder-img">
+              <span class="placeholder-text">[{{ card.asset.get("id", "candidate") }}]</span>
+            </div>
+
+            <!-- Score breakdown -->
+            <div class="score-panel">
+              <div class="brand-score-row">
+                <span class="brand-score-label">Brand Score</span>
+                <span class="brand-score-value {% if card.scores.total >= 0.7 %}score-good{% elif card.scores.total >= 0.5 %}score-ok{% else %}score-bad{% endif %}">
+                  {{ "%.0f" | format(card.scores.total * 100) }}/100
+                </span>
+              </div>
+
+              <!-- Visual drift warning -->
+              {% if card.visual_drift < 0.7 %}
+                <div class="drift-warning {% if card.visual_drift < 0.5 %}drift-critical{% else %}drift-caution{% endif %}">
+                  ⚠ Visual drift detected (DINOv2 similarity: {{ "%.2f" | format(card.visual_drift) }})
+                </div>
+              {% endif %}
+
+              <!-- Sub-score bars -->
+              <div class="sub-scores">
+                {% for key, comp in card.scores.components.items() %}
+                  <div class="score-bar-row">
+                    <span class="score-bar-label">{{ key | replace("_", " ") | title }}</span>
+                    <div class="score-bar-track">
+                      <div class="score-bar-fill" style="width: {{ comp.raw * 100 }}%"></div>
+                    </div>
+                    <span class="score-bar-value">{{ "%.0f" | format(comp.raw * 100) }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <!-- Generation metadata -->
+            <details class="metadata-panel">
+              <summary>Generation Metadata</summary>
+              <dl>
+                <dt>Seed</dt><dd><code>{{ card.seed }}</code></dd>
+                <dt>Model</dt><dd>{{ card.model }}</dd>
+                <dt>Prompt</dt><dd><code>{{ card.prompt | truncate(120) }}</code></dd>
+              </dl>
+            </details>
+
+            <!-- Action buttons -->
+            <div class="action-bar">
+              <form action="/approve/{{ card.asset.id }}" method="post" style="display:inline">
+                <button type="submit" class="btn btn-approve">✓ Approve</button>
+              </form>
+              <form action="/promote/{{ card.asset.id }}" method="post" style="display:inline">
+                <button type="submit" class="btn btn-promote">▲ Approve &amp; Promote</button>
+              </form>
+              <form action="/reject/{{ card.asset.id }}" method="post" style="display:inline">
+                <input type="text" name="reason" placeholder="Reason (optional)" class="reason-input">
+                <button type="submit" class="btn btn-reject">✗ Reject</button>
+              </form>
+              <form action="/regenerate/{{ card.asset.id }}" method="post" style="display:inline">
+                <button type="submit" class="btn btn-regenerate">⟳ Regenerate Similar</button>
+              </form>
+            </div>
+          </div>
+        {% else %}
+          <p class="empty-state">No candidates awaiting review for {{ asset_type }}.</p>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+{% endif %}
+
+{% endblock %}

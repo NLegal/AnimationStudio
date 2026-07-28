@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Character Review Studio{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="navbar">
+        <div class="navbar-brand">
+            <a href="/">🎬 Character Review Studio</a>
+        </div>
+        <nav class="navbar-links">
+            <a href="/">Dashboard</a>
+            <span class="nav-separator">|</span>
+            <span class="nav-dropdown-label">Characters ▼</span>
+        </nav>
+    </header>
+
+    <!-- Main content -->
+    <main class="content">
+        {% block content %}
+        <p>Content area — extend this template.</p>
+        {% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>Character Review Studio &mdash; Phase 1 &bull; Internal Tool</p>
+    </footer>
+</body>
+</html>

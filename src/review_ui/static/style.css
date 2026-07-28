@@ -1,0 +1,608 @@
+/* ==================================================================
+   Character Review Studio — Phase 1 Stylesheet
+   Pastel primary colour scheme (pink, blue, yellow, green, orange).
+   No external CSS dependencies — pure vanilla CSS.
+   ================================================================== */
+
+/* -------------------------------------------------------------------
+   CSS Variables (pastel palette)
+   ------------------------------------------------------------------- */
+:root {
+    --pink: #f8c8d8;
+    --pink-dark: #e89ab0;
+    --blue: #b8d4f0;
+    --blue-dark: #8ab8e8;
+    --yellow: #f8e8a0;
+    --yellow-dark: #f0d878;
+    --green: #b8e8b8;
+    --green-dark: #80d080;
+    --orange: #f8d0a0;
+    --orange-dark: #f0b878;
+
+    --text-primary: #3a3a3a;
+    --text-secondary: #666;
+    --text-muted: #999;
+    --bg-body: #faf8f5;
+    --bg-card: #ffffff;
+    --bg-nav: #f0ece8;
+    --border: #e0ddd8;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* -------------------------------------------------------------------
+   Base / Reset
+   ------------------------------------------------------------------- */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--bg-body);
+}
+
+a {
+    color: var(--blue-dark);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+h1, h2, h3 {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+h1 { font-size: 1.5rem; margin: 0 0 0.5rem; }
+h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
+
+/* -------------------------------------------------------------------
+   Navigation
+   ------------------------------------------------------------------- */
+.navbar {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    background: var(--bg-nav);
+    border-bottom: 1px solid var(--border);
+}
+
+.navbar-brand a {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.navbar-links {
+    margin-left: 2rem;
+    font-size: 0.9rem;
+}
+
+.nav-separator {
+    margin: 0 0.5rem;
+    color: var(--text-muted);
+}
+
+.nav-dropdown-label {
+    color: var(--text-secondary);
+    cursor: default;
+}
+
+/* -------------------------------------------------------------------
+   Content area
+   ------------------------------------------------------------------- */
+.content {
+    max-width: 1200px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+}
+
+/* -------------------------------------------------------------------
+   Footer
+   ------------------------------------------------------------------- */
+.footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    padding: 2rem 1rem;
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+}
+
+/* -------------------------------------------------------------------
+   Dashboard table
+   ------------------------------------------------------------------- */
+.dashboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+
+.dashboard-table th,
+.dashboard-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.dashboard-table th {
+    background: var(--bg-nav);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.dashboard-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* -------------------------------------------------------------------
+   Badges
+   ------------------------------------------------------------------- */
+.badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.badge-pending {
+    background: var(--yellow);
+    color: #8a7a30;
+}
+
+/* -------------------------------------------------------------------
+   Buttons
+   ------------------------------------------------------------------- */
+.btn {
+    display: inline-block;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+
+.btn:hover {
+    background: var(--bg-nav);
+    box-shadow: var(--shadow-hover);
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.btn-primary {
+    background: var(--blue);
+    border-color: var(--blue-dark);
+    color: #3a5a7a;
+}
+
+.btn-secondary {
+    background: var(--bg-nav);
+}
+
+.btn-approve {
+    background: var(--green);
+    border-color: var(--green-dark);
+    color: #3a6a3a;
+}
+
+.btn-reject {
+    background: var(--pink);
+    border-color: var(--pink-dark);
+    color: #7a4a4a;
+}
+
+.btn-promote {
+    background: var(--orange);
+    border-color: var(--orange-dark);
+    color: #7a6a3a;
+}
+
+.btn-regenerate {
+    background: var(--yellow);
+    border-color: var(--yellow-dark);
+    color: #7a6a30;
+}
+
+/* -------------------------------------------------------------------
+   Character detail
+   ------------------------------------------------------------------- */
+.character-meta {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+
+.bio-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow);
+}
+
+.bio-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.bio-section li {
+    padding: 0.25rem 0;
+    font-size: 0.9rem;
+}
+
+.asset-section {
+    margin-bottom: 1.5rem;
+}
+
+.asset-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.asset-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    box-shadow: var(--shadow);
+    font-size: 0.85rem;
+}
+
+.asset-state {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: var(--bg-nav);
+    color: var(--text-secondary);
+}
+
+.asset-state.approved,
+.asset-state.production {
+    background: var(--green);
+    color: #3a6a3a;
+}
+
+.asset-state.scored {
+    background: var(--blue);
+    color: #3a5a7a;
+}
+
+.asset-state.draft {
+    background: var(--yellow);
+    color: #7a6a30;
+}
+
+.asset-prompt {
+    margin: 0.25rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+/* -------------------------------------------------------------------
+   Review page — two-column layout
+   ------------------------------------------------------------------- */
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.review-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.review-two-column {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.reference-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 1rem;
+}
+
+.candidate-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* -------------------------------------------------------------------
+   Candidate card
+   ------------------------------------------------------------------- */
+.candidate-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: var(--shadow);
+}
+
+.placeholder-img {
+    width: 100%;
+    min-height: 200px;
+    background: linear-gradient(135deg, var(--yellow) 0%, var(--pink) 100%);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+.placeholder-text {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.placeholder-empty {
+    background: var(--bg-nav);
+    min-height: 100px;
+}
+
+/* -------------------------------------------------------------------
+   Score panel
+   ------------------------------------------------------------------- */
+.score-panel {
+    margin-bottom: 0.75rem;
+}
+
+.brand-score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 0.5rem;
+}
+
+.brand-score-label {
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.brand-score-value {
+    font-weight: 700;
+    font-size: 1.3rem;
+}
+
+.score-good { color: var(--green-dark); }
+.score-ok { color: var(--orange-dark); }
+.score-bad { color: var(--pink-dark); }
+
+/* Score bars */
+.sub-scores {
+    margin: 0.5rem 0;
+}
+
+.score-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.3rem 0;
+}
+
+.score-bar-label {
+    width: 120px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.score-bar-track {
+    flex: 1;
+    height: 10px;
+    background: var(--bg-nav);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.score-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--blue) 0%, var(--blue-dark) 100%);
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+.score-bar-value {
+    width: 30px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+/* -------------------------------------------------------------------
+   Visual drift warning
+   ------------------------------------------------------------------- */
+.drift-warning {
+    padding: 0.5rem;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.drift-critical {
+    background: #fce8e8;
+    border: 1px solid #e8b8b8;
+    color: #8a4040;
+}
+
+.drift-caution {
+    background: #fcf0d8;
+    border: 1px solid #e8d8a0;
+    color: #8a7040;
+}
+
+.drift-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.drift-high { background: #fce8e8; color: #8a4040; }
+.drift-medium { background: #fcf0d8; color: #8a7040; }
+.drift-low { background: #e8f0e8; color: #4a7a4a; }
+
+/* -------------------------------------------------------------------
+   Metadata panel
+   ------------------------------------------------------------------- */
+.metadata-panel {
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.metadata-panel summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding: 0.25rem 0;
+}
+
+.metadata-panel dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 0.75rem;
+    margin: 0.5rem 0 0;
+    padding: 0.5rem;
+    background: var(--bg-nav);
+    border-radius: var(--radius);
+}
+
+.metadata-panel dt {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.metadata-panel dd {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.metadata-panel code {
+    font-size: 0.8rem;
+    background: #f0ece8;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+}
+
+/* -------------------------------------------------------------------
+   Action bar
+   ------------------------------------------------------------------- */
+.action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+}
+
+.reason-input {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+    width: 140px;
+}
+
+/* -------------------------------------------------------------------
+   Batch compare mode (2x2 grid)
+   ------------------------------------------------------------------- */
+.batch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.batch-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    box-shadow: var(--shadow);
+}
+
+.score-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.action-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* -------------------------------------------------------------------
+   Empty states
+   ------------------------------------------------------------------- */
+.empty-state {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 1rem;
+    background: var(--bg-card);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+/* -------------------------------------------------------------------
+   Responsive adjustments
+   ------------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .review-two-column {
+        grid-template-columns: 1fr;
+    }
+
+    .reference-panel {
+        position: static;
+    }
+
+    .batch-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .score-bar-label {
+        width: 80px;
+    }
+}
