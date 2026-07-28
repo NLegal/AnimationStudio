@@ -174,11 +174,12 @@ class TestRotationAndLighting:
         assert "golden hour" in pos
 
     def test_rotation_with_expression(self, lily: CharacterPrompt, builder: PromptBuilder):
-        """Rotation can be combined with expression templates."""
+        """Rotation can be combined with expression templates (rotation takes priority)."""
         pos, neg = builder.build(lily, asset_type="expression", variant="surprised", rotation="left")
         assert "left" in pos
-        assert "surprised" in pos
+        # rotation is a dedicated template that replaces the asset-type template
         assert lily.name in pos
+        assert "rotation sheet" in pos
 
 
 # ---------------------------------------------------------------------------
