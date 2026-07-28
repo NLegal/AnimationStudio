@@ -2,12 +2,14 @@
 
 ## Overview
 
-An AI-powered animation production pipeline that generates unlimited, high-quality Cocomelon-style nursery rhyme videos with consistent characters, reusable assets, and automated workflows. The roadmap builds the studio from the ground up: first the pipeline architecture foundation, then the persistent character and asset system (the core differentiator), followed by story/music content generation, visual production, audio-visual assembly, and finally operations at scale with batch production, multi-language, and multi-platform publishing.
+An AI-powered animation production pipeline that generates unlimited, high-quality Cocomelon-style nursery rhyme videos with consistent characters, reusable assets, and automated workflows. The roadmap builds the studio from the ground up: first the character system infrastructure (the factory), then character asset production, world assets, content generation and visual production, followed by pipeline infrastructure and operations at scale with batch production, multi-language, and multi-platform publishing.
 
 ## Phases
 
-- [ ] **Phase 1: Pipeline Infrastructure & Architecture Foundation** - Staged DAG pipeline with typed contracts, asset versioning, model routing, and checkpointing
-- [ ] **Phase 2: Character & Asset System** - Persistent character database with LoRA training, reference sheets, expression/pose/outfit libraries, and reusable world assets
+- [ ] **Phase 1: Character System Infrastructure & Bible Foundation** - The factory that creates characters: database, schema, prompt engine, provider abstraction, job system, asset versioning, CLI, API, documentation templates (5 plans)
+- [ ] **Phase 1b: Character Asset Production** - First production run using the factory: Lily Bunny reference sheets, expressions, poses, outfits (provider-agnostic cloud image generation)
+- [ ] **Phase 1c: Character Training System** - LoRA training infrastructure and first training runs for all characters
+- [ ] **Phase 2: World Building & Environment Bible** - Reusable world locations, environments, lighting variants, weather, maps, and location library
 - [ ] **Phase 3: Story & Music Pipeline** - LLM-powered story and lyric generation, AI music production with beat-timed scene planning
 - [ ] **Phase 4: Visual Generation Pipeline** - Character-consistent image generation followed by image-to-video animation with quality gates
 - [ ] **Phase 5: Audio-Visual Assembly & Export** - Lip-sync, TTS voices, karaoke subtitles, video editing/assembly, and thumbnail generation
@@ -15,28 +17,61 @@ An AI-powered animation production pipeline that generates unlimited, high-quali
 
 ## Phase Details
 
-### Phase 1: Pipeline Infrastructure & Architecture Foundation
-**Goal**: A modular, staged DAG pipeline exists with typed contracts, asset versioning, model routing, and checkpoint/resume capability — the architectural backbone that every downstream stage plugs into.
+### Phase 1: Character System Infrastructure & Bible Foundation
+**Goal**: Build the factory that creates characters — character database, API, prompt engine, provider-agnostic generation abstraction, job system, asset versioning, CLI tools, and complete documentation templates. No character images generated in this phase; the infrastructure is designed to produce unlimited characters starting in Phase 1b.
 **Depends on**: Nothing (first phase)
-**Requirements**: INFR-01, INFR-02, INFR-03, INFR-04, INFR-05
+**Requirements**: CHAR-01, CHAR-06, CHAR-08, CHAR-09
 **Success Criteria** (what must be TRUE):
-  1. A pipeline stage can be defined with typed input/output contracts (Pydantic models) and registered in the orchestrator
-  2. A DAG of stages executes end-to-end with data flowing correctly through typed contracts between stages
-  3. If any stage fails, the pipeline resumes from the failed stage — not from the start — with full state recovery
-  4. Assets can be stored with 4-property versioning (identity, non-destructive iteration, current version, rollback) and rollback works correctly
-  5. The model routing layer can switch between compatible AI models with circuit breaker failover when a model call fails
+  1. Character database (SQLite) with structured schema for identity, appearance, personality, clothing, expressions, poses, relationships, voice, and animation rules
+  2. Provider-agnostic image generation abstraction layer with 5 adapters (Flux, SDXL, Pony, CloudAPI, ComfyUI), adapter architecture, and graceful no-GPU degradation
+  3. Generation jobs system with JobQueue, orchestrator, and typed output contracts for reference sheets, expressions, poses, outfits, accessories, and LoRA datasets
+  4. Asset versioning with non-destructive iteration, identity tracking, rollback support, and lifecycle state machine (draft → generated → scored → shortlisted → approved → production → archived)
+  5. Prompt engine with reusable templates, negative prompt standards, and age variant support
+  6. Identity scoring engine with 7-layer plugin architecture (DINOv2, CLIP, Color, Part, Pose, Expression, Style) and Brand Score weighted composite
+  7. CLI tools for character creation (`nursery character create`, `nursery character generate`)
+  8. REST API for character management, asset generation, and asset retrieval
+  9. Character Bible template, style guide, color palette documentation, and asset naming convention
+**Plans**: 5 plans
+
+Plans:
+- [x] 01-01-PLAN.md — Foundation & Tracer: project setup, data models, asset repository (SQLite), generation engine ABC, identity scoring, prompt builder, end-to-end tracer, test infrastructure
+- [ ] 01-02-PLAN.md — Identity Engine: 7 scoring plugins (DINOv2 40%, CLIP 20%, Color 10%, Part 10%, Pose 5%, Expression 5%, Style 10%), Brand Score, diversity filter, tests
+- [ ] 01-03-PLAN.md — Generation Engine & Pipeline: 5 concrete backends (Flux, SDXL, Pony, CloudAPI, ComfyUI), JobQueue, GenerationJob orchestrator, tests
+- [ ] 01-04-PLAN.md — Prompt Builder Expansion, Training Engine (Kohya SS adapter), Human Review UI (FastAPI + Jinja2), tests
+- [ ] 01-05-PLAN.md — Lily Bunny Character Creation: complete bio.md, prompt templates, style guide, brand color palette, negative prompt standards, Universe Library structure
+
+### Phase 1b: Character Asset Production
+**Goal**: Activate the character factory to produce Lily Bunny's complete asset library — reference sheets, expressions, poses, outfits. Provider-agnostic: runs on whatever image generation provider is configured (fal.ai, Replicate, BFL API, local SDXL).
+**Depends on**: Phase 1
+**Requirements**: CHAR-02, CHAR-03, CHAR-04, CHAR-05
+**Success Criteria** (what must be TRUE):
+  1. Lily Bunny multi-angle reference sheets (front, 3/4, profile, back) are generated and stored in the Universe Library
+  2. Lily Bunny expression library (22 expressions) exists with generated images per the PHASE1.md expression list
+  3. Lily Bunny pose library (20 poses) exists with generated images per the PHASE1.md pose list
+  4. Lily Bunny outfit/wardrobe variants (12+ outfits) exist with generated images
+  5. All produced assets pass identity scoring (DINOv2 consistency >= 90%) and human review before entering the permanent library
 **Plans**: TBD
 
-### Phase 2: Character & Asset System
-**Goal**: Characters and reusable world assets are created, stored, trained, and universally referenceable — the studio's foundational IP library that compounds in value over every episode.
+### Phase 1c: Character Training System
+**Goal**: LoRA training infrastructure, dataset building pipeline, and production LoRA training for all characters. Requires GPU access (local CUDA or cloud training provider).
 **Depends on**: Phase 1
-**Requirements**: CHAR-01, CHAR-02, CHAR-03, CHAR-04, CHAR-05, CHAR-06, CHAR-07, CHAR-08, CHAR-09, ASST-01, ASST-02, ASST-03, ASST-04
+**Requirements**: CHAR-07
 **Success Criteria** (what must be TRUE):
-  1. Character identity records exist with structured fields (name, description, personality, relationships, catchphrases, emotion matrix, age progression variants)
-  2. Multi-angle reference sheets (front, 3/4, profile, back) are generated for any character in the database
-  3. Expression libraries (12+ expressions including singing mouth shapes), pose libraries, and outfit/wardrobe variants can be created and browsed per character
-  4. A character LoRA can be trained (with pose/lighting diversity enforced) and applied via reusable prompt templates to generate consistent character images
-  5. Background locations (5+ environments, each with multiple lighting variants) and props are stored, tagged, searched, and versioned in the asset library
+  1. LoRA dataset builder pipeline extracts curated images from approved character assets
+  2. Production LoRA v1.0 is trained for Lily Bunny (20-40 curated reference images)
+  3. LoRA versioning system matches software release conventions (v0.1 → v1.0 → v2.0)
+  4. LoRA quality benchmark compares generated images against identity scorer baseline
+**Plans**: TBD
+
+### Phase 2: World Building & Environment Bible
+**Goal**: Reusable world with named locations, environments with seasonal/time-of-day/weather variants, props library, vehicle library, and camera reference library.
+**Depends on**: Phase 1
+**Requirements**: ASST-01, ASST-02, ASST-03, ASST-04
+**Success Criteria** (what must be TRUE):
+  1. A named world map with 8+ zones (Residential, Downtown, Education, Recreation, Nature, Farm, Beach, Fantasy) exists with named locations
+  2. 30-50 permanent environments with exterior/interior, seasonal variants (4 seasons), time-of-day variants (morning, noon, golden hour, night), and weather variants (sunny, cloudy, rain, snow)
+  3. Modular prop library (indoor, outdoor, transportation, holiday), vehicle library, and camera-angle reference library are stored in the asset catalog
+  4. Environment prompt templates and negative prompt standards are documented and reusable
 **Plans**: TBD
 
 ### Phase 3: Story & Music Pipeline
@@ -88,12 +123,14 @@ An AI-powered animation production pipeline that generates unlimited, high-quali
 
 ## Progress
 
-**Execution Order:** Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+**Execution Order:** Phases execute in numeric order: 1 → 1b → 1c → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Pipeline Infrastructure & Architecture Foundation | 0/0 | Not started | - |
-| 2. Character & Asset System | 0/0 | Not started | - |
+| 1. Character System Infrastructure & Bible Foundation | 1/5 | In progress | 2026-07-28 |
+| 1b. Character Asset Production | 0/0 | Not started | - |
+| 1c. Character Training System | 0/0 | Not started | - |
+| 2. World Building & Environment Bible | 0/0 | Not started | - |
 | 3. Story & Music Pipeline | 0/0 | Not started | - |
 | 4. Visual Generation Pipeline | 0/0 | Not started | - |
 | 5. Audio-Visual Assembly & Export | 0/0 | Not started | - |

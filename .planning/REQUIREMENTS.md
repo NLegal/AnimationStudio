@@ -15,14 +15,14 @@
 
 ### Character System
 
-- [ ] **CHAR-01**: Persistent Character Database — structured identity records for every character
+- [x] **CHAR-01**: Persistent Character Database — structured identity records for every character
 - [ ] **CHAR-02**: Character reference sheet generation (front, 3/4, profile, back angles)
 - [ ] **CHAR-03**: Expression library for each character (happy, sad, surprised, singing, sleepy, etc.)
 - [ ] **CHAR-04**: Pose library for each character (standing, running, jumping, sitting, dancing, etc.)
 - [ ] **CHAR-05**: Outfit/wardrobe variants per character (default, winter, rain, pajamas, holiday, etc.)
-- [ ] **CHAR-06**: Character personality profiles, relationships, catchphrases, and emotion matrix
+- [x] **CHAR-06**: Character personality profiles, relationships, catchphrases, and emotion matrix
 - [ ] **CHAR-07**: LoRA training pipeline for character consistency (ComfyUI-FluxTrainer or SDXL-based)
-- [ ] **CHAR-08**: Reusable prompt templates and negative prompt standards per character
+- [x] **CHAR-08**: Reusable prompt templates and negative prompt standards per character
 - [ ] **CHAR-09**: Age progression variants for characters (toddler, preschool, kindergarten)
 
 ### World & Asset Library
@@ -158,20 +158,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFR-01 | Phase 1 | Pending |
-| INFR-02 | Phase 1 | Pending |
-| INFR-03 | Phase 1 | Pending |
-| INFR-04 | Phase 1 | Pending |
-| INFR-05 | Phase 1 | Pending |
-| CHAR-01 | Phase 2 | Pending |
-| CHAR-02 | Phase 2 | Pending |
-| CHAR-03 | Phase 2 | Pending |
-| CHAR-04 | Phase 2 | Pending |
-| CHAR-05 | Phase 2 | Pending |
-| CHAR-06 | Phase 2 | Pending |
-| CHAR-07 | Phase 2 | Pending |
-| CHAR-08 | Phase 2 | Pending |
-| CHAR-09 | Phase 2 | Pending |
+| INFR-01 | Deferred | — |
+| INFR-02 | Deferred | — |
+| INFR-03 | Deferred | — |
+| INFR-04 | Deferred | — |
+| INFR-05 | Deferred | — |
+| CHAR-01 | Phase 1 | Complete |
+| CHAR-02 | Phase 1b | Pending |
+| CHAR-03 | Phase 1b | Pending |
+| CHAR-04 | Phase 1b | Pending |
+| CHAR-05 | Phase 1b | Pending |
+| CHAR-06 | Phase 1 | Complete |
+| CHAR-07 | Phase 1c | Pending |
+| CHAR-08 | Phase 1 | Complete |
+| CHAR-09 | Phase 1 | Planning |
 | ASST-01 | Phase 2 | Pending |
 | ASST-02 | Phase 2 | Pending |
 | ASST-03 | Phase 2 | Pending |
@@ -225,6 +225,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 **Coverage:**
 - v1 requirements: 63 total
 - Mapped to phases: 63
+- Complete: 3 (CHAR-01, CHAR-06, CHAR-08)
 - Unmapped: 0 ✓
 
 ---
