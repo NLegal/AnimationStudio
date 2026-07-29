@@ -34,7 +34,7 @@ An AI-powered animation production pipeline that generates unlimited, high-quali
   8. REST API for character management, asset generation, and asset retrieval
   9. Character Bible template, style guide, color palette documentation, and asset naming convention
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 
 Plans:
 
@@ -42,7 +42,7 @@ Plans:
 - [x] 01-02-PLAN.md — Identity Engine: 7 scoring plugins (DINOv2 40%, CLIP 20%, Color 10%, Part 10%, Pose 5%, Expression 5%, Style 10%), Brand Score, diversity filter, tests
 - [x] 01-03-PLAN.md — Generation Engine & Pipeline: 5 concrete backends (Flux, SDXL, Pony, CloudAPI, ComfyUI), JobQueue, GenerationJob orchestrator, tests
 - [x] 01-04-PLAN.md — Prompt Builder Expansion, Training Engine (Kohya SS adapter), Human Review UI (FastAPI + Jinja2), tests
-- [ ] 01-05-PLAN.md — Lily Bunny Character Creation: complete bio.md, prompt templates, style guide, brand color palette, negative prompt standards, Universe Library structure
+- [x] 01-05-PLAN.md — Lily Bunny Character Creation: complete bio.md, prompt templates, style guide, brand color palette, negative prompt standards, Universe Library structure
 
 ### Phase 1b: Character Asset Production
 
@@ -52,12 +52,20 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. Lily Bunny multi-angle reference sheets (front, 3/4, profile, back) are generated and stored in the Universe Library
-  2. Lily Bunny expression library (22 expressions) exists with generated images per the PHASE1.md expression list
-  3. Lily Bunny pose library (20 poses) exists with generated images per the PHASE1.md pose list
+  2. Lily Bunny expression library (24+ expressions) exists with generated images per the merged PHASE1.md + code expression list
+  3. Lily Bunny pose library (20+ poses) exists with generated images per the merged PHASE1.md + code pose list
   4. Lily Bunny outfit/wardrobe variants (12+ outfits) exist with generated images
   5. All produced assets pass identity scoring (DINOv2 consistency >= 90%) and human review before entering the permanent library
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+
+- [ ] 01b-01-PLAN.md — Pipeline Enhancements Tracer: update expression/pose lists, add lineage to AssetModel, fix ColorVerificationPlugin palette loading
+- [ ] 01b-02-PLAN.md — Review UI Wiring + Configurable Grids: wire action handlers, add 3x3/4x4 batch grids
+- [ ] 01b-03-PLAN.md — ComfyUI Workflow Templates: Flux API-format workflow JSONs, type-specific template loading
+- [ ] 01b-04-PLAN.md — Production Run: Identity Lock + Face Lock (reference sheets + expressions)
+- [ ] 01b-05-PLAN.md — Production Run: Body Lock + Wardrobe Expansion (poses + outfits)
 
 ### Phase 1c: Character Training System
 
@@ -152,8 +160,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Character System Infrastructure & Bible Foundation | 4/5 | In Progress|  |
-| 1b. Character Asset Production | 0/0 | Not started | - |
+| 1. Character System Infrastructure & Bible Foundation | 5/5 | Complete | 2026-07-28 |
+| 1b. Character Asset Production | 0/5 | Planning | - |
 | 1c. Character Training System | 0/0 | Not started | - |
 | 2. World Building & Environment Bible | 0/0 | Not started | - |
 | 3. Story & Music Pipeline | 0/0 | Not started | - |
