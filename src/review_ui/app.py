@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import jinja2
 from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,7 +28,14 @@ _HERE = Path(__file__).parent
 _TEMPLATES = _HERE / "templates"
 _STATIC = _HERE / "static"
 
-templates = Jinja2Templates(directory=str(_TEMPLATES))
+# Disable Jinja2 template cache (cache_size=0) to avoid unhashable key
+# errors with starlette's Jinja2Templates wrapper and newer jinja2 releases.
+_env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(str(_TEMPLATES)),
+    autoescape=jinja2.select_autoescape(),
+    cache_size=0,
+)
+templates = Jinja2Templates(env=_env)
 
 
 # ---------------------------------------------------------------------------
@@ -104,9 +112,9 @@ def create_app(
         """Dashboard listing all characters with generation status."""
         characters = repo.list_characters()
         return templates.TemplateResponse(
+            request,
             "review.html",
             {
-                "request": request,
                 "page": "dashboard",
                 "characters": characters,
                 "candidates": [],
@@ -127,9 +135,9 @@ def create_app(
             by_type.setdefault(a.get("asset_type", "unknown"), []).append(a)
 
         return templates.TemplateResponse(
+            request,
             "review.html",
             {
-                "request": request,
                 "page": "character",
                 "character": character,
                 "assets_by_type": by_type,
@@ -142,6 +150,7 @@ def create_app(
         request: Request,
         asset_type: str = Query("expression"),
         batch: bool = Query(False),
+        grid: str = Query("2x2"),
     ):
         """Side-by-side review page for a character's candidate assets."""
         character = repo.get_character(character_id)
@@ -156,6 +165,12 @@ def create_app(
             a for a in repo.find_assets(character_id, asset_type)
             if a.get("state") in ("scored", "generated", "shortlisted")
         ]
+
+        # Parse grid dimensions (D-16 configurable batch grids)
+        grid_config = {"2x2": (2, 2, 4), "3x3": (3, 3, 9), "4x4": (4, 4, 16)}
+        if grid not in grid_config:
+            grid = "2x2"  # Normalise unrecognised grids to default
+        grid_cols, grid_rows, grid_capacity = grid_config[grid]
 
         # Dummy score example for template rendering
         sample_scores = {
@@ -186,16 +201,23 @@ def create_app(
             }
             candidate_cards.append(card)
 
+        # Limit to grid capacity in batch mode
+        candidates_for_template = candidate_cards[:grid_capacity] if batch else candidate_cards
+
         return templates.TemplateResponse(
+            request,
             "review.html",
             {
-                "request": request,
                 "page": "review",
                 "character": character,
                 "asset_type": asset_type,
                 "approved": approved,
-                "candidates": candidate_cards,
+                "candidates": candidates_for_template,
                 "batch_mode": batch,
+                "grid_cols": grid_cols,
+                "grid_rows": grid_rows,
+                "grid_capacity": grid_capacity,
+                "current_grid": grid,
             },
         )
 

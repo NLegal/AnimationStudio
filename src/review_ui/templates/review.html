@@ -111,8 +111,8 @@
     <div class="review-controls">
       <a href="/character/{{ character.id }}" class="btn btn-sm">Back to Character</a>
       {% if not batch_mode %}
-        <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true" class="btn btn-sm btn-secondary">
-          Batch Compare (4-up)
+        <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true&grid={{ current_grid }}" class="btn btn-sm btn-secondary">
+          Batch Compare ({{ grid_cols }}x{{ grid_rows }})
         </a>
       {% else %}
         <a href="/review/{{ character.id }}?asset_type={{ asset_type }}" class="btn btn-sm btn-secondary">
@@ -124,10 +124,20 @@
 
   {% if batch_mode %}
     <!-- ============================================================ -->
-    <!--  BATCH COMPARE MODE  (2x2 grid)                             -->
+    <!--  BATCH COMPARE MODE  (configurable grid sizes per D-16)     -->
     <!-- ============================================================ -->
-    <div class="batch-grid">
-      {% for card in candidates[:4] %}
+    <div class="grid-selector">
+      <span class="grid-label">Grid:</span>
+      <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true&grid=2x2"
+         class="btn btn-sm {% if current_grid == '2x2' %}btn-active{% endif %}">2x2</a>
+      <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true&grid=3x3"
+         class="btn btn-sm {% if current_grid == '3x3' %}btn-active{% endif %}">3x3</a>
+      <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true&grid=4x4"
+         class="btn btn-sm {% if current_grid == '4x4' %}btn-active{% endif %}">4x4</a>
+    </div>
+
+    <div class="batch-grid grid-{{ current_grid }}">
+      {% for card in candidates[:grid_capacity] %}
         <div class="batch-card">
           <div class="candidate-image placeholder-img">
             <span class="placeholder-text">[{{ card.asset.get("id", "candidate") }}]</span>

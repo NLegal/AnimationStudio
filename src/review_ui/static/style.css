@@ -546,13 +546,16 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
 }
 
 /* -------------------------------------------------------------------
-   Batch compare mode (2x2 grid)
+   Batch compare mode (configurable grid sizes per D-16)
    ------------------------------------------------------------------- */
 .batch-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 1rem;
 }
+
+.grid-2x2 { grid-template-columns: 1fr 1fr; }
+.grid-3x3 { grid-template-columns: 1fr 1fr 1fr; }
+.grid-4x4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
 
 .batch-card {
     background: var(--bg-card);
@@ -560,6 +563,15 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
     border-radius: var(--radius);
     padding: 0.75rem;
     box-shadow: var(--shadow);
+}
+
+/* Scale placeholder images for smaller grid cells */
+.grid-3x3 .batch-card .placeholder-img {
+    min-height: 150px;
+}
+
+.grid-4x4 .batch-card .placeholder-img {
+    min-height: 120px;
 }
 
 .score-summary {
@@ -572,6 +584,26 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
 .action-row {
     display: flex;
     gap: 0.5rem;
+}
+
+/* Grid size selector UI */
+.grid-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.grid-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-right: 0.25rem;
+}
+
+.btn-active {
+    background: var(--blue-dark);
+    color: white;
+    border-color: var(--blue-dark);
 }
 
 /* -------------------------------------------------------------------
@@ -599,10 +631,16 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
     }
 
     .batch-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
     }
 
     .score-bar-label {
         width: 80px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .grid-4x4 {
+        grid-template-columns: 1fr 1fr;
     }
 }
