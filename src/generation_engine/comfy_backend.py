@@ -19,6 +19,8 @@ from .base import GenerationBackend, GenerationInput, GenerationOutput, ModelLoa
 
 logger = logging.getLogger(__name__)
 
+# Path to the workflows directory containing type-specific JSON templates.
+_WORKFLOW_DIR = Path(__file__).parent / "workflows"
 
 # Default minimal workflow JSON template for single-image generation.
 # In practice, users should export their own workflow from ComfyUI
@@ -96,7 +98,7 @@ class ComfyUIBackend(GenerationBackend):
                 exc,
             )
 
-    def generate(self, input: GenerationInput) -> GenerationOutput:
+    def generate(self, input: GenerationInput, asset_type: str = "") -> GenerationOutput:
         """Submit a generation job to ComfyUI and poll for results.
 
         Uses PyComfyAPI if available, otherwise raw requests to the
@@ -104,20 +106,22 @@ class ComfyUIBackend(GenerationBackend):
 
         Args:
             input: GenerationInput with prompt and generation params.
+            asset_type: Optional asset type key for loading a specific
+                workflow template (e.g. "expression", "pose", "outfit").
 
         Returns:
             GenerationOutput with generated images (empty list if ComfyUI
             is unreachable or generation fails).
         """
         try:
-            return self._generate_pycomfy(input)
+            return self._generate_pycomfy(input, asset_type)
         except ImportError:
             logger.debug("PyComfyAPI not available, falling back to raw REST API")
         except Exception as exc:
             logger.warning("PyComfyAPI generation failed: %s", exc)
 
         try:
-            return self._generate_rest(input)
+            return self._generate_rest(input, asset_type)
         except Exception as exc:
             logger.warning("ComfyUI REST generation failed: %s", exc)
             return GenerationOutput(
@@ -130,13 +134,13 @@ class ComfyUIBackend(GenerationBackend):
                 },
             )
 
-    def _generate_pycomfy(self, input: GenerationInput) -> GenerationOutput:
+    def _generate_pycomfy(self, input: GenerationInput, asset_type: str = "") -> GenerationOutput:
         """Generate using PyComfyAPI client if available."""
         from pycomfyapi import PyComfyClient  # type: ignore[import-untyped]
 
         client = PyComfyClient(server_url=self.server_url)
 
-        workflow = self._build_workflow(input)
+        workflow = self._build_workflow(input, asset_type)
         job_id = client.queue_workflow(workflow)
 
         # Poll for completion
@@ -181,14 +185,14 @@ class ComfyUIBackend(GenerationBackend):
             },
         )
 
-    def _generate_rest(self, input: GenerationInput) -> GenerationOutput:
+    def _generate_rest(self, input: GenerationInput, asset_type: str = "") -> GenerationOutput:
         """Fallback generation using raw ComfyUI REST API.
 
         POSTs a workflow JSON to /prompt, then polls /history for results.
         """
         import requests
 
-        workflow = self._build_workflow(input)
+        workflow = self._build_workflow(input, asset_type)
         payload = {"prompt": workflow, "client_id": f"character-studio-{uuid.uuid4().hex[:8]}"}
 
         resp = requests.post(f"{self.server_url}/prompt", json=payload, timeout=10)
@@ -234,18 +238,21 @@ class ComfyUIBackend(GenerationBackend):
             },
         )
 
-    def _build_workflow(self, input: GenerationInput) -> dict:
+    def _build_workflow(self, input: GenerationInput, asset_type: str = "") -> dict:
         """Build a ComfyUI workflow JSON from the generation input.
 
-        Starts from the template and injects prompt, seed, and dimensions.
+        Starts from the type-specific template (if available) and injects
+        prompt, seed, and dimensions.
 
         Args:
             input: GenerationInput with prompt and generation params.
+            asset_type: Optional asset type key to load a specific workflow
+                template (e.g. "expression", "pose", "outfit", "reference_sheet").
 
         Returns:
             A dict suitable for the ComfyUI /prompt API.
         """
-        workflow = self._load_workflow_template()
+        workflow = self._load_workflow_template(asset_type)
 
         # Inject positive prompt into CLIPTextEncode node (node 6)
         if "6" in workflow and workflow["6"].get("class_type") == "CLIPTextEncode":
@@ -266,21 +273,40 @@ class ComfyUIBackend(GenerationBackend):
 
         return workflow
 
-    def _load_workflow_template(self) -> dict:
-        """Load the workflow template JSON.
+    def _load_workflow_template(self, asset_type: str = "") -> dict:
+        """Load the workflow template JSON for the given asset type.
 
-        First attempts to find a template file in the default path
-        (``comfy_workflow.json`` next to this file), then falls back
-        to the built-in default template.
+        Looks for ``{asset_type}.json`` in the ``workflows/`` directory.
+        Falls back to ``comfy_workflow.json`` in the same directory as this file,
+        then to the built-in default template.
+
+        Args:
+            asset_type: The asset type key (e.g. "expression", "pose", "outfit",
+                "reference_sheet"). If empty or not found, falls through to
+                the file-based fallback, then the built-in default.
 
         Returns:
             A dict representing the ComfyUI workflow graph.
         """
+        import copy
+
+        # 1. Try type-specific template from workflows/ directory
+        if asset_type:
+            template_path = _WORKFLOW_DIR / f"{asset_type}.json"
+            if template_path.exists():
+                with open(template_path) as f:
+                    return json.load(f)
+            logger.warning(
+                "Workflow template '%s' not found at %s. "
+                "Falling back to default template.",
+                asset_type, template_path,
+            )
+
+        # 2. Try the single template file (backward compatibility)
         template_path = Path(__file__).parent / "comfy_workflow.json"
         if template_path.exists():
             with open(template_path) as f:
                 return json.load(f)
 
-        # Fall back to built-in template
-        import copy
+        # 3. Fall back to built-in template
         return copy.deepcopy(_DEFAULT_WORKFLOW_TEMPLATE)
