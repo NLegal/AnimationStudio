@@ -7,6 +7,7 @@ Security: All command construction uses argument lists (never ``shell=True``)
 and validates paths with ``Path.resolve()`` before passing to subprocess.
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import Optional
 
 from .base import TrainingBackend, TrainingConfig, TrainingResult
+from .dataset_builder import DatasetBuilder, DatasetEntry, DatasetConfig as DsConfig
+from .versioning import LoRAVersion, VersionRegistry
 
 
 class KohyaAdapter(TrainingBackend):
@@ -28,15 +31,23 @@ class KohyaAdapter(TrainingBackend):
             result = adapter.train(config)
     """
 
-    def __init__(self, kohya_path: Optional[str] = None):
+    def __init__(
+        self,
+        kohya_path: Optional[str] = None,
+        version_registry: Optional[VersionRegistry] = None,
+    ):
         """Initialise the adapter.
 
         Args:
             kohya_path: Absolute path to the Kohya SS installation directory.
                 Falls back to the ``KOHYA_SS_PATH`` environment variable when
                 not provided.
+            version_registry: Optional version registry for lifecycle
+                tracking.  If not provided a local in-memory registry is
+                created.
         """
         self.kohya_path = kohya_path or os.environ.get("KOHYA_SS_PATH", "")
+        self.version_registry = version_registry or VersionRegistry()
 
     # ------------------------------------------------------------------
     #  TrainingBackend interface
@@ -71,6 +82,7 @@ class KohyaAdapter(TrainingBackend):
         self,
         image_paths: list[Path],
         output_dir: Path,
+        captions: Optional[list[str]] = None,
     ) -> Path:
         """Prepare images for Kohya SS training.
 
@@ -78,15 +90,20 @@ class KohyaAdapter(TrainingBackend):
         metadata JSON file (``metadata.json``) mapping each image to a
         prompt-based caption.
 
+        When *captions* are provided they are used as training captions;
+        otherwise captions are derived from the filename.  For full
+        dataset building with train/val splits and TOML configs, use the
+        :class:`DatasetBuilder` directly.
+
         Args:
             image_paths: Source image paths.
             output_dir: Destination directory for the prepared dataset.
+            captions: Optional list of captions, one per image path.
+                Must be the same length as *image_paths* (or None).
 
         Returns:
             The *output_dir* path (same as input).
         """
-        import json
-
         output_dir = output_dir.resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -97,9 +114,10 @@ class KohyaAdapter(TrainingBackend):
                 continue
             dest = output_dir / src.name
             shutil.copy2(str(src), str(dest))
-            # Use filename (without extension) as a simple caption hint;
-            # production pipelines should provide richer metadata.
-            caption = src.stem.replace("_", " ").replace("-", " ")
+            if captions and i < len(captions):
+                caption = captions[i]
+            else:
+                caption = src.stem.replace("_", " ").replace("-", " ")
             metadata.append({
                 "image": src.name,
                 "caption": caption,
@@ -146,6 +164,29 @@ class KohyaAdapter(TrainingBackend):
                 config.output_path
                 / f"{config.character_id}_{config.version}.safetensors"
             )
+
+            # Register the trained version in the version registry
+            try:
+                lora_version = LoRAVersion.parse(config.version)
+                self.version_registry.register(
+                    character_id=config.character_id,
+                    version=lora_version,
+                    file_path=str(lora_file),
+                    training_config={
+                        "base_model": config.base_model,
+                        "learning_rate": config.learning_rate,
+                        "num_epochs": config.num_epochs,
+                        "batch_size": config.batch_size,
+                        "lora_rank": config.lora_rank,
+                        "lora_alpha": config.lora_alpha,
+                        "resolution": config.resolution,
+                        "dataset_path": str(config.dataset_path),
+                        "output_path": str(config.output_path),
+                    },
+                )
+            except ValueError:
+                warnings.warn(f"Could not parse version '{config.version}' for registry")
+
             return TrainingResult(
                 lora_path=lora_file,
                 version=config.version,
@@ -175,6 +216,36 @@ class KohyaAdapter(TrainingBackend):
                 metrics={"error": "Kohya SS Python executable not found"},
                 success=False,
             )
+
+    def build_dataset(
+        self,
+        entries: list[DatasetEntry],
+        output_dir: Path,
+        resolution: int = 1024,
+        validation_split: float = 0.1,
+    ) -> Path:
+        """Build a complete training dataset with rich captions and splits.
+
+        Uses :class:`DatasetBuilder` internally to create a Kohya-compatible
+        dataset with train/val split, TOML config, and metadata files.
+
+        Args:
+            entries: Dataset entries with images and captions.
+            output_dir: Destination directory for the prepared dataset.
+            resolution: Training resolution in pixels.
+            validation_split: Fraction of data to reserve for validation.
+
+        Returns:
+            Path to the TOML dataset config file (for ``--dataset_config``).
+        """
+        builder = DatasetBuilder()
+        ds_config = DsConfig(
+            output_dir=output_dir,
+            resolution=resolution,
+            validation_split=validation_split,
+        )
+        result = builder.build(entries, ds_config)
+        return result.config_file
 
     # ------------------------------------------------------------------
     #  Internal helpers

@@ -29,6 +29,9 @@ must_haves:
     - All assets passed multi-stage pipeline: generation → scoring → diversity filtering → human review → winner lock
     - Approved poses have identity similarity ≥ 0.88 (D-14 dynamic pose threshold)
     - Approved outfits have identity similarity ≥ 0.80 (D-14 outfit threshold)
+    - Each stage locks a deeper layer of character identity per D-05 (Progressive Locking Pipeline)
+    - Animation Validation (image-to-video testing) is deferred to Phase 4 per D-08 — Phase 1b does not include video testing
+    - Scoring uses multi-metric weights per D-13: Identity Consistency 35%, Style Consistency 20%, Prompt Adherence 15%, Technical Quality 15%, Composition 10%, Diversity 5%
   artifacts:
     - Universe/Characters/Lily Bunny/poses/ (20+ pose images)
     - Universe/Characters/Lily Bunny/outfits/ (12+ outfit images)
@@ -41,7 +44,7 @@ must_haves:
 ---
 
 <objective>
-Execute stages 3 and 4 of the Progressive Locking Pipeline (D-06) for Lily Bunny: Body Lock (20 poses) and Wardrobe Expansion (12+ outfit variants). This completes the character asset production run.
+Execute stages 3 and 4 of the Progressive Locking Pipeline (D-05, D-06) for Lily Bunny: Body Lock (20 poses) and Wardrobe Expansion (12+ outfit variants). This completes the character asset production run, all using ComfyUI + Flux as the primary production path per D-01 (SDXL secondary). Each stage locks a deeper layer of character identity per D-05.
 
 Purpose: Generate and approve Lily Bunny's complete pose and outfit libraries, passing through the full generation → scoring → diversity filtering → human review → winner lock pipeline.
 Output: Approved pose and outfit images in the Universe Library, completing Phase 1b asset production.
@@ -116,8 +119,8 @@ Output: Approved pose and outfit images in the Universe Library, completing Phas
     
     4. For each pose:
        - Generate 50-80 candidates via ComfyUIBackend with asset_type="pose" (uses 768x1344 dimensions for full-body)
-       - Score with IdentityScorer using front reference as identity reference
-       - DiversityFilter top 10-15
+        - Score with IdentityScorer using multi-metric scoring per D-13 (Identity Consistency 35%, Style Consistency 20%, Prompt Adherence 15%, Technical Quality 15%, Composition 10%, Diversity 5%) with the front reference as identity reference
+        - DiversityFilter top 10-15
        - Shortlisted assets saved with:
          - lineage = {"generation_batch": batch_id, "candidate_pool": count,
                        "reference_asset_id": front_ref.id, "asset_type": "pose"}
@@ -164,6 +167,7 @@ Output: Approved pose and outfit images in the Universe Library, completing Phas
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
+  <name>Checkpoint: Verify pose winners</name>
   <what-built>All 20+ pose generation candidates for Lily Bunny. Each pose has 10-15 shortlisted candidates scored by IdentityScorer and selected by DiversityFilter.</what-built>
   <how-to-verify>
     1. Open Review UI at http://localhost:8000
@@ -231,7 +235,7 @@ Output: Approved pose and outfit images in the Universe Library, completing Phas
     
     4. For each outfit:
        - Generate 50-80 candidates via ComfyUIBackend with asset_type="outfit" (768x1344 full-body)
-       - Score with IdentityScorer using front reference (identity) — note: outfits have lower identity similarity thresholds per D-14 (80-92%) because clothing changes alter appearance
+        - Score with IdentityScorer using multi-metric scoring per D-13 (Identity Consistency 35%, Style Consistency 20%, Prompt Adherence 15%, Technical Quality 15%, Composition 10%, Diversity 5%) using front reference for identity — note: outfits have lower identity similarity thresholds per D-14 (80-92%) because clothing changes alter appearance
        - DiversityFilter top 10-15
        - Shortlisted assets saved with:
          - lineage = {"generation_batch": batch_id, "candidate_pool": count,
@@ -286,6 +290,7 @@ Output: Approved pose and outfit images in the Universe Library, completing Phas
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
+  <name>Checkpoint: Verify outfit winners</name>
   <what-built>All 12+ outfit/wardrobe generation candidates for Lily Bunny. Each outfit has 10-15 shortlisted candidates scored by IdentityScorer and selected by DiversityFilter.</what-built>
   <how-to-verify>
     1. Open Review UI at http://localhost:8000

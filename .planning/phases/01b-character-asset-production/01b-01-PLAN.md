@@ -19,7 +19,7 @@ requirements:
 user_setup: []
 must_haves:
   truths:
-    - PromptBuilder._known_expressions() returns the merged PHASE1.md + code superset (23 unique expressions including blowing_kiss, winking, very_happy, giggling, whistling, angry, shy, silly, sneezing, coughing, sighing)
+    - PromptBuilder._known_expressions() returns the merged PHASE1.md + code superset (32 unique expressions: 23 from PHASE1.md + 9 code extras — including blowing_kiss, winking, very_happy, giggling, whistling, angry, shy, silly, sneezing, coughing, sighing)
     - PromptBuilder._known_poses() returns the merged PHASE1.md + code superset (20 unique poses including hugging, holding_hands, pointing, clapping, waving, kneeling)
     - AssetModel has a lineage field that round-trips through SQLite persistence
     - ColorVerificationPlugin loads brand palette from Universe/ColorPalette/brand-palette.json
@@ -84,10 +84,10 @@ Output: Updated PromptBuilder with complete expression/pose sets, AssetModel wit
     @tests/conftest.py (fixtures available)
   </read_first>
   <behavior>
-    - Test 1: PromptBuilder._known_expressions() returns all 23 unique expressions from merged superset:
-      PHASE1.md expressions: neutral, happy, very_happy, laughing, giggling, smiling, excited, surprised, confused, thinking, curious, sleepy, yawning, crying, sad, scared, embarrassed, proud, determined, singing, whistling, blowing_kiss, winking
-      Code extras (retain all): angry, shy, silly, sneezing, coughing, sighing, tired, worried, disgusted
-      Total merged set = 24 expressions (23 from PHASE1.md minus overlaps, plus code extras)
+    - Test 1: PromptBuilder._known_expressions() returns all 32 unique expressions from merged superset:
+      PHASE1.md expressions (23): neutral, happy, very_happy, laughing, giggling, smiling, excited, surprised, confused, thinking, curious, sleepy, yawning, crying, sad, scared, embarrassed, proud, determined, singing, whistling, blowing_kiss, winking
+      Code extras (9, none overlapping): angry, shy, silly, sneezing, coughing, sighing, tired, worried, disgusted
+      Total merged set = 32 expressions (23 from PHASE1.md + 9 code extras)
       Verify with: assert known == {expected_set}
     - Test 2: Every expression in the merged list produces a valid prompt containing the expression name AND character name
     - Test 3: Unknown expression name logs a WARNING but still produces valid prompt (best-effort behavior preserved)
@@ -104,16 +104,16 @@ Output: Updated PromptBuilder with complete expression/pose sets, AssetModel wit
 
     Merge rules: lowercase, unique. PHASE1.md expressions map to snake_case: "Blowing Kiss" → "blowing_kiss". Overlaps (happy, sad, surprised, scared, sleepy, singing, laughing, crying, excited, confused, tired, thinking, yawning) are deduplicated.
 
-    Final merged set (24 expressions):
+    Final merged set (32 expressions):
     neutral, happy, very_happy, laughing, giggling, smiling, excited, surprised, confused, thinking, curious, sleepy, yawning, crying, sad, scared, embarrassed, proud, determined, singing, whistling, blowing_kiss, winking, angry, shy, silly, sneezing, coughing, sighing, tired, worried, disgusted
 
     Remove any expressions from the code that are NOT in this merged list (check _known_expressions() current return for any unlisted items).
 
     Create a new test class `TestMergedExpressionList` in test_prompt_builder.py:
-    - `test_merged_expression_count`: `_known_expressions()` returns exactly 24.
+    - `test_merged_expression_count`: `_known_expressions()` returns exactly 32.
     - `test_expression_includes_phase1_additions`: asserts blowing_kiss, winking, very_happy, giggling, whistling are in the set.
     - `test_expression_retains_code_extras`: asserts angry, shy, silly, sneezing, coughing, sighing are in the set.
-    - `test_every_expression_produces_valid_prompt`: parametrize over all 24 expressions, verify each produces a prompt via builder.build() with asset_type="expression".
+    - `test_every_expression_produces_valid_prompt`: parametrize over all 32 expressions, verify each produces a prompt via builder.build() with asset_type="expression".
     - `test_best_effort_unknown_expression_warning`: verify unknown expression name logs warning and still produces valid prompt (migrate existing test_unknown_expression_warning to this class).
 
     **Do NOT modify** `_known_poses()` in this task — that is handled in Task 3.
@@ -132,13 +132,13 @@ Output: Updated PromptBuilder with complete expression/pose sets, AssetModel wit
     <automated>pytest tests/test_prompt_builder.py::TestEndToEndExpressionPipeline --timeout=30 -x -v</automated>
   </verify>
   <done>
-    - `_known_expressions()` returns exactly 24 expressions including all PHASE1.md additions and all code extras
+    - `_known_expressions()` returns exactly 32 expressions (all 23 PHASE1.md additions + all 9 code extras)
     - Every expression produces a valid prompt with character name
     - Integration test proves full GenerationJob pipeline works end-to-end with updated expression list
     - All existing tests in test_prompt_builder.py still pass (except those superseded by new tests)
   </done>
   <acceptance_criteria>
-    - `_known_expressions()` returns set of 24 strings
+    - `_known_expressions()` returns set of 32 strings
     - "blowing_kiss", "winking", "very_happy", "giggling", "whistling" are present
     - "angry", "shy", "silly", "sneezing", "coughing", "sighing" are present
     - Integration test with GenerationJob + MockBackend + SQLiteAssetRepository completes with at least 1 shortlisted asset
@@ -327,7 +327,7 @@ Output: Updated PromptBuilder with complete expression/pose sets, AssetModel wit
 </verification>
 
 <success_criteria>
-1. PromptBuilder._known_expressions() returns 24 expressions with all PHASE1.md additions and code extras
+1. PromptBuilder._known_expressions() returns 32 expressions with all PHASE1.md additions and code extras
 2. PromptBuilder._known_poses() returns 28 poses with all PHASE1.md additions and code extras
 3. AssetModel has lineage Optional[dict] field that persists through SQLite
 4. ColorVerificationPlugin loads palette from Universe/ColorPalette/brand-palette.json with file-not-found fallback

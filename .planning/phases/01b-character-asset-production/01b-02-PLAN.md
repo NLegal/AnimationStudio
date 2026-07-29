@@ -151,7 +151,8 @@ Output: Wired Review UI with real lifecycle transitions and responsive batch gri
   <files>
     src/review_ui/app.py,
     src/review_ui/templates/review.html,
-    src/review_ui/static/style.css
+    src/review_ui/static/style.css,
+    tests/test_review_ui.py
   </files>
   <read_first>
     @src/review_ui/app.py (lines 129-190 — review_page route),
@@ -246,10 +247,21 @@ Output: Wired Review UI with real lifecycle transitions and responsive batch gri
     - At 2x2: 2 columns (existing behavior)
     - At 3x3: 3 columns on desktop, 1 column on mobile (max-width: 768px)
     - At 4x4: 4 columns on desktop, 2 columns on tablet, 1 on mobile
+    **Part E: Add test file for grid size parameterization**
+    
+    Create `tests/test_review_ui.py` with a `TestReviewGridSizes` class using FastAPI TestClient:
+    - `test_grid_2x2_default`: GET /review/{char_id}?asset_type=expression&batch=true → grid=2x2 (default), verify template context has grid_cols=2, grid_capacity=4
+    - `test_grid_3x3`: GET /review/{char_id}?asset_type=expression&batch=true&grid=3x3 → grid_cols=3, grid_capacity=9
+    - `test_grid_4x4`: GET /review/{char_id}?asset_type=expression&batch=true&grid=4x4 → grid_cols=4, grid_capacity=16
+    - `test_grid_invalid_fallback`: GET /review/{char_id}?grid=5x5 → falls back to 2x2 default
+    - `test_grid_non_batch_ignores_grid`: GET /review/{char_id}?grid=4x4 with batch=false → grid param ignored, normal display
+    
+    Use the existing `conftest.py` fixtures for TestClient setup (follow patterns from other test files). The Review UI uses `create_app()` which can accept an `asset_repo` parameter — use the in-memory repo fixture.
+    
+    Mock character and asset data as needed (follow existing test patterns from test_review_ui.py patterns or test_asset_repository.py).
   </action>
   <verify>
-    <automated>pytest tests/ -x --timeout=60 2>&1 | tail -10</automated>
-    <automated>MISSING — Wave 0 must create test_review_ui.py with grid size parameterization test. Create file with TestReviewGridSizes class.</automated>
+    <automated>pytest tests/test_review_ui.py::TestReviewGridSizes --timeout=30 -x -v</automated>
   </verify>
   <done>
     - /review/{character_id}?asset_type=expression&batch=true&grid=3x3 displays 9 candidates in 3 columns

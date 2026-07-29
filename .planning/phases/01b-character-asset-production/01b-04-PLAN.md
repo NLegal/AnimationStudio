@@ -27,14 +27,17 @@ user_setup:
 must_haves:
   truths:
     - Lily Bunny multi-angle reference sheets (front, 3/4, profile, back) exist in Universe/Characters/Lily Bunny/references/ with state="production"
-    - Lily Bunny expression library (23 expressions from merged list) exists in Universe/Characters/Lily Bunny/expressions/ with state="production"
+    - Lily Bunny expression library (32 expressions from merged list) exists in Universe/Characters/Lily Bunny/expressions/ with state="production"
     - Each approved asset has lineage metadata populated (generation_batch, candidate_pool)
     - All assets passed the D-12 multi-stage pipeline: generation → scoring → diversity filtering → human review → winner lock
     - Approved reference sheets have identity similarity ≥ 95% (D-15 threshold)
     - Approved expressions have identity similarity ≥ 90% (D-15 threshold)
+    - Cloud APIs are optional adapters only — never mandatory dependencies per D-03
+    - Each stage locks a deeper layer of character identity per D-05 (Progressive Locking Pipeline)
+    - Scoring uses multi-metric weights per D-13: Identity Consistency 35%, Style Consistency 20%, Prompt Adherence 15%, Technical Quality 15%, Composition 10%, Diversity 5%
   artifacts:
     - Universe/Characters/Lily Bunny/references/ (front.png, 3_4.png, profile.png, back.png — 4 approved reference sheets)
-    - Universe/Characters/Lily Bunny/expressions/ (24 expressions × 1-3 winning images each)
+    - Universe/Characters/Lily Bunny/expressions/ (32 expressions × 1-3 winning images each)
     - scripts/generate_identity_lock.py (orchestration script for reference sheet generation)
     - scripts/generate_face_lock.py (orchestration script for expression generation)
   key_links:
@@ -44,7 +47,7 @@ must_haves:
 ---
 
 <objective>
-Execute the first two stages of the Progressive Locking Pipeline (D-06) for Lily Bunny: Identity Lock (multi-angle reference sheets) and Face Lock (23 expressions). This is the first production run using ComfyUI + Flux through the Generation Engine.
+Execute the first two stages of the Progressive Locking Pipeline (D-05, D-06) for Lily Bunny: Identity Lock (multi-angle reference sheets) and Face Lock (23 expressions). This is the first production run using ComfyUI + Flux as the primary production path per D-01 (SDXL is secondary). Per D-03, cloud APIs are optional adapters only — never mandatory. Concept exploration (research tools per D-07) was a separate pre-production step; this plan executes local ComfyUI production generation only.
 
 Purpose: Establish Lily Bunny's canonical reference images and complete expression library, passing through the full generation → scoring → diversity filtering → human review → winner lock pipeline.
 Output: Approved reference sheets and expression images in the Universe Library with proper lineage metadata.
@@ -100,7 +103,7 @@ Output: Approved reference sheets and expression images in the Universe Library 
     @src/asset_repository/sqlite_repo.py (SQLiteAssetRepository),
     @src/models/schemas.py (AssetModel, AssetModel.lineage),
     @Universe/Characters/Lily Bunny/bio.md (character specification),
-    @.planning/phases/01b-character-asset-production/01b-CONTEXT.md (D-06 stages, D-12 batch review, D-14 thresholds, D-15 approval zones)
+    @.planning/phases/01b-character-asset-production/01b-CONTEXT.md (D-06 stages, D-12 batch review, D-14 thresholds, D-15 approval zones, D-07: concept exploration uses research tools for discovery only — this plan executes local ComfyUI production generation)
   </read_first>
   <action>
     **Precondition check:** Before running, verify ComfyUI is reachable at http://localhost:8188. Run:
@@ -145,8 +148,8 @@ Output: Approved reference sheets and expression images in the Universe Library 
     
     4. For each angle:
        - Generates N candidates via GenerationJob (uses ComfyUIBackend with asset_type="reference_sheet")
-       - Scores with IdentityScorer (identity consistency, style, quality)
-       - Runs DiversityFilter to select top candidates
+        - Scores with IdentityScorer using multi-metric scoring per D-13 (Identity Consistency 35%, Style Consistency 20%, Prompt Adherence 15%, Technical Quality 15%, Composition 10%, Diversity 5%)
+        - Runs DiversityFilter to select top candidates
        - Saves scored assets to SQLiteAssetRepository with:
          - lineage = {"generation_batch": batch_id, "candidate_pool": count, "version_history": [], "asset_type": "reference"}
          - state transitions: draft → generated → scored → shortlisted
@@ -203,6 +206,7 @@ Output: Approved reference sheets and expression images in the Universe Library 
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
+  <name>Checkpoint: Verify reference sheet winners</name>
   <what-built>Reference sheet generation candidates for Lily Bunny (front, 3/4, profile, back). The GenerationJob pipeline produced candidate images scored by IdentityScorer and selected by DiversityFilter.</what-built>
   <how-to-verify>
     1. Open Review UI at http://localhost:8000
@@ -248,31 +252,12 @@ Output: Approved reference sheets and expression images in the Universe Library 
        reference_image_path = front_ref.file_path
        ```
     
-    3. Define ALL 24 expressions from the merged list (D-09/D-10):
-       ```python
-       expressions = [
-           "neutral", "happy", "very_happy", "laughing", "giggling",
-           "smiling", "excited", "surprised", "confused", "thinking",
-           "curious", "sleepy", "yawning", "crying", "sad",
-           "scared", "embarrassed", "proud", "determined", "singing",
-           "whistling", "blowing_kiss", "winking",
-           "angry", "shy", "silly", "sneezing", "coughing", "sighing",
-           "tired", "worried", "disgusted",
-       ]
-       ```
-       Wait — that's 32 expressions. The merged list from Plan 01b-01 has 24. Let me reconcile.
-       
-       Actually, from Plan 01b-01 Task 1 Tracer: 24 expressions (23 from PHASE1.md + code extras deduplicated). The exact merged set defined there is:
-       neutral, happy, very_happy, laughing, giggling, smiling, excited, surprised, confused, thinking, curious, sleepy, yawning, crying, sad, scared, embarrassed, proud, determined, singing, whistling, blowing_kiss, winking, angry, shy, silly, sneezing, coughing, sighing, tired, worried, disgusted
-       
-       That's 32 items. The PHASE1.md has 23, code extras have 9, and some overlap. Let me just use whatever _known_expressions() returns after Plan 01b-01.
-       
-       Use `PromptBuilder._known_expressions()` at runtime to get the merged set.
+     3. Use `PromptBuilder._known_expressions()` at runtime to get the merged set (32 expressions: 23 from PHASE1.md + 9 code extras, per D-09/D-10 updated in Plan 01b-01).
     
     4. For each expression:
        - Generates 50-80 candidates (ComfyUIBackend, asset_type="expression")  
-       - Scores with IdentityScorer using the front reference sheet as reference image (for identity consistency scoring)
-       - Runs DiversityFilter to select top 10-15
+        - Scores with IdentityScorer using multi-metric scoring per D-13 (Identity Consistency 35%, Style Consistency 20%, Prompt Adherence 15%, Technical Quality 15%, Composition 10%, Diversity 5%) with the front reference sheet as reference image
+        - Runs DiversityFilter to select top 10-15
        - Shortlisted assets saved with:
          - lineage = {"generation_batch": batch_id, "candidate_pool": count, 
                        "version_history": [], "reference_asset_id": front_ref.id, "asset_type": "expression"}
@@ -306,7 +291,7 @@ Output: Approved reference sheets and expression images in the Universe Library 
   </verify>
   <done>
     - scripts/generate_face_lock.py exists and is runnable
-    - All 24+ expressions from merged list generated with 50-80 candidates each
+    - All 32 expressions from merged list generated with 50-80 candidates each
     - Human review completed for all expressions
     - Approved expression images in Universe/Characters/Lily Bunny/expressions/
     - Each approved asset has state="production" and lineage populated with reference_asset_id
@@ -320,11 +305,12 @@ Output: Approved reference sheets and expression images in the Universe Library 
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
-  <what-built>All 24+ expression generation candidates for Lily Bunny. Each expression has 10-15 shortlisted candidates scored by IdentityScorer and selected by DiversityFilter.</what-built>
+  <name>Checkpoint: Verify expression winners</name>
+  <what-built>All expression generation candidates for Lily Bunny (32 expressions from merged list). Each expression has 10-15 shortlisted candidates scored by IdentityScorer and selected by DiversityFilter.</what-built>
   <how-to-verify>
     1. Open Review UI at http://localhost:8000
     2. Navigate to Lily Bunny → Review expressions (batch mode, 4x4 grid)
-    3. For each expression variant (24+ total):
+     3. For each expression variant (32 total):
        - Verify candidates display with Brand Scores
        - Compare against the front reference sheet shown in the left panel
        - Select the best candidate by clicking "Approve" or "Approve & Promote"
@@ -367,7 +353,7 @@ Output: Approved reference sheets and expression images in the Universe Library 
 
 <success_criteria>
 1. 4 approved multi-angle reference sheets (front, 3/4, profile, back) in Universe Library
-2. 24+ approved expression images in Universe Library (all from merged expression list)
+2. 32 approved expression images in Universe Library (one per merged expression)
 3. All approved assets have state="production" and lineage populated
 4. Reference sheet identity scores ≥ 0.95
 5. Expression identity scores ≥ 0.90

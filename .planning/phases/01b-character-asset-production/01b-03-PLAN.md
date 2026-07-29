@@ -28,6 +28,7 @@ user_setup:
 must_haves:
   truths:
     - ComfyUIBackend._load_workflow_template(asset_type="expression") loads the expression workflow JSON file
+    - ComfyUI + Flux is the primary production path per D-01 (SDXL secondary); ComfyUI is the heart of the studio per D-02
     - ComfyUIBackend._load_workflow_template(asset_type="unknown") falls back to _DEFAULT_WORKFLOW_TEMPLATE
     - Reference sheet workflow uses cfg=3.5, steps=25, empty negative prompt (Flux-optimized)
     - Expression workflow uses cfg=3.5, steps=25, portrait dimensions (1024x1024)
@@ -48,7 +49,7 @@ must_haves:
 ---
 
 <objective>
-Create Flux-optimized ComfyUI API-format workflow templates for all four asset types (reference sheet, expression, pose, outfit) and update the ComfyUIBackend to load type-specific workflows with correct Flux sampling parameters.
+Create Flux-optimized ComfyUI API-format workflow templates for all four asset types (reference sheet, expression, pose, outfit) and update the ComfyUIBackend to load type-specific workflows with correct Flux sampling parameters. Per D-01, ComfyUI + Flux is the primary production path (SDXL is secondary). Per D-02, ComfyUI is the heart of the studio — all production generation runs through ComfyUI workflows; Python/diffusers adapters remain supported but are not primary for Phase 1b.
 
 Purpose: Enable the production pipeline to generate character-consistent images through ComfyUI + Flux by providing the workflow definitions that the ComfyUIBackend submits to the server.
 Output: Four API-format workflow JSON files and updated ComfyUIBackend with type-aware template loading.
@@ -90,6 +91,7 @@ Output: Four API-format workflow JSON files and updated ComfyUIBackend with type
   <read_first>
     @src/generation_engine/comfy_backend.py (lines 26-48 — _DEFAULT_WORKFLOW_TEMPLATE, lines 237-286 — _build_workflow and _load_workflow_template),
     @.planning/phases/01b-character-asset-production/01b-RESEARCH.md (lines 246-269 — Pattern 2: ComfyUI Workflow-as-Template, lines 269-276 — Anti-Patterns for workflow JSON, lines 331-335 — Pitfall 2 Flux params),
+    @.planning/phases/01b-character-asset-production/01b-CONTEXT.md (D-01, D-02, D-03: Cloud APIs are optional adapters only — never mandatory dependencies),
     @src/prompt_builder/templates.py (lines 69-104 — template methods to understand prompt structure for each asset type)
   </read_first>
   <action>
@@ -147,6 +149,8 @@ Output: Four API-format workflow JSON files and updated ComfyUIBackend with type
     ```
 
     Do NOT add any additional nodes (ControlNet, IP-Adapter, LoRA loaders) — those come in Phase 1c. Pure Flux generation only.
+
+    **Per D-03:** These workflows run through local ComfyUI only. Cloud APIs (fal.ai, Replicate, etc.) remain as optional Tier 3 adapters in the Generation Engine architecture — never mandatory dependencies. No cloud API configurations appear in these workflow files.
   </action>
   <verify>
     <automated>python -c "import json; [json.load(open(f'src/generation_engine/workflows/{f}.json')) for f in ['reference_sheet','expression','pose','outfit']]; print('All 4 workflow files are valid JSON')"</automated>

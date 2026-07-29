@@ -8,6 +8,7 @@
 - **Age:** Preschool (4-5 years)
 - **Birthday:** March 15
 - **Height:** 75cm (adorably small)
+- **Weight:** 15-18 kg
 - **Favorite Color:** Pink
 - **Favorite Food:** Carrot cupcakes, strawberry smoothies
 - **Favorite Song:** "The Happy Bunnies Song" (her own made-up tune)
