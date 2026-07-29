@@ -1,0 +1,27 @@
+Shot ID: SH_001
+Scene ID: SC_001
+Length: 3.0
+Camera:
+  Type: wide
+  Movement: static
+  Position: front
+Characters:
+  - ID: CHAR_LILY_001
+    Visible: true
+    Speaking: false
+    Singing: false
+    Animation: wave
+    Emotion: happy
+    Clothing: pink_dress
+    Accessories: []
+Assets:
+  - PROP_TREE_015
+  - PROP_BENCH_002
+Environment: ENV_PLAYGROUND_001
+Animation: wave_loop_01
+Lighting: LIGHT_SUNRISE
+Weather: CLEAR
+Dialogue: null
+Emotion: happy
+Movement: static
+Transition: cut
