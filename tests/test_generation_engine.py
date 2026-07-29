@@ -354,5 +354,71 @@ class TestGenerationJob:
         assert result["variants_failed"] == 0
 
 
+# ── ComfyUI Workflow Loading Tests ────────────────────────────────
+
+
+class TestComfyUIWorkflowLoading:
+    """Verify type-specific workflow template loading and prompt injection."""
+
+    def test_load_expression_workflow(self):
+        """Load expression template, verify node 3 has cfg=3.5, node 7 empty text."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+
+        backend = ComfyUIBackend()
+        workflow = backend._load_workflow_template("expression")
+
+        assert workflow["3"]["class_type"] == "KSampler"
+        assert workflow["3"]["inputs"]["cfg"] == 3.5
+        assert workflow["3"]["inputs"]["steps"] == 25
+        assert workflow["7"]["inputs"]["text"] == ""
+        assert workflow["7"]["class_type"] == "CLIPTextEncode"
+
+    def test_load_reference_sheet_workflow(self):
+        """Load reference_sheet template, verify 1024x1024 dimensions."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+
+        backend = ComfyUIBackend()
+        workflow = backend._load_workflow_template("reference_sheet")
+
+        assert workflow["5"]["inputs"]["width"] == 1024
+        assert workflow["5"]["inputs"]["height"] == 1024
+        assert workflow["3"]["inputs"]["cfg"] == 3.5
+
+    def test_load_pose_workflow(self):
+        """Load pose template, verify 768x1344 dimensions."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+
+        backend = ComfyUIBackend()
+        workflow = backend._load_workflow_template("pose")
+
+        assert workflow["5"]["inputs"]["width"] == 768
+        assert workflow["5"]["inputs"]["height"] == 1344
+        assert workflow["3"]["inputs"]["cfg"] == 3.5
+
+    def test_load_fallback_on_unknown_type(self):
+        """Load nonexistent type, verify returns default template with cfg=7.0."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+
+        backend = ComfyUIBackend()
+        workflow = backend._load_workflow_template("nonexistent_type")
+
+        # Default template has cfg=7.0 (SDXL default), confirming fallback
+        assert workflow["3"]["inputs"]["cfg"] == 7.0
+        assert workflow["3"]["class_type"] == "KSampler"
+
+    def test_prompt_injection_into_loaded_workflow(self):
+        """Build workflow with prompt, verify node 6 has injected text."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+        from src.generation_engine.base import GenerationInput
+
+        backend = ComfyUIBackend()
+        gen_input = GenerationInput(prompt="test prompt")
+        workflow = backend._build_workflow(gen_input, asset_type="expression")
+
+        assert workflow["6"]["inputs"]["text"] == "test prompt"
+        assert workflow["6"]["class_type"] == "CLIPTextEncode"
+        assert workflow["3"]["inputs"]["cfg"] == 3.5  # Flux params preserved
+
+
 # ── Helper to import sqlite repo for tests ─────────────────────────
 from src.asset_repository.sqlite_repo import SQLiteAssetRepository
