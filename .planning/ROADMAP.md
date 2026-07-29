@@ -57,7 +57,7 @@ Plans:
   4. Lily Bunny outfit/wardrobe variants (12+ outfits) exist with generated images
   5. All produced assets pass identity scoring (DINOv2 consistency >= 90%) and human review before entering the permanent library
 
-**Plans**: 3/5 plans executed
+**Plans**: 5/5 plans executed
 
 Plans:
 **Wave 1**
@@ -68,11 +68,11 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01b-04-PLAN.md — Production Run: Identity Lock + Face Lock (reference sheets + expressions)
+- [x] 01b-04-PLAN.md — Production Run: Identity Lock + Face Lock (reference sheets + expressions)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01b-05-PLAN.md — Production Run: Body Lock + Wardrobe Expansion (poses + outfits)
+- [x] 01b-05-PLAN.md — Production Run: Body Lock + Wardrobe Expansion (poses + outfits)
 
 ### Phase 1c: Character Training System
 
@@ -168,7 +168,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Character System Infrastructure & Bible Foundation | 5/5 | Complete | 2026-07-28 |
-| 1b. Character Asset Production | 3/5 | In Progress|  |
+| 1b. Character Asset Production | 5/5 | In Progress|  |
 | 1c. Character Training System | 0/0 | Not started | - |
 | 2. World Building & Environment Bible | 0/0 | Not started | - |
 | 3. Story & Music Pipeline | 0/0 | Not started | - |
