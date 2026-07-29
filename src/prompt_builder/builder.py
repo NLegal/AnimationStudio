@@ -114,13 +114,28 @@ class PromptBuilder:
 
     @staticmethod
     def _known_expressions() -> set[str]:
-        """Return the set of known expression names (from PHASE1.md)."""
+        """Return the merged superset of PHASE1.md + code expression names.
+
+        PHASE1.md (23): neutral, happy, very_happy, laughing, giggling,
+        smiling, excited, surprised, confused, thinking, curious, sleepy,
+        yawning, crying, sad, scared, embarrassed, proud, determined,
+        singing, whistling, blowing_kiss, winking.
+
+        Code extras (9): angry, shy, silly, sneezing, coughing, sighing,
+        tired, worried, disgusted.
+
+        Total merged: 32 expressions (all lowercase, unique).
+        """
         return {
-            "happy", "sad", "angry", "surprised", "scared", "disgusted",
-            "neutral", "sleepy", "singing", "laughing", "crying",
-            "excited", "worried", "shy", "silly", "confused",
-            "tired", "sneezing", "coughing", "yawning", "sighing",
-            "thinking",
+            # PHASE1.md expressions (23)
+            "neutral", "happy", "very_happy", "laughing", "giggling",
+            "smiling", "excited", "surprised", "confused", "thinking",
+            "curious", "sleepy", "yawning", "crying", "sad", "scared",
+            "embarrassed", "proud", "determined", "singing", "whistling",
+            "blowing_kiss", "winking",
+            # Code extras (9) — none overlap with PHASE1.md
+            "angry", "shy", "silly", "sneezing", "coughing", "sighing",
+            "tired", "worried", "disgusted",
         }
 
     @staticmethod
