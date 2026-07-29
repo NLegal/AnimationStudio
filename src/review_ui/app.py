@@ -5,6 +5,7 @@ framework; no build step.  Dependency injection through ``create_app()``
 facilitates testing without a live database.
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -12,6 +13,11 @@ from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+from src.asset_repository.sqlite_repo import NotFoundError
+from src.pipeline.job_queue import JobQueue
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -64,6 +70,7 @@ class _StubAssetRepo:
 def create_app(
     asset_repo=None,
     character_repo=None,
+    job_queue=None,
 ) -> FastAPI:
     """Application factory with optional dependency injection.
 
@@ -72,12 +79,15 @@ def create_app(
             ``get_character(id)``, ``find_assets(...)``,
             ``find_approved(...)``.  Falls back to an in-memory stub.
         character_repo: Alias for *asset_repo* (same object in Phase 1).
+        job_queue: Optional ``JobQueue`` instance for regeneration jobs.
+            Falls back to a fresh ``JobQueue()``.
 
     Returns:
         Configured FastAPI application.
     """
     repo = asset_repo or _StubAssetRepo()
     char_repo = character_repo or repo
+    jq = job_queue or JobQueue()
 
     app = FastAPI(title="Character Review Studio")
 
@@ -193,32 +203,69 @@ def create_app(
     #  Action handlers  (D-15 lifecycle transitions)
     # ------------------------------------------------------------------ #
 
+    def _get_referer(request: Request) -> str:
+        """Extract the referer URL from the request (with safe fallback)."""
+        return request.headers.get("referer", "/")
+
     @app.post("/approve/{asset_id}")
-    async def approve_asset(asset_id: str):
-        """Approve: scored → shortlisted (or → approved)."""
-        # In production: repo.update_state(asset_id, "shortlisted")
-        return RedirectResponse(url="/", status_code=303)
+    async def approve_asset(asset_id: str, request: Request):
+        """Approve: shortlisted → approved (D-15)."""
+        try:
+            await repo.update_state(asset_id, "approved")
+            logger.info("Asset %s approved", asset_id)
+        except (NotFoundError, ValueError) as exc:
+            logger.warning("Approve failed for %s: %s", asset_id, exc)
+        return RedirectResponse(url=_get_referer(request), status_code=303)
 
     @app.post("/reject/{asset_id}")
     async def reject_asset(
         asset_id: str,
+        request: Request,
         reason: str = Form(""),
     ):
-        """Reject with optional reason: scored → draft (regeneration)."""
-        # In production: repo.update_state(asset_id, "draft")
-        return RedirectResponse(url="/", status_code=303)
+        """Reject with optional reason: scored/shortlisted → draft (regeneration)."""
+        try:
+            await repo.update_state(asset_id, "draft")
+            if reason:
+                logger.info("Asset %s rejected. Reason: %s", asset_id, reason)
+            else:
+                logger.info("Asset %s rejected (no reason)", asset_id)
+        except (NotFoundError, ValueError) as exc:
+            logger.warning("Reject failed for %s: %s", asset_id, exc)
+        return RedirectResponse(url=_get_referer(request), status_code=303)
 
     @app.post("/regenerate/{asset_id}")
-    async def regenerate_similar(asset_id: str):
-        """Regenerate similar: queues a new generation job with nearby seeds."""
-        # In production: create a new generation job with nearby seeds
-        return RedirectResponse(url="/", status_code=303)
+    async def regenerate_similar(asset_id: str, request: Request):
+        """Regenerate similar: queue a new generation job with nearby seeds."""
+        try:
+            asset = await repo.get(asset_id)
+            if asset is not None and asset.seed is not None:
+                nearby = [
+                    asset.seed - 5, asset.seed - 3, asset.seed - 1,
+                    asset.seed + 1, asset.seed + 3, asset.seed + 5,
+                ]
+                job = jq.create_job(
+                    character_id=asset.character_id,
+                    job_type=asset.asset_type,
+                    config={"seeds": nearby, "prompt": asset.prompt},
+                )
+                logger.info(
+                    "Regeneration queued: asset=%s job=%s seeds=%s",
+                    asset_id, job.id, nearby,
+                )
+        except Exception as exc:
+            logger.warning("Regenerate failed for %s: %s", asset_id, exc)
+        return RedirectResponse(url=_get_referer(request), status_code=303)
 
     @app.post("/promote/{asset_id}")
-    async def promote_asset(asset_id: str):
+    async def promote_asset(asset_id: str, request: Request):
         """Approve & Promote: shortlisted → approved → production (two-step)."""
-        # In production: repo.update_state(asset_id, "approved")
-        # then immediately: repo.update_state(asset_id, "production")
-        return RedirectResponse(url="/", status_code=303)
+        try:
+            await repo.update_state(asset_id, "approved")
+            await repo.update_state(asset_id, "production")
+            logger.info("Asset %s promoted to production", asset_id)
+        except (NotFoundError, ValueError) as exc:
+            logger.warning("Promote failed for %s: %s", asset_id, exc)
+        return RedirectResponse(url=_get_referer(request), status_code=303)
 
     return app
