@@ -11,6 +11,10 @@ from pathlib import Path
 import pytest
 
 from src.prompt_builder import PromptBuilder, PromptTemplates, CharacterPrompt, build_negative_prompt
+from src.pipeline import GenerationJob, JobQueue, DiversityFilter
+from src.identity_engine.scorer import IdentityScorer, MockScorerPlugin
+from src.asset_repository.sqlite_repo import SQLiteAssetRepository, SQLiteCharacterRepository
+from tests.conftest import MockBackend
 
 
 # ---------------------------------------------------------------------------
@@ -222,3 +226,154 @@ class TestEdgeCases:
         )
         pos, neg = builder.build(char, asset_type="reference")
         assert "fluffy" in pos
+
+
+# ---------------------------------------------------------------------------
+# Merged expression list tests (CHAR-03)
+# ---------------------------------------------------------------------------
+
+class TestMergedExpressionList:
+    """PromptBuilder._known_expressions() returns the merged PHASE1.md + code superset.
+
+    PHASE1.md (23): neutral, happy, very_happy, laughing, giggling, smiling,
+        excited, surprised, confused, thinking, curious, sleepy, yawning,
+        crying, sad, scared, embarrassed, proud, determined, singing,
+        whistling, blowing_kiss, winking
+    Code extras (9): angry, shy, silly, sneezing, coughing, sighing,
+        tired, worried, disgusted
+    Merged total: 32 expressions.
+    """
+
+    MERGED_EXPRESSIONS = frozenset({
+        # PHASE1.md (23)
+        "neutral", "happy", "very_happy", "laughing", "giggling", "smiling",
+        "excited", "surprised", "confused", "thinking", "curious", "sleepy",
+        "yawning", "crying", "sad", "scared", "embarrassed", "proud",
+        "determined", "singing", "whistling", "blowing_kiss", "winking",
+        # Code extras (9)
+        "angry", "shy", "silly", "sneezing", "coughing", "sighing",
+        "tired", "worried", "disgusted",
+    })
+
+    def test_merged_expression_count(self, builder: PromptBuilder):
+        """_known_expressions() returns exactly 32 expressions."""
+        known = builder._known_expressions()
+        assert len(known) == 32, f"Expected 32, got {len(known)}"
+
+    def test_expression_includes_phase1_additions(self, builder: PromptBuilder):
+        """PHASE1.md additions (blowing_kiss, winking, very_happy, giggling, whistling) are in the set."""
+        known = builder._known_expressions()
+        for expr in ("blowing_kiss", "winking", "very_happy", "giggling", "whistling"):
+            assert expr in known, f"Missing PHASE1.md expression: {expr}"
+
+    def test_expression_retains_code_extras(self, builder: PromptBuilder):
+        """Code extras (angry, shy, silly, sneezing, coughing, sighing) are in the set."""
+        known = builder._known_expressions()
+        for expr in ("angry", "shy", "silly", "sneezing", "coughing", "sighing"):
+            assert expr in known, f"Missing code extra: {expr}"
+
+    @pytest.mark.parametrize("expression", sorted(MERGED_EXPRESSIONS))
+    def test_every_expression_produces_valid_prompt(
+        self, expression: str, lily: CharacterPrompt, builder: PromptBuilder
+    ):
+        """Every known expression produces a valid prompt with character name."""
+        pos, neg = builder.build(lily, asset_type="expression", variant=expression)
+        assert lily.name in pos, f"Character name missing for expression '{expression}'"
+        assert expression in pos, f"Expression name '{expression}' missing from prompt"
+
+    def test_best_effort_unknown_expression_warning(
+        self, lily: CharacterPrompt, builder: PromptBuilder, caplog
+    ):
+        """Unknown expression name logs a warning but still produces valid prompt."""
+        caplog.set_level(logging.WARNING)
+        unknown = "nonexistent_expression_xyz"
+        pos, neg = builder.build(lily, asset_type="expression", variant=unknown)
+        assert isinstance(pos, str)
+        assert len(pos) > 0
+        assert lily.name in pos
+        assert unknown in pos
+
+
+# ---------------------------------------------------------------------------
+# End-to-end expression pipeline integration test (CHAR-03)
+# ---------------------------------------------------------------------------
+
+class TestEndToEndExpressionPipeline:
+    """Integration test: GenerationJob + MockBackend + updated PromptBuilder.
+
+    Proves the full pipeline (build prompt → generate → score → diversity
+    filter → save) works end-to-end with the updated expression list.
+    """
+
+    @pytest.mark.asyncio
+    async def test_expression_pipeline_end_to_end(self):
+        """GenerationJob with MockBackend processes one expression variant."""
+        import tempfile
+        import os
+        from src.models.schemas import CharacterModel
+
+        # Use a shared temp file so both character and asset repos share the DB
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            char_repo = SQLiteCharacterRepository(db_path)
+            repo = SQLiteAssetRepository(db_path)
+
+            # Create a character record first (needed for FK constraint)
+            char = CharacterModel(
+                name="Lily Bunny",
+                category="main",
+                species="rabbit",
+            )
+            await char_repo.save_character(char)
+
+            backend = MockBackend()
+            prompt_builder = PromptBuilder()
+            scorer = IdentityScorer(plugins=[MockScorerPlugin(weight=1.0)])
+            df = DiversityFilter(n_clusters=2)
+            gj = GenerationJob(
+                backend=backend,
+                prompt_builder=prompt_builder,
+                identity_scorer=scorer,
+                asset_repo=repo,
+                diversity_filter=df,
+            )
+
+            jq = JobQueue()
+            job = jq.create_job(
+                character_id=char.id,
+                job_type="expression",
+                config={
+                    "variants": [
+                        {
+                            "name": "happy",
+                            "prompt": "Lily Bunny, rabbit, happy expression",
+                        }
+                    ],
+                    "count": 2,
+                    "shortlist_size": 1,
+                },
+            )
+
+            # Execute
+            result = await gj.execute(job)
+
+            # Verify
+            assert result["total_generated"] >= 1
+            assert result["total_scored"] >= 1
+            assert result["variants_completed"] == 1
+            assert result["variants_failed"] == 0
+
+            # At least one asset should be shortlisted
+            shortlisted = result.get("shortlisted_ids", [])
+            assert len(shortlisted) >= 1, (
+                f"No assets were shortlisted. "
+                f"Generated: {result['total_generated']}, "
+                f"Scored: {result['total_scored']}"
+            )
+            asset = await repo.get(shortlisted[0])
+            assert asset is not None
+            assert asset.state == "shortlisted"
+        finally:
+            if os.path.exists(db_path):
+                os.unlink(db_path)

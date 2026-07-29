@@ -535,24 +535,28 @@ def _load_brand_palette() -> dict:
 | A5 | The merged expression/pose lists (PHASE1.md + code extras) produce valid Flux prompts | Architecture Patterns | New expressions like "blowing_kiss" and "giggling" may not be understood by Flux equally. PromptBuilder warns on unknown names but still produces valid prompts (best-effort pattern). |
 | A6 | Flux.1 Dev requires ≥16GB VRAM for full precision; fp8 brings to ~10GB | Environment Availability | If GPU has <10GB VRAM, Flux.1 Dev won't run. Fall back to SDXL (secondary) or Flux.1 Schnell (1-4 step, lower quality). |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What VRAM does the target machine have?**
+1. **What VRAM does the target machine have?** ⏺ RESOLVED
+   - Resolution: Plans document both paths — Flux.1 Dev (16GB full, ~10GB fp8) and Flux.2 Klein 4B Q4 (4GB). User_setup frontmatter in plans instructs operator to verify ComfyUI availability and model installation. Fallback to SDXL documented in Environment Availability section (A6).
    - What we know: ComfyUI + Flux.1 Dev requires 16GB+ (full precision) or ~10GB (fp8). Flux.2 Klein 4B Q4 runs on 4GB.
    - What's unclear: Available GPU/VRAM on the production machine.
    - Recommendation: Identify GPU specs before finalizing Flux model variant. Document in Environment Availability.
 
-2. **How will ComfyUI be installed and configured?**
+2. **How will ComfyUI be installed and configured?** ⏺ RESOLVED
+   - Resolution: D-02 establishes ComfyUI as primary. All production plans declare ComfyUI as user_setup with specific instructions (install, download Flux models, start server). ComfyUI availability is verified in orchestration scripts before generation begins.
    - What we know: ComfyUIBackend connects to a running ComfyUI server. Existing code has default template.
    - What's unclear: Whether ComfyUI is already installed, whether it uses Flux.1 Dev or Flux.2 Klein, model paths.
    - Recommendation: This may be part of a separate infrastructure setup or was covered in Phase 1. Verify ComfyUI availability.
 
-3. **What are the correct Flux sampling parameters for character consistency?**
+3. **What are the correct Flux sampling parameters for character consistency?** ⏺ RESOLVED
+   - Resolution: Documented in RESEARCH.md Pitfall 2 — Flux.1 Dev: cfg=3.5, steps=20-28, empty negative prompt; Flux.2 Klein: cfg=1.0. Workflow JSON templates in Plan 01b-03 use these values (cfg=3.5, steps=25, euler sampler, normal scheduler). Tuning deferred to concept exploration phase per D-07.
    - What we know: Flux.1 Dev: cfg=3.5, steps=20-28; Flux.2 Klein: cfg=1.0; Flux.1 Schnell: steps=1-4.
    - What's unclear: Optimal params for Cocomelon-style character generation specifically.
    - Recommendation: Start with community-recommended defaults, tune during concept exploration.
 
-4. **Is a dedicated consistency LoRA or ControlNet needed for Lily Bunny before Phase 1c?**
+4. **Is a dedicated consistency LoRA or ControlNet needed for Lily Bunny before Phase 1c?** ⏺ RESOLVED
+   - Resolution: Phase 1c handles LoRA training. Phase 1b explicitly generates without LoRA (see D-06 pipeline stages). Identity consistency tested with pure Flux first; if scores are too low, ControlNet/IP-Adapter can be added to the ComfyUI workflow as a mid-phase fix. Workflow templates in Plan 01b-03 are intentionally minimal (no ControlNet, no LoRA loaders) — those nodes are added in Phase 1c.
    - What we know: Phase 1c trains the Production LoRA. Phase 1b generates assets without LoRA.
    - What's unclear: Whether Flux can maintain consistent identity across 23 expressions without LoRA.
    - Recommendation: Test identity consistency with pure Flux first. If scores are too low, consider creating a minimal face reference via ControlNet/IP-Adapter in the ComfyUI workflow.
