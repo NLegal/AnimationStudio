@@ -52,7 +52,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. Lily Bunny multi-angle reference sheets (front, 3/4, profile, back) are generated and stored in the Universe Library
-  2. Lily Bunny expression library (24+ expressions) exists with generated images per the merged PHASE1.md + code expression list
+   2. Lily Bunny expression library (32 expressions) exists with generated images per the merged PHASE1.md + code expression list
   3. Lily Bunny pose library (20+ poses) exists with generated images per the merged PHASE1.md + code pose list
   4. Lily Bunny outfit/wardrobe variants (12+ outfits) exist with generated images
   5. All produced assets pass identity scoring (DINOv2 consistency >= 90%) and human review before entering the permanent library
@@ -60,11 +60,18 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 01b-01-PLAN.md — Pipeline Enhancements Tracer: update expression/pose lists, add lineage to AssetModel, fix ColorVerificationPlugin palette loading
 - [ ] 01b-02-PLAN.md — Review UI Wiring + Configurable Grids: wire action handlers, add 3x3/4x4 batch grids
 - [ ] 01b-03-PLAN.md — ComfyUI Workflow Templates: Flux API-format workflow JSONs, type-specific template loading
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 01b-04-PLAN.md — Production Run: Identity Lock + Face Lock (reference sheets + expressions)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 01b-05-PLAN.md — Production Run: Body Lock + Wardrobe Expansion (poses + outfits)
 
 ### Phase 1c: Character Training System
