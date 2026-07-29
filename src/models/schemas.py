@@ -36,6 +36,10 @@ class AssetModel(BaseModel):
     model_id: Optional[str] = None
     scores: Optional[dict] = None
     brand_score: Optional[float] = None
+    lineage: Optional[dict] = Field(
+        default=None,
+        description="Lineage metadata per D-18: generation_batch, candidate_pool, version_history, episode_usage",
+    )
     created_at: datetime = Field(default_factory=datetime.now)
     approved_at: Optional[datetime] = None
 

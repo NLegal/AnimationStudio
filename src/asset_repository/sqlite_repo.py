@@ -182,19 +182,39 @@ class SQLiteAssetRepository(AssetRepository):
                     model_id TEXT,
                     scores TEXT,
                     brand_score REAL,
+                    lineage TEXT DEFAULT NULL,
                     created_at TEXT NOT NULL,
                     approved_at TEXT,
                     FOREIGN KEY (character_id) REFERENCES characters(id)
                 )
             """)
+        self._apply_migrations()
+
+    def _apply_migrations(self) -> None:
+        """Apply ALTER TABLE migrations for backward-compatible schema changes.
+
+        Checks for missing columns and adds them via ALTER TABLE IF NOT EXISTS.
+        This ensures existing Phase 1 databases are updated in-place without
+        requiring a destructive reset.
+        """
+        with self._get_conn() as conn:
+            # Get current columns
+            cursor = conn.execute("PRAGMA table_info(assets)")
+            columns = {row["name"] for row in cursor.fetchall()}
+
+            # Migration: add lineage column (D-18)
+            if "lineage" not in columns:
+                conn.execute(
+                    "ALTER TABLE assets ADD COLUMN lineage TEXT DEFAULT NULL"
+                )
 
     async def save(self, record: AssetModel) -> str:
         with self._get_conn() as conn:
             conn.execute(
                 "INSERT INTO assets "
                 "(id, character_id, asset_type, variant, state, file_path, prompt, seed, "
-                " model_id, scores, brand_score, created_at, approved_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " model_id, scores, brand_score, lineage, created_at, approved_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.id,
                     record.character_id,
@@ -207,6 +227,7 @@ class SQLiteAssetRepository(AssetRepository):
                     record.model_id,
                     json.dumps(record.scores) if record.scores else None,
                     record.brand_score,
+                    json.dumps(record.lineage) if record.lineage else None,
                     _serialize_datetime(record.created_at),
                     _serialize_datetime(record.approved_at),
                 ),
@@ -276,6 +297,7 @@ class SQLiteAssetRepository(AssetRepository):
             model_id=row["model_id"],
             scores=json.loads(row["scores"]) if row["scores"] else None,
             brand_score=row["brand_score"],
+            lineage=json.loads(row["lineage"]) if row["lineage"] else None,
             created_at=_deserialize_datetime(row["created_at"]),
             approved_at=_deserialize_datetime(row["approved_at"]),
         )

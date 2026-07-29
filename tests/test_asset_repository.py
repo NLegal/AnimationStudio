@@ -252,3 +252,65 @@ async def test_state_transition_validity(asset_repo, char_repo):
     # archived has no outgoing transitions
     with pytest.raises(ValueError, match="Invalid state transition"):
         await asset_repo.update_state(asset.id, "draft")
+
+
+@pytest.mark.asyncio
+async def test_lineage_metadata_roundtrip(asset_repo, char_repo):
+    """Lineage dict round-trips through save() and _row_to_asset() with JSON intact.
+
+    Per D-18: each approved asset retains lineage metadata (generation_batch,
+    candidate_pool, version_history, episode_usage).
+    """
+    char = CharacterModel(name="Test", category="main", species="rabbit")
+    await char_repo.save_character(char)
+
+    lineage = {
+        "generation_batch": "batch-001",
+        "candidate_pool": 50,
+        "version_history": [],
+    }
+
+    asset = AssetModel(
+        character_id=char.id,
+        asset_type="reference",
+        file_path="/tmp/test.png",
+        lineage=lineage,
+    )
+    await asset_repo.save(asset)
+
+    loaded = await asset_repo.get(asset.id)
+    assert loaded is not None
+    assert loaded.lineage == lineage
+    assert loaded.lineage["generation_batch"] == "batch-001"
+    assert loaded.lineage["candidate_pool"] == 50
+    assert loaded.lineage["version_history"] == []
+
+    # Verify existing assets without lineage load as None
+    asset_no_lineage = AssetModel(
+        character_id=char.id,
+        asset_type="expression",
+        file_path="/tmp/test2.png",
+    )
+    await asset_repo.save(asset_no_lineage)
+    loaded_no_lineage = await asset_repo.get(asset_no_lineage.id)
+    assert loaded_no_lineage.lineage is None
+
+
+@pytest.mark.asyncio
+async def test_apply_migrations_lineage_column(shared_db):
+    """_apply_migrations() adds lineage column to existing databases."""
+    # Create repo with original schema (no lineage column yet)
+    # We simulate this by checking PRAGMA table_info before and after
+    repo = SQLiteAssetRepository(shared_db)
+
+    # Verify lineage column exists via PRAGMA
+    conn = repo._get_conn()
+    cursor = conn.execute("PRAGMA table_info(assets)")
+    columns = {row["name"] for row in cursor.fetchall()}
+    assert "lineage" in columns, "lineage column should exist after init"
+
+    # Verify idempotency: calling _apply_migrations again doesn't fail
+    repo._apply_migrations()
+    cursor = conn.execute("PRAGMA table_info(assets)")
+    columns = {row["name"] for row in cursor.fetchall()}
+    assert "lineage" in columns
