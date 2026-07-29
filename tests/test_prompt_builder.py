@@ -295,6 +295,60 @@ class TestMergedExpressionList:
 
 
 # ---------------------------------------------------------------------------
+# Merged pose list tests (CHAR-04)
+# ---------------------------------------------------------------------------
+
+class TestMergedPoseList:
+    """PromptBuilder._known_poses() returns the merged PHASE1.md + code superset.
+
+    PHASE1.md (20): standing, walking, running, jumping, skipping, sitting,
+        kneeling, dancing, sleeping, reading, writing, pointing, clapping,
+        waving, hugging, holding_hands, playing, swimming, flying, sliding.
+    Code extras (8): hopping, eating, drinking, drawing, crawling, hiding,
+        stretching, bouncing.
+    Merged total: 28 poses.
+    """
+
+    MERGED_POSES = frozenset({
+        # PHASE1.md (20)
+        "standing", "walking", "running", "jumping", "skipping",
+        "sitting", "kneeling", "dancing", "sleeping", "reading",
+        "writing", "pointing", "clapping", "waving", "hugging",
+        "holding_hands", "playing", "swimming", "flying", "sliding",
+        # Code extras (8)
+        "hopping", "eating", "drinking", "drawing", "crawling",
+        "hiding", "stretching", "bouncing",
+    })
+
+    def test_merged_pose_count(self, builder: PromptBuilder):
+        """_known_poses() returns exactly 28 poses."""
+        known = builder._known_poses()
+        assert len(known) == 28, f"Expected 28, got {len(known)}"
+
+    def test_pose_includes_phase1_additions(self, builder: PromptBuilder):
+        """PHASE1.md additions (hugging, holding_hands, pointing, clapping, kneeling) are in set."""
+        known = builder._known_poses()
+        for pose in ("hugging", "holding_hands", "pointing", "clapping", "kneeling"):
+            assert pose in known, f"Missing PHASE1.md pose: {pose}"
+
+    def test_pose_retains_code_extras(self, builder: PromptBuilder):
+        """Code extras (hopping, eating, drinking, drawing, crawling, hiding, stretching, bouncing) are in set."""
+        known = builder._known_poses()
+        for pose in ("hopping", "eating", "drinking", "drawing", "crawling",
+                     "hiding", "stretching", "bouncing"):
+            assert pose in known, f"Missing code extra: {pose}"
+
+    @pytest.mark.parametrize("pose", sorted(MERGED_POSES))
+    def test_every_pose_produces_valid_prompt(
+        self, pose: str, lily: CharacterPrompt, builder: PromptBuilder
+    ):
+        """Every known pose produces a valid prompt with character name."""
+        pos, neg = builder.build(lily, asset_type="pose", variant=pose)
+        assert lily.name in pos, f"Character name missing for pose '{pose}'"
+        assert pose in pos, f"Pose name '{pose}' missing from prompt"
+
+
+# ---------------------------------------------------------------------------
 # End-to-end expression pipeline integration test (CHAR-03)
 # ---------------------------------------------------------------------------
 

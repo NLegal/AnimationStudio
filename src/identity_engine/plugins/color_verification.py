@@ -6,7 +6,9 @@ brand palette (Cocomelon-inspired pastel primaries).
 Falls back to sklearn if external color-palette-extractor is unavailable.
 """
 
+import json
 import warnings
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -21,6 +23,65 @@ DEFAULT_BRAND_PALETTE: list[tuple[int, int, int]] = [
     (144, 238, 144),  # pastel green
     (255, 204, 153),  # pastel orange
 ]
+
+# Lazily-loaded cache for brand palette from filesystem
+_cached_palette: Optional[list[tuple[int, int, int]]] = None
+
+
+def _hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
+    """Convert a hex color string (e.g. '#F0A0C0') to an (R, G, B) tuple."""
+    h = hex_str.lstrip("#")
+    return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def _load_brand_palette_from_file() -> list[tuple[int, int, int]]:
+    """Load brand palette from Universe/ColorPalette/brand-palette.json.
+
+    Reads the 'primary' color group from the palette JSON file, converts
+    hex values to RGB tuples, and returns the palette. Falls back to
+    DEFAULT_BRAND_PALETTE if the file is missing or unparseable.
+
+    Returns:
+        List of (R, G, B) tuples representing the brand palette colors.
+    """
+    # Attempt to resolve the palette file relative to the project root.
+    # Walk up from this file's directory to find the repo root.
+    palette_path = (
+        Path(__file__).resolve().parent.parent.parent.parent
+        / "Universe" / "ColorPalette" / "brand-palette.json"
+    )
+
+    if not palette_path.exists():
+        warnings.warn(
+            f"Brand palette file not found at {palette_path}. "
+            "Falling back to DEFAULT_BRAND_PALETTE."
+        )
+        return DEFAULT_BRAND_PALETTE
+
+    try:
+        with open(palette_path) as f:
+            data = json.load(f)
+
+        colors: list[tuple[int, int, int]] = []
+        for name, info in data.get("primary", {}).items():
+            hex_val = info.get("hex", "")
+            if hex_val:
+                colors.append(_hex_to_rgb(hex_val))
+
+        if not colors:
+            warnings.warn(
+                "Brand palette file has no 'primary' colors. "
+                "Falling back to DEFAULT_BRAND_PALETTE."
+            )
+            return DEFAULT_BRAND_PALETTE
+
+        return colors
+    except (json.JSONDecodeError, KeyError, ValueError) as exc:
+        warnings.warn(
+            f"Failed to parse brand palette file: {exc}. "
+            "Falling back to DEFAULT_BRAND_PALETTE."
+        )
+        return DEFAULT_BRAND_PALETTE
 
 
 def _color_distance(c1: tuple[int, int, int], c2: tuple[int, int, int]) -> float:
@@ -66,10 +127,16 @@ class ColorVerificationPlugin:
 
     Extracts dominant colors, measures distance to the reference palette,
     and returns a normalized score.
+
+    The brand palette is loaded from Universe/ColorPalette/brand-palette.json
+    on first score() call and cached as a class-level attribute so filesystem
+    reads happen at most once per process. Falls back to DEFAULT_BRAND_PALETTE
+    if the file is not found or unparseable.
     """
 
     name: str = "color_harmony"
     weight: float = 0.10
+    _cached_palette: Optional[list[tuple[int, int, int]]] = None
 
     def __init__(
         self,
@@ -77,7 +144,21 @@ class ColorVerificationPlugin:
         brand_palette: Optional[list[tuple[int, int, int]]] = None,
     ):
         self.weight = weight
-        self.brand_palette = brand_palette or DEFAULT_BRAND_PALETTE
+        self.brand_palette = brand_palette
+
+    def _get_palette(self) -> list[tuple[int, int, int]]:
+        """Return the brand palette, loading from filesystem on first call.
+
+        Uses a class-level cache so the file is read at most once per
+        process, even across multiple instances.
+        """
+        if self.brand_palette is not None:
+            # Instance-level override (e.g. test injection)
+            return self.brand_palette
+
+        if ColorVerificationPlugin._cached_palette is None:
+            ColorVerificationPlugin._cached_palette = _load_brand_palette_from_file()
+        return ColorVerificationPlugin._cached_palette
 
     def score(
         self,
@@ -90,14 +171,14 @@ class ColorVerificationPlugin:
         Args:
             image: Test image.
             reference: Reference image (palette compared; if None,
-                       uses DEFAULT_BRAND_PALETTE).
+                       uses filesystem-loaded brand palette).
             **kwargs: Unused.
 
         Returns:
             Float in [0.0, 1.0] — 1.0 = all dominant colors match palette.
         """
         # Determine target palette
-        palette = DEFAULT_BRAND_PALETTE
+        palette = self._get_palette()
         if reference is not None:
             palette = _extract_dominant_colors(reference, n_colors=5)
 

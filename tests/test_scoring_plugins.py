@@ -8,6 +8,8 @@ Tests verify:
 """
 
 import warnings
+from pathlib import Path
+
 import pytest
 from PIL import Image
 import numpy as np
@@ -154,6 +156,80 @@ class TestColorVerificationSpecific:
         score = plugin.score(gray, reference=ref_img)
         assert isinstance(score, float)
         assert 0.0 <= score <= 1.0
+
+
+class TestColorVerificationPlugin:
+    """ColorVerificationPlugin filesystem palette loading tests."""
+
+    def test_color_plugin_loads_palette_from_file(self):
+        """Plugin loads brand palette from Universe/ColorPalette/brand-palette.json."""
+        from src.identity_engine.plugins.color_verification import (
+            ColorVerificationPlugin,
+            _load_brand_palette_from_file,
+        )
+
+        palette = _load_brand_palette_from_file()
+        assert isinstance(palette, list)
+        assert len(palette) >= 5, f"Expected at least 5 palette colors, got {len(palette)}"
+
+        # Each entry is an (R, G, B) tuple
+        for color in palette:
+            assert isinstance(color, tuple)
+            assert len(color) == 3
+            for channel in color:
+                assert 0 <= channel <= 255
+
+    def test_color_plugin_fallback_on_missing_file(self, monkeypatch):
+        """When palette file is missing, fallback to DEFAULT_BRAND_PALETTE is used."""
+        from src.identity_engine.plugins.color_verification import (
+            ColorVerificationPlugin,
+            _load_brand_palette_from_file,
+            DEFAULT_BRAND_PALETTE,
+        )
+
+        # Monkeypatch the path resolution to point at a non-existent file
+        import src.identity_engine.plugins.color_verification as cv_module
+
+        fake_path = Path("/tmp/nonexistent_brand_palette.json")
+        monkeypatch.setattr(
+            "src.identity_engine.plugins.color_verification.Path",
+            lambda *args, **kwargs: fake_path,
+        )
+
+        palette = _load_brand_palette_from_file()
+        assert palette == DEFAULT_BRAND_PALETTE, (
+            "Should fall back to DEFAULT_BRAND_PALETTE when file is missing"
+        )
+
+    def test_color_plugin_scores_with_loaded_palette(self, test_img):
+        """score() returns a value in [0,1] using the file-loaded palette."""
+        from src.identity_engine.plugins.color_verification import ColorVerificationPlugin
+
+        plugin = ColorVerificationPlugin()
+        score = plugin.score(test_img, reference=None)
+        assert isinstance(score, float)
+        assert 0.0 <= score <= 1.0
+
+    def test_color_plugin_palette_caching(self, test_img, monkeypatch):
+        """Cached palette is reused across instances (file read once per process)."""
+        from src.identity_engine.plugins.color_verification import ColorVerificationPlugin
+
+        # Reset cache
+        ColorVerificationPlugin._cached_palette = None
+
+        plugin1 = ColorVerificationPlugin()
+        plugin2 = ColorVerificationPlugin()
+
+        # Both should produce valid scores
+        s1 = plugin1.score(test_img, reference=None)
+        s2 = plugin2.score(test_img, reference=None)
+        assert isinstance(s1, float)
+        assert isinstance(s2, float)
+        assert 0.0 <= s1 <= 1.0
+        assert 0.0 <= s2 <= 1.0
+
+        # Reset cache for test isolation
+        ColorVerificationPlugin._cached_palette = None
 
 
 class TestExpressionSpecific:

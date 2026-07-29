@@ -140,10 +140,25 @@ class PromptBuilder:
 
     @staticmethod
     def _known_poses() -> set[str]:
-        """Return the set of known pose names (from PHASE1.md)."""
+        """Return the merged superset of PHASE1.md + code pose names.
+
+        PHASE1.md (20): standing, walking, running, jumping, skipping,
+        sitting, kneeling, dancing, sleeping, reading, writing, pointing,
+        clapping, waving, hugging, holding_hands, playing, swimming,
+        flying, sliding.
+
+        Code extras (8): hopping, eating, drinking, drawing, crawling,
+        hiding, stretching, bouncing.
+
+        Total merged: 28 poses (all lowercase, unique).
+        """
         return {
-            "standing", "running", "jumping", "sitting", "dancing",
-            "walking", "hopping", "clapping", "waving", "skipping",
-            "sleeping", "eating", "drinking", "reading", "drawing",
-            "crawling", "sliding", "hiding", "stretching", "bouncing",
+            # PHASE1.md poses (20)
+            "standing", "walking", "running", "jumping", "skipping",
+            "sitting", "kneeling", "dancing", "sleeping", "reading",
+            "writing", "pointing", "clapping", "waving", "hugging",
+            "holding_hands", "playing", "swimming", "flying", "sliding",
+            # Code extras (8) — none overlap with PHASE1.md
+            "hopping", "eating", "drinking", "drawing", "crawling",
+            "hiding", "stretching", "bouncing",
         }
