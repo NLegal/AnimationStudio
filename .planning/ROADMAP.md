@@ -57,12 +57,12 @@ Plans:
   4. Lily Bunny outfit/wardrobe variants (12+ outfits) exist with generated images
   5. All produced assets pass identity scoring (DINOv2 consistency >= 90%) and human review before entering the permanent library
 
-**Plans**: 5 plans
+**Plans**: 1/5 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 01b-01-PLAN.md — Pipeline Enhancements Tracer: update expression/pose lists, add lineage to AssetModel, fix ColorVerificationPlugin palette loading
+- [x] 01b-01-PLAN.md — Pipeline Enhancements Tracer: update expression/pose lists, add lineage to AssetModel, fix ColorVerificationPlugin palette loading
 - [ ] 01b-02-PLAN.md — Review UI Wiring + Configurable Grids: wire action handlers, add 3x3/4x4 batch grids
 - [ ] 01b-03-PLAN.md — ComfyUI Workflow Templates: Flux API-format workflow JSONs, type-specific template loading
 
@@ -168,7 +168,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Character System Infrastructure & Bible Foundation | 5/5 | Complete | 2026-07-28 |
-| 1b. Character Asset Production | 0/5 | Planning | - |
+| 1b. Character Asset Production | 1/5 | In Progress|  |
 | 1c. Character Training System | 0/0 | Not started | - |
 | 2. World Building & Environment Bible | 0/0 | Not started | - |
 | 3. Story & Music Pipeline | 0/0 | Not started | - |

@@ -16,9 +16,9 @@
 ### Character System
 
 - [x] **CHAR-01**: Persistent Character Database — structured identity records for every character
-- [ ] **CHAR-02**: Character reference sheet generation (front, 3/4, profile, back angles)
-- [ ] **CHAR-03**: Expression library for each character (happy, sad, surprised, singing, sleepy, etc.)
-- [ ] **CHAR-04**: Pose library for each character (standing, running, jumping, sitting, dancing, etc.)
+- [x] **CHAR-02**: Character reference sheet generation (front, 3/4, profile, back angles)
+- [x] **CHAR-03**: Expression library for each character (happy, sad, surprised, singing, sleepy, etc.)
+- [x] **CHAR-04**: Pose library for each character (standing, running, jumping, sitting, dancing, etc.)
 - [ ] **CHAR-05**: Outfit/wardrobe variants per character (default, winter, rain, pajamas, holiday, etc.)
 - [x] **CHAR-06**: Character personality profiles, relationships, catchphrases, and emotion matrix
 - [ ] **CHAR-07**: LoRA training pipeline for character consistency (ComfyUI-FluxTrainer or SDXL-based)
@@ -164,9 +164,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFR-04 | Deferred | — |
 | INFR-05 | Deferred | — |
 | CHAR-01 | Phase 1 | Complete |
-| CHAR-02 | Phase 1b | Pending |
-| CHAR-03 | Phase 1b | Pending |
-| CHAR-04 | Phase 1b | Pending |
+| CHAR-02 | Phase 1b | Complete |
+| CHAR-03 | Phase 1b | Complete |
+| CHAR-04 | Phase 1b | Complete |
 | CHAR-05 | Phase 1b | Pending |
 | CHAR-06 | Phase 1 | Complete |
 | CHAR-07 | Phase 1c | Pending |
@@ -223,6 +223,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PUB-04 | Phase 6 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 63 total
 - Mapped to phases: 63
 - Complete: 3 (CHAR-01, CHAR-06, CHAR-08)
