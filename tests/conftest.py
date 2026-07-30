@@ -40,6 +40,12 @@ def test_image():
 
 
 @pytest.fixture
+def rgb_image():
+    """Return a medium RGB test image (640x480)."""
+    return Image.new("RGB", (640, 480), color=(100, 150, 200))
+
+
+@pytest.fixture
 def in_memory_db():
     """Return an SQLiteAssetRepository connected to :memory:."""
     repo = SQLiteAssetRepository(db_path=":memory:")
