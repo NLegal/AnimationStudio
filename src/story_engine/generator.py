@@ -20,7 +20,7 @@ from src.story_engine.interaction import InteractionEngine, EmotionEngine, Humor
 from src.story_engine.reinforcement import ReinforcementEngine, VocabularyEngine
 from src.story_engine.validation import StoryValidationEngine
 from src.story_engine.diversity import DiversityEngine
-from src.story_engine.continuity import ContinuityEngine
+from src.story_engine.continuity import ContinuityTracker
 
 
 class EpisodeGenerator:
@@ -44,7 +44,7 @@ class EpisodeGenerator:
         self.vocabulary = VocabularyEngine()
         self.validation = StoryValidationEngine()
         self.diversity = DiversityEngine()
-        self.continuity = ContinuityEngine()
+        self.continuity = ContinuityTracker()
 
     def generate_episode(
         self,

@@ -45,10 +45,15 @@ class ManifestBuilder:
             for shot in scene.shots:
                 images += 1
 
+        existing = episode.manifest
         return EpisodeManifest(
             episode_id=episode.id,
             title=episode.title,
             duration_seconds=episode.duration_seconds,
+            target_age=existing.target_age if existing else "2-5",
+            learning_goal=existing.learning_goal if existing else "",
+            has_song=existing.has_song if existing else False,
+            has_narration=existing.has_narration if existing else True,
             characters=sorted(chars),
             locations=sorted(locs),
             assets=sorted(assets),

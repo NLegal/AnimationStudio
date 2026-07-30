@@ -12,7 +12,7 @@ from src.production.models import (
 )
 from src.production.manifest import ManifestBuilder
 from src.production.prompt_generator import PromptGenerator
-from src.production.continuity import ContinuityEngine
+from src.production.continuity import ContinuityValidator
 from src.production.pipeline import ProductionPipeline, decompose_story
 from src.production.api import ShotType, CameraMovement
 from src.production.prompt_templates import (
@@ -188,9 +188,9 @@ class TestPromptGenerator:
         assert "Pixar-quality" in prompt
 
 
-class TestContinuityEngine:
+class TestContinuityValidator:
     def test_valid_episode_no_issues(self):
-        engine = ContinuityEngine()
+        engine = ContinuityValidator()
         ep = Episode(id="S01E001", title="Test")
         scene = Scene(
             id="SC_001",
@@ -214,7 +214,7 @@ class TestContinuityEngine:
         assert len(issues) == 0
 
     def test_clothing_change_detected(self):
-        engine = ContinuityEngine()
+        engine = ContinuityValidator()
         ep = Episode(id="S01E001", title="Test")
         scene = Scene(
             id="SC_001",
@@ -247,14 +247,14 @@ class TestContinuityEngine:
         assert any("clothing changed" in i for i in issues)
 
     def test_no_shots_in_scene(self):
-        engine = ContinuityEngine()
+        engine = ContinuityValidator()
         scene = Scene(id="SC_001", episode_id="S01E001")
         ep = Episode(id="S01E001", scenes=[scene])
         issues = engine.validate_episode(ep)
         assert any("has no shots" in i for i in issues)
 
     def test_negative_duration(self):
-        engine = ContinuityEngine()
+        engine = ContinuityValidator()
         scene = Scene(id="SC_001", episode_id="S01E001")
         scene.shots = [Shot(id="SH_001", duration_seconds=-1)]
         ep = Episode(id="S01E001", scenes=[scene])

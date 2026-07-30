@@ -12,14 +12,14 @@ from src.production.models import (
 )
 from src.production.manifest import ManifestBuilder
 from src.production.prompt_generator import PromptGenerator
-from src.production.continuity import ContinuityEngine
+from src.production.continuity import ContinuityValidator
 
 
 class ProductionPipeline:
     def __init__(self):
         self.manifest_builder = ManifestBuilder()
         self.prompt_generator = PromptGenerator()
-        self.continuity = ContinuityEngine()
+        self.continuity = ContinuityValidator()
         self._quality_gates: List[Callable[[Shot], List[str]]] = []
         self.render_queue: List[RenderTask] = []
         self.qc_reports: Dict[str, QCReport] = {}

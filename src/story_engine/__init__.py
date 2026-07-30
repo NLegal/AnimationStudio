@@ -17,7 +17,7 @@ from src.story_engine.interaction import InteractionEngine, EmotionEngine, Humor
 from src.story_engine.reinforcement import ReinforcementEngine, VocabularyEngine
 from src.story_engine.generator import EpisodeGenerator
 from src.story_engine.validation import StoryValidationEngine
-from src.story_engine.continuity import ContinuityEngine
+from src.story_engine.continuity import ContinuityTracker
 from src.story_engine.diversity import DiversityEngine
 from src.story_engine.planner import SeriesPlanner
 
@@ -30,5 +30,5 @@ __all__ = [
     "ConflictEngine", "ResolutionEngine", "NarrativeEngine", "StoryGrammarLibrary",
     "DialogueEngine", "SongEngine", "InteractionEngine", "EmotionEngine", "HumorEngine",
     "ReinforcementEngine", "VocabularyEngine", "EpisodeGenerator",
-    "StoryValidationEngine", "ContinuityEngine", "DiversityEngine", "SeriesPlanner",
+    "StoryValidationEngine", "ContinuityTracker", "DiversityEngine", "SeriesPlanner",
 ]

@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 from src.story_engine.models import ContinuityRecord, EpisodeBlueprint
 
 
-class ContinuityEngine:
+class ContinuityTracker:
     def __init__(self):
         self._records: Dict[str, ContinuityRecord] = {}
 

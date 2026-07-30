@@ -18,7 +18,7 @@ from src.production.models import (
 )
 from src.production.manifest import ManifestBuilder
 from src.production.prompt_generator import PromptGenerator
-from src.production.continuity import ContinuityEngine
+from src.production.continuity import ContinuityValidator
 from src.production.pipeline import ProductionPipeline
 
 __all__ = [
@@ -40,6 +40,6 @@ __all__ = [
     "ProductionTokens",
     "ManifestBuilder",
     "PromptGenerator",
-    "ContinuityEngine",
+    "ContinuityValidator",
     "ProductionPipeline",
 ]

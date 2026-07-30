@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Set
 from src.production.models import Episode, Scene, Shot, CharacterAssignment
 
 
-class ContinuityEngine:
+class ContinuityValidator:
     def __init__(self):
         self._rules: List[str] = []
         self._character_states: Dict[str, Dict] = {}
