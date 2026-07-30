@@ -1,245 +1,453 @@
-# Phase 7 — Production Planning & Storyboard System
+# Phase 6 — Story Engine & Narrative Intelligence System
 
 ## AI Nursery Studio
 
-### Version 1.0
+### Version 2.0
 
 ---
 
-# Objective
+# Vision
 
-Phases 1–6 created the creative foundation.
+The Story Engine is the **brain of the entire studio**.
 
-* Phase 1 — Characters
-* Phase 2 — World
-* Phase 3 — Assets
-* Phase 4 — Animation System
-* Phase 5 — Audio System
-* Phase 6 — Story Engine
+It is **not** an LLM prompt.
 
-Phase 7 transforms a completed story into a **production-ready blueprint**.
+It is **not** a script generator.
 
-This phase answers one question:
+It is a complete narrative intelligence system responsible for creating thousands of unique, educational, emotionally engaging nursery rhyme episodes while maintaining continuity across your universe.
 
-> **"Exactly what needs to be generated?"**
+Everything that happens in every episode originates here.
 
-Rather than immediately calling AI models, every episode is first decomposed into a structured production plan that every downstream AI system can understand.
+The Story Engine decides:
 
-Think of this as the equivalent of a film studio's **pre-production department**.
+* What story to tell
+* Which educational goal to teach
+* Which characters participate
+* Where the story takes place
+* Which song is needed
+* Which assets are required
+* Which interactions occur
+* Which emotions are experienced
+* Which learning objectives are reinforced
 
-No animation begins until Phase 7 is complete.
-
----
-
-# Philosophy
-
-Animation is expensive.
-
-AI generation is expensive.
-
-Rendering is expensive.
-
-Regenerating scenes wastes time and money.
-
-Therefore:
-
-**Plan first. Generate second.**
-
-Every shot should be intentional.
+Nothing enters production until it passes through the Story Engine.
 
 ---
 
-# Primary Goals
+# Primary Objectives
 
-Transform:
+The Story Engine should generate stories that are:
 
-One Story
-
-↓
-
-Into
-
-A complete production package containing:
-
-* Episode plan
-* Scene list
-* Shot list
-* Camera list
-* Asset requirements
-* Character requirements
-* Dialogue timing
-* Song timing
-* Animation requirements
-* Rendering requirements
-
-Everything downstream becomes deterministic.
+* Educational
+* Entertaining
+* Repeatable
+* Diverse
+* Safe
+* Age appropriate
+* Emotionally positive
+* Brand consistent
+* Character consistent
+* World consistent
 
 ---
 
-# Production Pipeline
+# Responsibilities
+
+The Story Engine is responsible for:
+
+Story Planning
+
+Curriculum Planning
+
+Character Selection
+
+Environment Selection
+
+Asset Selection
+
+Relationship Consistency
+
+Lesson Selection
+
+Dialogue Generation
+
+Song Placement
+
+Interactive Moments
+
+Story Validation
+
+Continuity
+
+Difficulty Scaling
+
+Episode Metadata
+
+Localization Preparation
+
+Series Planning
+
+Season Planning
+
+Holiday Planning
+
+---
+
+# Story Engine Architecture
 
 ```text
-Episode
-
-↓
-
-Production Plan
-
-↓
-
-Scene Breakdown
-
-↓
-
-Shot Breakdown
-
-↓
-
-Asset Assignment
-
-↓
-
-Camera Assignment
-
-↓
-
-Animation Assignment
-
-↓
-
-Audio Assignment
-
-↓
-
-Generation Queue
-
-↓
-
-Rendering Queue
+Curriculum Engine
+          │
+          ▼
+Theme Engine
+          │
+          ▼
+Learning Objective Engine
+          │
+          ▼
+Character Engine
+          │
+          ▼
+World Engine
+          │
+          ▼
+Conflict Engine
+          │
+          ▼
+Narrative Engine
+          │
+          ▼
+Dialogue Engine
+          │
+          ▼
+Song Engine
+          │
+          ▼
+Interaction Engine
+          │
+          ▼
+Validation Engine
+          │
+          ▼
+Episode Package
 ```
 
 ---
 
-# Production Hierarchy
+# Engine Components
 
-Everything follows this hierarchy.
+Instead of one giant prompt, build specialized engines.
 
-```text
-Series
+Each engine has a single responsibility.
 
-↓
+---
+
+# Curriculum Engine
+
+Determines
+
+What children should learn.
+
+Possible objectives
+
+Alphabet
+
+Numbers
+
+Shapes
+
+Colors
+
+Animals
+
+Science
+
+Space
+
+Ocean
+
+Farm
+
+Healthy Habits
+
+Friendship
+
+Emotions
+
+Problem Solving
+
+Motor Skills
+
+Music
+
+Dance
+
+Language
+
+Seasons
+
+Weather
+
+Community Helpers
+
+Transportation
+
+Geography
+
+The curriculum engine should ensure balanced educational coverage across hundreds of episodes.
+
+---
+
+# Theme Engine
+
+Selects the episode theme.
+
+Examples
+
+Lost Toy
+
+Birthday
+
+Rainy Day
+
+Camping
+
+Beach
+
+Zoo
+
+Treasure Hunt
+
+School
+
+Cooking
+
+Gardening
+
+Picnic
+
+Building Blocks
+
+Flying Kites
+
+Snow Day
+
+Space Adventure
+
+Farm Visit
+
+Halloween
+
+Christmas
+
+The theme supports the learning objective but does not replace it.
+
+---
+
+# Learning Objective Engine
+
+Every episode should teach exactly one primary concept.
+
+Examples
+
+Count to Five
+
+Recognize Blue
+
+Identify Triangles
+
+Brush Teeth
+
+Share Toys
+
+Learn Duck Sounds
+
+Sort Shapes
+
+Tie Shoes
+
+Wash Hands
+
+Name Farm Animals
+
+One lesson.
+
+One focus.
+
+One outcome.
+
+---
+
+# Character Engine
+
+Selects
+
+Main Character
+
+Supporting Characters
+
+Parents
+
+Teacher
+
+Friends
+
+Pets
+
+Background Characters
+
+Rules
+
+Avoid overcrowding.
+
+Young children follow fewer characters more easily.
+
+---
+
+# Relationship Engine
+
+Maintains consistency.
+
+Example
+
+Lily knows Ben.
+
+Ben knows Daisy.
+
+Grandma always lives in the same house.
+
+Teachers remain teachers.
+
+Parents remain parents.
+
+No contradictions.
+
+---
+
+# World Engine
+
+Selects
+
+Location
+
+Time
 
 Season
 
-↓
+Weather
 
-Episode
+Holiday
 
-↓
+Special Decorations
 
-Act
-
-↓
-
-Scene
-
-↓
-
-Shot
-
-↓
-
-Frame Sequence
-```
-
-Never generate directly from an episode.
-
-Always generate from individual shots.
+The world engine ensures consistency with established environments.
 
 ---
 
-# Episode Manifest
+# Asset Engine
 
-Every episode begins with a production manifest.
+Automatically selects required assets.
 
 Example
 
-```yaml
-Episode ID:
-S01E014
+Theme
 
-Title:
-Five Colorful Ducks
+Birthday
 
-Duration:
-3:12
+Automatically includes
 
-Target Age:
-2–5
+Cake
 
-Learning Goal:
-Primary Colors
+Candles
 
-Song:
-Yes
-
-Narration:
-Yes
-
-Characters:
-Lily Bunny
-Ben Bear
-Mama Duck
-
-Locations:
-Sunny Pond
-
-Assets:
 Balloons
-Flowers
-Boat
 
-Scenes:
-18
+Gift Boxes
 
-Shots:
-67
+Party Hats
 
-Estimated Video Clips:
-42
+Confetti
 
-Estimated Images:
-95
-```
-
-This manifest drives the entire pipeline.
+No manual asset selection required.
 
 ---
 
-# Story Decomposition
+# Conflict Engine
 
-Every story is decomposed automatically.
+Generates small child-friendly problems.
 
-Example
+Examples
+
+Lost Balloon
+
+Wrong Color
+
+Can't Count
+
+Missing Puzzle Piece
+
+Dropped Cookie
+
+Needs Help Cleaning
+
+Can't Find Teddy
+
+Plant Needs Water
+
+Forgot Backpack
+
+Conflict should encourage learning, not fear.
+
+---
+
+# Resolution Engine
+
+Every episode ends positively.
+
+Methods
+
+Friend Helps
+
+Practice
+
+Teacher Explains
+
+Family Helps
+
+Character Learns
+
+Discovery
+
+Celebration
+
+Never end negatively.
+
+---
+
+# Narrative Engine
+
+Converts planning into a structured story.
+
+Framework
 
 ```text
-Story
-
-↓
-
 Opening
 
 ↓
 
+Goal
+
+↓
+
+Problem
+
+↓
+
+Discovery
+
+↓
+
 Learning
-
-↓
-
-Adventure
-
-↓
-
-Song
 
 ↓
 
@@ -247,787 +455,685 @@ Practice
 
 ↓
 
+Success
+
+↓
+
 Celebration
 
 ↓
 
-Ending
+Goodbye
 ```
 
-Each becomes scenes.
+This structure remains consistent across the series.
 
 ---
 
-# Scene Structure
+# Dialogue Engine
 
-Every scene has one purpose.
-
-Scene metadata
-
-Scene ID
-
-Title
-
-Purpose
-
-Duration
-
-Characters
-
-Location
-
-Learning Objective
-
-Dialogue
-
-Song
-
-Interactive Moment
-
-Animation Notes
-
-Camera Notes
-
-Asset List
-
-Mood
-
-Transition
-
----
-
-# Scene Rules
-
-A scene should contain:
-
-One objective
-
-One location
-
-Limited characters
-
-Limited camera movement
-
-Clear beginning
-
-Clear ending
-
-Never overload a scene.
-
----
-
-# Shot Planning
-
-Each scene is divided into shots.
-
-Example
-
-Scene 5
-
-↓
-
-Shot 1
-
-Wide establishing
-
-↓
-
-Shot 2
-
-Lily walks
-
-↓
-
-Shot 3
-
-Close-up
-
-↓
-
-Shot 4
-
-Apple appears
-
-↓
-
-Shot 5
-
-Reaction
-
-This greatly improves generation consistency.
-
----
-
-# Shot Types
-
-Establishing
-
-Wide
-
-Medium
-
-Close-up
-
-Extreme Close-up
-
-Overhead
-
-Side
-
-Tracking
-
-Follow
-
-POV
-
-Reaction
-
-Cutaway
-
-Transition
-
-Every shot should have a predefined purpose.
-
----
-
-# Shot Metadata
-
-Every shot stores
-
-Shot ID
-
-Length
-
-Camera
-
-Characters
-
-Assets
-
-Environment
-
-Animation
-
-Lighting
-
-Weather
-
-Dialogue
-
-Song Timestamp
-
-Emotion
-
-Movement
-
-Transition
-
-Prompt ID
-
-Negative Prompt ID
-
----
-
-# Camera Planning
-
-Assign cameras before generation.
-
-Camera movement
-
-Static
-
-Pan Left
-
-Pan Right
-
-Tilt
-
-Push In
-
-Pull Out
-
-Orbit
-
-Track
-
-Follow
-
-Crane
-
-Zoom
-
-Children's content should favor slow, stable movement.
-
----
-
-# Timing System
-
-Everything is timeline-based.
-
-Example
-
-```text
-00:00
-
-Opening
-
-00:08
-
-Narrator
-
-00:12
-
-Song starts
-
-00:35
-
-Question
-
-00:45
-
-Answer
-
-01:10
-
-Dance
-
-01:45
-
-Learning
-
-02:20
-
-Celebration
-
-03:05
-
-Outro
-```
-
-This timeline becomes the source of truth for every department.
-
----
-
-# Character Assignment
-
-Every shot specifies:
-
-Characters
-
-Visibility
-
-Speaking
-
-Singing
-
-Walking
-
-Running
-
-Dancing
-
-Interaction
-
-Emotion
-
-Clothing
-
-Accessories
-
-No assumptions.
-
----
-
-# Asset Assignment
-
-Every shot references assets by ID.
-
-Example
-
-```text
-Shot 014
-
-CHAR_LILY_001
-
-ENV_PLAYGROUND_001
-
-PROP_BALLOON_RED_004
-
-PROP_BENCH_002
-
-PROP_TREE_015
-```
-
-No free-form asset creation during production.
-
----
-
-# Environment Assignment
-
-Each shot references:
-
-Environment
-
-Lighting
-
-Weather
-
-Season
-
-Time of Day
-
-Camera Position
-
-Reuse environment variants whenever possible.
-
----
-
-# Animation Assignment
-
-Every shot references animation libraries.
-
-Example
-
-Walk Cycle 02
-
-Smile 03
-
-Wave Loop 01
-
-Blink Pattern 02
-
-Jump Loop 01
-
-Reuse approved animation clips.
-
----
-
-# Audio Assignment
-
-Every shot references
-
-Dialogue
+Produces:
 
 Narration
 
-Music
+Character dialogue
 
-Sound Effects
+Questions
 
-Ambient Audio
+Repetition
 
-Lip-sync Track
+Vocabulary
 
-Timing is synchronized to the master timeline.
+Rules
 
----
+Short sentences
 
-# Prompt Generation
+Simple grammar
 
-The storyboard should never directly contain prompts.
+Positive tone
 
-Instead:
+No sarcasm
 
-Storyboard
+No slang
 
-↓
-
-Prompt Generator
-
-↓
-
-Generation Prompt
-
-↓
-
-AI Model
-
-This allows changing models without rewriting storyboards.
+No abstract concepts
 
 ---
 
-# Prompt Templates
+# Song Engine
 
-Store prompt templates separately.
+Determines
+
+Should this episode contain music?
+
+If yes
+
+Where?
+
+Opening
+
+Middle
+
+Ending
+
+Full Episode
+
+Transition Song
+
+Dance Song
+
+Lullaby
+
+Alphabet Song
+
+Counting Song
+
+Color Song
+
+The Song Engine outputs lyrical intent, not audio. Music generation occurs later using the standards established in Phase 5.
+
+---
+
+# Interaction Engine
+
+Adds audience participation.
+
+Examples
+
+Can you count?
+
+Can you clap?
+
+What color is this?
+
+Can you find the bunny?
+
+Can you roar like a lion?
+
+Pause timing should already be planned.
+
+---
+
+# Emotion Engine
+
+Controls emotional flow.
+
+Typical curve
+
+Curiosity
+
+↓
+
+Excitement
+
+↓
+
+Challenge
+
+↓
+
+Thinking
+
+↓
+
+Learning
+
+↓
+
+Success
+
+↓
+
+Celebration
+
+Avoid emotional extremes.
+
+---
+
+# Humor Engine
+
+Creates age-appropriate humor.
+
+Examples
+
+Funny sneeze
+
+Silly dance
+
+Goofy hat
+
+Animal hiccup
+
+Ticklish feathers
+
+Bubble surprise
+
+Gentle repetition
+
+Humor should never embarrass a character.
+
+---
+
+# Educational Reinforcement Engine
+
+Determines
+
+How often concepts repeat.
 
 Example
 
-Character Prompt
+Learning number four
 
-Environment Prompt
+Show
 
-Animation Prompt
+4 apples
 
-Camera Prompt
+4 balloons
 
-Lighting Prompt
+4 ducks
 
-Rendering Prompt
+4 stars
 
-Then combine them dynamically.
-
----
-
-# Production Tokens
-
-Represent production data using structured tokens.
-
-Example
-
-```yaml
-Character:
-CHAR_LILY_001
-
-Location:
-ENV_PLAYGROUND_001
-
-Camera:
-CAM_TRACK_003
-
-Lighting:
-LIGHT_SUNRISE
-
-Emotion:
-HAPPY_04
-
-Animation:
-RUN_LOOP_02
-
-Weather:
-CLEAR
-
-Season:
-SPRING
-```
-
-This enables consistent automation and validation.
+Say "four" multiple times naturally.
 
 ---
 
-# AI Generation Queue
+# Vocabulary Engine
 
-Instead of generating immediately:
+Controls complexity.
 
-Queue every task.
+Age 2
 
-Example
+One-word phrases
 
-```text
-Generate Image
+Age 3
 
-↓
+Two-word phrases
 
-Animate Image
+Age 4
 
-↓
+Simple sentences
 
-Generate Lip Sync
+Age 5–6
 
-↓
+Longer conversations
 
-Render Clip
-
-↓
-
-Upscale
-
-↓
-
-QC Review
-```
-
-Tasks become retryable and parallelizable.
+Vocabulary should scale with target audience.
 
 ---
 
-# Parallel Production
+# Episode Generator
 
-Independent shots should render simultaneously.
+Produces
 
-Example
+Episode Title
 
-Scene 1
+Description
 
-↓
+Lesson
 
-Shot 1
+Characters
 
-Shot 2
+Environment
 
-Shot 3
+Assets
 
-Shot 4
+Scene Outline
 
-↓
+Dialogue Outline
 
-Merge
+Song Outline
 
-↓
+Learning Moments
 
-Scene Complete
+Interactive Moments
 
-This maximizes GPU utilization.
+Ending
 
----
-
-# Quality Gates
-
-Every shot passes:
-
-Visual QA
-
-Character QA
-
-Environment QA
-
-Animation QA
-
-Audio QA
-
-Continuity QA
-
-Prompt QA
-
-Rendering QA
-
-Only approved shots advance.
+Metadata
 
 ---
 
-# Continuity Engine
+# Story Grammar Library
 
-Automatically verify:
+Create reusable narrative templates.
 
-Correct clothing
+Examples
 
-Correct accessories
+Find Something
 
-Correct weather
+Learn Something
 
-Correct lighting
+Help Someone
 
-Correct age
+Build Something
 
-Correct character
+Visit Somewhere
 
-Correct location
+Celebrate Something
 
-Correct time
+Clean Something
 
-Correct props
+Count Something
 
-Prevent continuity errors before rendering.
+Sort Something
 
----
+Grow Something
 
-# Storyboard Deliverables
+Sing Together
 
-Every episode should produce:
+Dance Together
 
-Episode Manifest
+Adventure Together
 
-Production Timeline
-
-Scene List
-
-Shot List
-
-Camera Plan
-
-Animation Plan
-
-Dialogue Plan
-
-Music Timeline
-
-Prompt Package
-
-Generation Queue
-
-Asset Manifest
-
-Rendering Manifest
-
-QC Checklist
+Each grammar pattern can support hundreds of episodes.
 
 ---
 
-# File Structure
+# Episode Metadata
 
-```text
-Production/
+Every episode should store
 
-Episodes/
-
-    Episode_001/
-
-        Manifest/
-
-        Storyboard/
-
-        Timeline/
-
-        Scenes/
-
-        Shots/
-
-        Camera/
-
-        Animation/
-
-        Audio/
-
-        Prompts/
-
-        Assets/
-
-        RenderQueue/
-
-        QC/
-
-        Metadata/
-```
-
----
-
-# Data Model
-
-Suggested production objects.
-
-```text
-Series
+Episode ID
 
 Season
 
-Episode
+Title
 
-Scene
+Subtitle
 
-Shot
+Learning Goal
 
-Camera
+Theme
 
-Timeline Event
+Target Age
 
-Dialogue Event
+Running Time
 
-Music Event
+Characters
 
-Animation Event
+Locations
 
-Prompt
+Assets
 
-Asset Reference
+Holiday
 
-Render Task
+Language
 
-QC Report
-```
+Difficulty
 
-Keep these objects independent so they can evolve without affecting the rest of the pipeline.
+Keywords
+
+Curriculum Tags
+
+Revision History
 
 ---
 
-# Automation Hooks
+# Seasonal Planner
 
-Every stage should expose APIs.
+Automatically reserve episodes for
+
+New Year
+
+Valentine's Day
+
+Spring
+
+Easter
+
+Summer
+
+Back to School
+
+Halloween
+
+Thanksgiving
+
+Christmas
+
+Winter
+
+Avoid last-minute planning.
+
+---
+
+# Series Planner
+
+Organize episodes into seasons.
 
 Example
 
+Season 1
+
+Meet the Characters
+
+Season 2
+
+Learning Colors
+
+Season 3
+
+Learning Numbers
+
+Season 4
+
+Animal Adventures
+
+Season 5
+
+School Time
+
+Season 6
+
+Science Fun
+
+This keeps long-term progression intentional.
+
+---
+
+# Continuity Rules
+
+The Story Engine must remember:
+
+Character personalities
+
+Favorite foods
+
+Favorite toys
+
+Homes
+
+Relationships
+
+Pets
+
+Recurring jokes
+
+Catchphrases
+
+World geography
+
+Recurring locations
+
+Never contradict established canon.
+
+---
+
+# Diversity Rules
+
+Prevent repetitive episodes.
+
+Track
+
+Locations
+
+Characters
+
+Songs
+
+Lessons
+
+Props
+
+Activities
+
+Weather
+
+Seasons
+
+Games
+
+No two consecutive episodes should feel identical.
+
+---
+
+# Safety Rules
+
+Never generate
+
+Violence
+
+Bullying
+
+Politics
+
+Religion
+
+Scary horror
+
+Death
+
+Crime
+
+Weapons
+
+Alcohol
+
+Drugs
+
+Gambling
+
+Dangerous behavior
+
+Medical misinformation
+
+Unsafe imitation
+
+Always prioritize child safety.
+
+---
+
+# Story Validation Engine
+
+Automatically verify
+
+✓ Educational objective present
+
+✓ Positive ending
+
+✓ Character consistency
+
+✓ World consistency
+
+✓ Asset availability
+
+✓ Lesson repetition
+
+✓ Safe content
+
+✓ Age-appropriate vocabulary
+
+✓ Interaction moments
+
+✓ Song placement
+
+✓ Continuity
+
+Only validated stories move forward.
+
+---
+
+# AI Prompt Templates
+
+Planning Prompt
+
 ```text
-POST /episodes
-
-↓
-
-POST /storyboard
-
-↓
-
-POST /scenes
-
-↓
-
-POST /shots
-
-↓
-
-POST /prompts
-
-↓
-
-POST /render-queue
-
-↓
-
-POST /quality-check
+Create a preschool educational episode teaching the color blue using Lily Bunny and Ben Bear at Sunny Meadows Playground. Include one gentle problem, one interactive counting moment, one short song placement, and a positive ending that reinforces the learning objective.
 ```
 
-This allows orchestration by an automation system or future production dashboard.
+Curriculum Prompt
+
+```text
+Generate a sequence of 20 preschool lessons that gradually teach numbers one through ten without repeating themes or locations excessively.
+```
+
+---
+
+# Folder Structure
+
+```text
+StoryEngine/
+
+Curriculum/
+
+Themes/
+
+LearningObjectives/
+
+StoryGrammar/
+
+NarrativeTemplates/
+
+Dialogue/
+
+Interaction/
+
+Songs/
+
+Humor/
+
+Emotions/
+
+Continuity/
+
+Validation/
+
+Series/
+
+Seasons/
+
+Episodes/
+
+Metadata/
+
+PromptTemplates/
+```
+
+---
+
+# Internal Data Model
+
+```text
+Curriculum
+
+↓
+
+Theme
+
+↓
+
+Lesson
+
+↓
+
+Characters
+
+↓
+
+Relationships
+
+↓
+
+Location
+
+↓
+
+Assets
+
+↓
+
+Conflict
+
+↓
+
+Resolution
+
+↓
+
+Story
+
+↓
+
+Dialogue
+
+↓
+
+Interaction
+
+↓
+
+Validation
+
+↓
+
+Episode Package
+```
+
+Every layer produces structured data consumed by the next layer rather than relying on a single monolithic prompt.
 
 ---
 
 # Quality Checklist
 
-Before generation begins, confirm:
+Every generated episode should satisfy:
 
-□ Episode manifest complete
+□ One clear educational objective
 
-□ Timeline approved
+□ One primary theme
 
-□ Story decomposed into scenes
+□ Appropriate character count
 
-□ All shots defined
+□ Correct locations
 
-□ Cameras assigned
+□ Correct assets
 
-□ Characters assigned
+□ Positive emotional arc
 
-□ Assets assigned
+□ Audience participation included
 
-□ Animation references assigned
+□ Vocabulary matches target age
 
-□ Audio synchronized
+□ Safe conflict
 
-□ Prompt templates resolved
+□ Positive resolution
 
-□ Render queue generated
+□ Song opportunity identified
 
-□ Quality gates configured
+□ Continuity maintained
 
-□ Continuity validation passed
+□ Variety maintained across recent episodes
+
+□ Validation passed
 
 ---
 
 # Deliverables
 
-At the completion of Phase 7 your studio should contain:
+At the completion of Phase 6, the studio should contain:
 
-* Production planning engine
-* Storyboard specification
-* Scene and shot schema
-* Camera planning system
-* Timeline and synchronization model
-* Prompt generation framework
-* Asset assignment system
-* Render queue specification
-* Continuity validation rules
-* Quality-control workflow
-* Production API specification
+* Curriculum planning engine
+* Theme selection engine
+* Learning objective library
+* Story grammar system
+* Narrative generation engine
+* Dialogue generation engine
+* Song placement engine
+* Interaction planning engine
+* Emotion and humor systems
+* Continuity engine
+* Diversity and repetition tracker
+* Story validation engine
+* Series and season planner
+* Structured episode package specification
+* Story generation prompt library
 
 ---
 
 # Long-Term Vision
 
-Phase 7 marks the transition from **creative planning** to **manufacturing**.
+The Story Engine is not merely a script writer—it is the **creative operating system** of the studio.
 
-Up to this point, your studio defines *what* exists and *what* story to tell. From this phase onward, the system defines *how* that story becomes a finished episode.
+Rather than asking an AI model to "write a nursery rhyme," the Story Engine assembles every episode from structured, reusable components: curriculum goals, themes, characters, environments, relationships, assets, story grammars, and educational rules. This architecture produces consistent, scalable content while allowing individual AI models to change over time.
 
-By treating production as structured data instead of a collection of prompts, your studio gains several long-term advantages:
-
-* AI models can be replaced without changing story logic.
-* Multiple rendering backends can operate in parallel.
-* Failed shots can be regenerated independently.
-* Continuity can be validated automatically.
-* Production becomes measurable, repeatable, and scalable.
-
-This architecture lays the groundwork for a true AI animation studio capable of producing hundreds or thousands of consistent episodes while maintaining professional production standards and minimizing manual intervention.
+By separating **creative planning** from **content generation**, the studio gains the ability to generate thousands of episodes, maintain a coherent universe, avoid repetitive lessons, support multiple languages, and automatically produce season plans and yearly educational roadmaps. The Story Engine becomes the central intelligence layer that connects every creative department built in Phases 1–5 with the production systems introduced in later phases.
