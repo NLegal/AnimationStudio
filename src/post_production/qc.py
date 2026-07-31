@@ -46,6 +46,35 @@ class PostProductionQC:
             timestamp=datetime.now().isoformat(),
         )
 
+    MAX_FLASHES_PER_SECOND = 3
+
+    def validate_accessibility(self, flash_events: list[tuple[float, float]] | None = None,
+                               window_seconds: float = 1.0) -> QCResult:
+        checks: dict[str, bool] = {
+            "flashes_within_limits": True,
+            "no_flashes_in_lowest_window": True,
+        }
+        errors: list[str] = []
+        for event in flash_events or []:
+            start, end = event
+            duration = max(end - start, 0.001)
+            rate = 1.0 / duration
+            if rate > self.MAX_FLASHES_PER_SECOND:
+                checks["flashes_within_limits"] = False
+                errors.append(
+                    f"Flash at {start}s exceeds safe limit ({rate:.1f} flashes/s "
+                    f"vs max {self.MAX_FLASHES_PER_SECOND}/s)"
+                )
+        checks["no_flashes_in_lowest_window"] = window_seconds > 0
+        score = (sum(1 for v in checks.values() if v) / len(checks)) * 100.0 if checks else 0.0
+        return QCResult(
+            passed=len(errors) == 0,
+            checks=checks,
+            errors=errors,
+            score=round(score, 1),
+            timestamp=datetime.now().isoformat(),
+        )
+
     def check_missing_clips(self, timeline: MasterTimeline) -> list[str]:
         missing: list[str] = []
         for track in timeline.tracks:

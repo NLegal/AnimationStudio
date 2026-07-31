@@ -18,6 +18,10 @@ from src.post_production import (
     ExportEngine,
     LocalizationEngine, LocalizationPackage,
     PostProductionQC, ArchiveEngine,
+    ColorCorrectionEngine, ColorCorrectionSettings,
+    EnhancementEngine, EnhancementSettings,
+    PostProductionAnalytics, AnalyticsReport,
+    InteractiveElementEngine,
 )
 
 
@@ -166,7 +170,7 @@ class TestEnumValues:
         assert len(VideoTrackType) == 5
 
     def test_audio_track_types(self):
-        assert len(AudioTrackType) == 5
+        assert len(AudioTrackType) == 7
 
     def test_transition_styles(self):
         assert len(TransitionStyle) == 9
@@ -404,6 +408,155 @@ class TestEditingEngine:
         assert tl.tracks[2].name == "Subtitles"
 
 
+# ── EditingEngine insert_pause Tests ────────────────────────────────────
+
+class TestInsertPause:
+    def test_insert_pause_shifts_future_events(self):
+        engine = EditingEngine()
+        assembly = SceneAssembly(
+            learning=[ClipReference(clip_id="C1", duration=3.0)],
+            practice=[ClipReference(clip_id="C2", duration=2.0)],
+        )
+        tl = engine.assemble_scenes("EP_001", assembly)
+        video = tl.tracks[0]
+        audio = tl.tracks[1]
+        engine.insert_pause(video, audio, at_time=3.0, duration=0.5)
+        first, second = video.events
+        assert first.start_time == pytest.approx(0.0)
+        assert first.end_time == pytest.approx(3.0)
+        assert second.start_time == pytest.approx(3.5)
+        assert second.end_time == pytest.approx(5.5)
+
+    def test_insert_pause_straddling_event(self):
+        engine = EditingEngine()
+        tl = engine.assemble_scenes(
+            "EP_001",
+            SceneAssembly(learning=[ClipReference(clip_id="C1", duration=3.0)]),
+        )
+        video = tl.tracks[0]
+        engine.insert_pause(video, None, at_time=1.0, duration=0.5)
+        assert video.events[0].start_time == pytest.approx(0.0)
+        assert video.events[0].end_time == pytest.approx(3.5)
+
+    def test_insert_pause_clamps_duration(self):
+        engine = EditingEngine()
+        tl = engine.assemble_scenes(
+            "EP_001",
+            SceneAssembly(learning=[ClipReference(clip_id="C1", duration=3.0)]),
+        )
+        engine.insert_pause(tl.tracks[0], tl.tracks[1], at_time=1.0, duration=-1.0)
+        assert tl.tracks[0].events[0].end_time == pytest.approx(3.1)
+
+
+# ── InteractiveElementEngine Tests ──────────────────────────────────────
+
+class TestInteractiveElementEngine:
+    def test_add_and_list(self):
+        engine = InteractiveElementEngine()
+        engine.add_element("E1", "question", 0.0, 2.0, "count_bunny")
+        engine.add_element("E2", "celebration", 5.0, 6.0)
+        assert len(engine.list_elements()) == 2
+
+    def test_remove(self):
+        engine = InteractiveElementEngine()
+        engine.add_element("E1", "question", 0.0, 2.0)
+        assert engine.remove_element("E1") is True
+        assert engine.remove_element("MISSING") is False
+
+    def test_elements_in_range(self):
+        engine = InteractiveElementEngine()
+        engine.add_element("E1", "question", 1.0, 3.0)
+        engine.add_element("E2", "clap", 10.0, 12.0)
+        found = engine.elements_in_range(2.0, 4.0)
+        assert [e["id"] for e in found] == ["E1"]
+
+
+# ── ColorCorrectionEngine Tests ─────────────────────────────────────────
+
+class TestColorCorrectionEngine:
+    def test_neutral_defaults(self):
+        s = ColorCorrectionEngine().settings()
+        assert s.is_neutral()
+
+    def test_clamping(self):
+        s = ColorCorrectionEngine().settings(brightness=5.0, contrast=5.0, saturation=-1.0)
+        assert s.brightness == 1.0
+        assert s.contrast == 2.0
+        assert s.saturation == 0.0
+
+    def test_preset(self):
+        s = ColorCorrectionEngine().preset("storybook")
+        assert s.contrast == pytest.approx(1.15)
+        assert s.saturation == pytest.approx(1.2)
+
+    def test_list_presets(self):
+        presets = ColorCorrectionEngine().list_presets()
+        assert "storybook" in presets
+
+    def test_suggest(self):
+        s = ColorCorrectionEngine().suggest("song")
+        assert s.description
+
+    def test_apply(self):
+        result = ColorCorrectionEngine().apply(ColorCorrectionEngine().preset("gentle_brighten"))
+        assert result["settings"]["brightness"] == pytest.approx(0.05)
+
+
+# ── EnhancementEngine Tests ─────────────────────────────────────────────
+
+class TestEnhancementEngine:
+    def test_recommend_interpolation(self):
+        engine = EnhancementEngine()
+        settings = engine.recommend(12, 24)
+        assert settings.frame_interpolation is True
+
+    def test_recommend_no_interpolation(self):
+        engine = EnhancementEngine()
+        settings = engine.recommend(24, 24)
+        assert settings.frame_interpolation is False
+
+    def test_pipeline_steps(self):
+        engine = EnhancementEngine()
+        steps = engine.pipeline()
+        assert [s["step"] for s in steps] == [
+            "sharpening", "noise_reduction", "frame_interpolation",
+            "artifact_cleanup", "edge_refinement",
+        ]
+
+    def test_list_steps(self):
+        steps = EnhancementEngine().list_steps()
+        assert len(steps) == 5
+
+
+# ── PostProductionAnalytics Tests ───────────────────────────────────────
+
+class TestPostProductionAnalytics:
+    def test_build_report(self):
+        report = PostProductionAnalytics().build_report(
+            episode_id="EP_001", question_count=4, subtitle_count=10,
+            qc_score=95.0, render_time_seconds=120.0,
+        )
+        assert report.episode_id == "EP_001"
+        assert report.question_count == 4
+        assert report.subtitle_count == 10
+        assert report.qc_score == 95.0
+
+    def test_compression_ratio(self):
+        engine = PostProductionAnalytics()
+        assert engine.compression_ratio(100.0, 20.0) == pytest.approx(5.0)
+        assert engine.compression_ratio(0.0, 20.0) == 0.0
+
+    def test_duration_breakdown(self):
+        engine = PostProductionAnalytics()
+        breakdown = engine.duration_breakdown({"learning": 30.0, "song": 30.0})
+        assert breakdown["learning"]["seconds"] == 30.0
+        assert breakdown["learning"]["percent"] == pytest.approx(50.0)
+
+    def test_as_dict(self):
+        report = PostProductionAnalytics().build_report(episode_id="EP_001")
+        assert report.as_dict()["episode_id"] == "EP_001"
+
+
 # ── TransitionLibrary Tests ─────────────────────────────────────────────
 
 class TestTransitionLibrary:
@@ -454,7 +607,13 @@ class TestAudioSyncEngine:
     def test_mix_levels_priority_order(self):
         engine = AudioSyncEngine()
         levels = engine.mix_levels(list(AudioTrackType))
-        assert len(levels) == 5
+        assert len(levels) == 7
+
+    def test_mix_levels_new_tracks(self):
+        engine = AudioSyncEngine()
+        levels = engine.mix_levels([AudioTrackType.SINGING, AudioTrackType.LEARNING_SOUNDS])
+        assert levels["singing"] == -3.0
+        assert levels["learning_sounds"] == -6.0
 
     def test_estimate_dialogue_duration(self):
         engine = AudioSyncEngine()
@@ -643,11 +802,15 @@ class TestGraphicOverlay:
 class TestIntroTemplate:
     def test_defaults(self):
         t = IntroTemplate()
-        assert t.total_duration == pytest.approx(2.0 + 1.5 + 5.0 + 3.0 + 3.0)
+        assert t.total_duration == pytest.approx(1.5 + 1.0 + 3.5 + 2.0 + 2.0)
+
+    def test_default_within_standard(self):
+        t = IntroTemplate()
+        assert t.is_within_standard()
 
     def test_custom_values(self):
         t = IntroTemplate(theme_music_duration=3.0, episode_title_duration=2.0)
-        assert t.total_duration == pytest.approx(2.0 + 1.5 + 3.0 + 3.0 + 2.0)
+        assert t.total_duration == pytest.approx(1.5 + 1.0 + 3.0 + 2.0 + 2.0)
 
 
 class TestOutroTemplate:
@@ -916,6 +1079,24 @@ class TestPostProductionQC:
         tl.tracks.append(track)
         issues = qc.check_transitions(tl)
         assert isinstance(issues, list)
+
+    def test_validate_accessibility_safe_flashes(self):
+        qc = PostProductionQC()
+        result = qc.validate_accessibility(flash_events=[(0.0, 0.5)])
+        assert result.passed is True
+        assert result.checks["flashes_within_limits"] is True
+
+    def test_validate_accessibility_excessive_flashes(self):
+        qc = PostProductionQC()
+        result = qc.validate_accessibility(flash_events=[(0.0, 0.05)])
+        assert result.passed is False
+        assert result.checks["flashes_within_limits"] is False
+        assert len(result.errors) == 1
+
+    def test_validate_accessibility_empty(self):
+        qc = PostProductionQC()
+        result = qc.validate_accessibility()
+        assert result.passed is True
 
 
 # ── ArchiveEngine Tests ─────────────────────────────────────────────────

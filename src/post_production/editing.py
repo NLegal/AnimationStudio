@@ -120,4 +120,47 @@ class EditingEngine:
         return timeline
 
     def insert_pause(self, video_track, audio_track, at_time: float, duration: float) -> None:
-        pass
+        duration = max(0.1, duration)
+        for track in (video_track, audio_track):
+            if not track:
+                continue
+            events = list(track.events)
+            for event in events:
+                if event.start_time >= at_time:
+                    event.start_time += duration
+                    event.end_time += duration
+                elif event.end_time > at_time:
+                    event.end_time += duration
+            track.events = events
+
+
+class InteractiveElementEngine:
+    """Interactive hotspots and clickable regions during playback."""
+
+    def __init__(self):
+        self.elements: list[dict] = []
+
+    def add_element(self, element_id: str, element_type: str, start: float, end: float, target: str = "") -> dict:
+        element = {
+            "id": element_id,
+            "type": element_type,
+            "start": start,
+            "end": end,
+            "target": target,
+        }
+        self.elements.append(element)
+        return element
+
+    def list_elements(self) -> list[dict]:
+        return list(self.elements)
+
+    def remove_element(self, element_id: str) -> bool:
+        before = len(self.elements)
+        self.elements = [e for e in self.elements if e["id"] != element_id]
+        return len(self.elements) < before
+
+    def elements_in_range(self, start: float, end: float) -> list[dict]:
+        return [
+            e for e in self.elements
+            if e["start"] < end and e["end"] > start
+        ]

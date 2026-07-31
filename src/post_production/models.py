@@ -16,8 +16,10 @@ class VideoTrackType(str, Enum):
 class AudioTrackType(str, Enum):
     DIALOGUE = "dialogue"
     NARRATION = "narration"
-    MUSIC = "music"
+    SINGING = "singing"
+    LEARNING_SOUNDS = "learning_sounds"
     SOUND_EFFECTS = "sound_effects"
+    MUSIC = "music"
     AMBIENCE = "ambience"
 
 

@@ -15,6 +15,10 @@ from src.animation import (
     ParticleEngine, TransitionEngine, LightingAnimationEngine,
     RenderQueue, RenderPipeline, AnimationValidator,
     AnimationMonitor, MetricSnapshot,
+    CharacterAnimationEngine, EyeAnimationEngine, BodyAnimationEngine,
+    SecondaryMotionEngine, CrowdEngine, CrowdMember,
+    SceneCompositionEngine, ShotComposition,
+    ClipRegenerationEngine, ClipRegenerationRequest, ClipRegenerationResult,
 )
 
 
@@ -678,3 +682,263 @@ class TestAnimationMonitor:
         assert monitor.total_renders() == 0
         assert monitor.failed_renders() == 0
         assert monitor.history() == []
+
+
+# ── Eye Animation Tests ─────────────────────────────────────────────────
+
+class TestEyeAnimationEngine:
+    def test_list_behaviors(self):
+        engine = EyeAnimationEngine()
+        behaviors = engine.list_behaviors()
+        assert "blink_frequency" in behaviors
+        assert "look_at_speaker" in behaviors
+        assert "reading_movement" in behaviors
+
+    def test_describe(self):
+        engine = EyeAnimationEngine()
+        info = engine.describe("eye_tracking")
+        assert "smoothly track" in info["description"]
+
+    def test_suggest_pattern(self):
+        engine = EyeAnimationEngine()
+        pattern = engine.suggest_pattern("focus_target", "apple")
+        assert pattern.behavior == "focus_target"
+        assert pattern.target == "apple"
+
+    def test_suggest_pattern_unknown_falls_back(self):
+        engine = EyeAnimationEngine()
+        pattern = engine.suggest_pattern("unknown")
+        assert pattern.behavior == "blink_frequency"
+
+    def test_blink_schedule(self):
+        engine = EyeAnimationEngine()
+        blinks = engine.blink_schedule(20.0)
+        assert len(blinks) > 0
+        assert blinks[0][0] < blinks[0][1]
+
+    def test_focus_target(self):
+        engine = EyeAnimationEngine()
+        pattern = engine.focus_target("balloon")
+        assert pattern.target == "balloon"
+
+    def test_look_at_speaker(self):
+        engine = EyeAnimationEngine()
+        pattern = engine.look_at("lily", kind="speaker")
+        assert pattern.behavior == "look_at_speaker"
+
+    def test_look_at_object(self):
+        engine = EyeAnimationEngine()
+        pattern = engine.look_at("clock")
+        assert pattern.behavior == "look_at_object"
+
+    def test_reading_movement(self):
+        engine = EyeAnimationEngine()
+        sweeps = engine.reading_movement(6.0, lines=2)
+        assert len(sweeps) == 6
+        assert sweeps[0][1] == "left"
+
+
+# ── Body Animation Tests ────────────────────────────────────────────────
+
+class TestBodyAnimationEngine:
+    def test_profile_walk(self):
+        engine = BodyAnimationEngine()
+        profile = engine.profile("walk")
+        assert profile.motion == "walk"
+        assert profile.arm_swing == "opposite_phase"
+        assert profile.foot_placement == "heel_toe"
+
+    def test_profile_unknown_defaults_to_idle(self):
+        engine = BodyAnimationEngine()
+        assert engine.profile("unknown").motion == "idle"
+
+    def test_list_components(self):
+        engine = BodyAnimationEngine()
+        components = engine.list_components()
+        assert "breathing" in components
+        assert "weight_shifts" in components
+
+    def test_describe(self):
+        engine = BodyAnimationEngine()
+        info = engine.describe("run")
+        assert info["motion"] == "run"
+        assert info["components"]["arm_swing"] == "high_energy"
+
+    def test_avoid_robotic(self):
+        engine = BodyAnimationEngine()
+        tips = engine.avoid_robotic()
+        assert "breathing_offset" in tips
+
+
+# ── Secondary Motion Tests ──────────────────────────────────────────────
+
+class TestSecondaryMotionEngine:
+    def test_list_elements(self):
+        engine = SecondaryMotionEngine()
+        elements = engine.list_elements()
+        assert "hair" in elements
+        assert "scarves" in elements
+        assert "balloons" in elements
+
+    def test_describe_element(self):
+        engine = SecondaryMotionEngine()
+        info = engine.describe_element("hair")
+        assert "follows head movement" in info["description"]
+
+    def test_suggest_elements_context(self):
+        engine = SecondaryMotionEngine()
+        elements = engine.suggest_elements("winter")
+        assert "scarves" in elements
+
+    def test_intensity_for_motion(self):
+        engine = SecondaryMotionEngine()
+        assert engine.intensity_for_motion("run") > engine.intensity_for_motion("idle")
+
+    def test_animate(self):
+        engine = SecondaryMotionEngine()
+        element = engine.animate("tails", "walk")
+        assert element.element == "tails"
+        assert element.motion_type == "follow_through"
+
+    def test_animate_unknown(self):
+        engine = SecondaryMotionEngine()
+        assert engine.animate("rocket") is None
+
+
+# ── Character Animation Engine Tests ────────────────────────────────────
+
+class TestCharacterAnimationEngine:
+    def test_build_performance(self):
+        engine = CharacterAnimationEngine()
+        perf = engine.build_performance("walk", "happy", "park")
+        assert perf["motion"] == "walk"
+        assert perf["body"]["motion"] == "walk"
+        assert "eyes" in perf
+        assert len(perf["secondary_elements"]) > 0
+
+    def test_list_engines(self):
+        engine = CharacterAnimationEngine()
+        assert engine.list_engines() == ["eye_animation", "body_animation", "secondary_motion"]
+
+
+# ── Crowd Engine Tests ──────────────────────────────────────────────────
+
+class TestCrowdEngine:
+    def test_build_crowd(self):
+        engine = CrowdEngine()
+        crowd = engine.build_crowd(4)
+        assert len(crowd) == 4
+        assert all(isinstance(m, CrowdMember) for m in crowd)
+
+    def test_build_crowd_zero(self):
+        engine = CrowdEngine()
+        assert engine.build_crowd(0) == []
+
+    def test_members_subtle(self):
+        engine = CrowdEngine()
+        crowd = engine.build_crowd(5)
+        assert all(m.background_level <= engine.SUBTLETY_LEVEL for m in crowd)
+
+    def test_suggest_activities(self):
+        engine = CrowdEngine()
+        activities = engine.suggest_activities("park")
+        assert "play" in activities
+
+    def test_list_activities(self):
+        engine = CrowdEngine()
+        activities = engine.list_activities()
+        assert "talk_silently" in activities
+        assert len(activities) == 8
+
+    def test_describe(self):
+        engine = CrowdEngine()
+        info = engine.describe()
+        assert info["subtlety_level"] == engine.SUBTLETY_LEVEL
+        assert "subtle" in info["principle"]
+
+
+# ── Scene Composition Engine Tests ──────────────────────────────────────
+
+class TestSceneCompositionEngine:
+    def test_evaluate(self):
+        engine = SceneCompositionEngine()
+        shot = engine.evaluate("left_third")
+        assert isinstance(shot, ShotComposition)
+        assert shot.subject_position == "left_third"
+        assert shot.camera == "eye_level"
+
+    def test_evaluate_lead_space(self):
+        engine = SceneCompositionEngine()
+        shot = engine.evaluate("left_third")
+        assert shot.lead_space == "right"
+        shot = engine.evaluate("right_third")
+        assert shot.lead_space == "left"
+
+    def test_active_principles(self):
+        engine = SceneCompositionEngine()
+        principles = engine.active_principles("eye_level")
+        assert principles["rule_of_thirds"] is True
+        assert principles["eye_level"] is True
+
+    def test_rule_of_thirds(self):
+        engine = SceneCompositionEngine()
+        x, y = engine.rule_of_thirds(0.2, 0.8)
+        assert x == pytest.approx(round(1 / 3, 3))
+        assert y == pytest.approx(round(2 / 3, 3))
+
+    def test_stage_depth(self):
+        engine = SceneCompositionEngine()
+        layers = engine.stage_depth("midground")
+        assert len(layers) == 3
+        assert "background" in layers
+
+    def test_list_principles(self):
+        engine = SceneCompositionEngine()
+        assert "depth_staging" in engine.list_principles()
+
+
+# ── Clip Regeneration Tests ─────────────────────────────────────────────
+
+class TestClipRegenerationEngine:
+    def test_list_reasons(self):
+        engine = ClipRegenerationEngine()
+        reasons = engine.list_reasons()
+        assert "jarring_motion" in reasons
+        assert "style_mismatch" in reasons
+
+    def test_reason_description(self):
+        engine = ClipRegenerationEngine()
+        assert "easing naturally" in engine.reason_description("jarring_motion")
+
+    def test_request_regeneration(self):
+        engine = ClipRegenerationEngine()
+        request = engine.request_regeneration("C1", "timing_off", "too fast")
+        assert request.clip_id == "C1"
+        assert request.reason == "timing_off"
+        assert request.notes == "too fast"
+
+    def test_request_unknown_reason(self):
+        engine = ClipRegenerationEngine()
+        request = engine.request_regeneration("C1", "unknown")
+        assert request.reason == "jarring_motion"
+
+    def test_regenerate(self):
+        engine = ClipRegenerationEngine()
+        request = ClipRegenerationRequest(clip_id="C1", reason="poor_expression")
+        result = engine.regenerate(request)
+        assert result.regenerated is True
+        assert result.timeline_intact is True
+        assert result.clip_id == "C1"
+
+    def test_regenerate_exhausted_attempts(self):
+        engine = ClipRegenerationEngine()
+        request = ClipRegenerationRequest(clip_id="C1", reason="poor_expression")
+        result = engine.regenerate(request, attempt=engine.MAX_ATTEMPTS + 1)
+        assert result.regenerated is False
+        assert "failed" in result.message
+
+    def test_summarize(self):
+        engine = ClipRegenerationEngine()
+        summary = engine.summarize("C1", "style_mismatch", "wrong palette")
+        assert summary["clip_id"] == "C1"
+        assert summary["notes"] == "wrong palette"

@@ -16,6 +16,10 @@ from .lighting import LightingAnimationEngine
 from .render import RenderQueue, RenderPipeline
 from .validator import AnimationValidator
 from .monitoring import AnimationMonitor, MetricSnapshot
+from .character import CharacterAnimationEngine, EyeAnimationEngine, BodyAnimationEngine, SecondaryMotionEngine
+from .crowd import CrowdEngine, CrowdMember
+from .composition import SceneCompositionEngine, ShotComposition
+from .regeneration import ClipRegenerationEngine, ClipRegenerationRequest, ClipRegenerationResult
 
 __all__ = [
     "AnimationClip", "AnimationPlan", "MotionCategory", "CameraMotion",
@@ -27,4 +31,8 @@ __all__ = [
     "ParticleEngine", "TransitionEngine", "LightingAnimationEngine",
     "RenderQueue", "RenderPipeline", "AnimationValidator",
     "AnimationMonitor", "MetricSnapshot",
+    "CharacterAnimationEngine", "EyeAnimationEngine", "BodyAnimationEngine",
+    "SecondaryMotionEngine", "CrowdEngine", "CrowdMember",
+    "SceneCompositionEngine", "ShotComposition",
+    "ClipRegenerationEngine", "ClipRegenerationRequest", "ClipRegenerationResult",
 ]

@@ -25,6 +25,16 @@ from src.image_generation import (
     REFERENCE_CATEGORIES,
     PromptVersionManager,
     PromptVersion,
+    ConsistencyManager,
+    CharacterLock,
+    EnvironmentProfile,
+    StyleGuide,
+    ColorPalette,
+    STUDIO_STYLE_CHARACTERISTICS,
+    CONTROLLED_PALETTE,
+    ModelRoleManager,
+    MODEL_RESPONSIBILITIES,
+    GENERATION_TYPE_MODEL,
 )
 from src.image_generation.thumbnail import PLATFORM_SIZES
 
@@ -397,3 +407,201 @@ class TestPromptVersionManager:
     def test_get_nonexistent(self):
         mgr = PromptVersionManager()
         assert mgr.get("nonexistent") is None
+
+
+# ── Character / Environment / Style Locking Tests ───────────────────────
+
+class TestCharacterLock:
+    def test_defaults(self):
+        lock = CharacterLock()
+        assert lock.locked is False
+        assert lock.reference_images == []
+
+    def test_check_missing_references(self):
+        lock = CharacterLock()
+        assert lock.check()["has_reference_images"] is False
+
+    def test_check_complete(self):
+        lock = CharacterLock(
+            reference_images=["refs/lily_front.png"],
+            identity_lora="lora/lily.safetensors",
+            approved_color_palette="pastels",
+            approved_costumes=["dress_a", "dress_b"],
+        )
+        assert all(lock.check().values())
+
+    def test_is_locked_requires_flag(self):
+        lock = CharacterLock(
+            reference_images=["refs/lily_front.png"],
+            identity_lora="lora/lily.safetensors",
+            approved_color_palette="pastels",
+            approved_costumes=["dress_a"],
+            locked=True,
+        )
+        assert lock.is_locked() is True
+
+    def test_is_locked_false_when_incomplete(self):
+        lock = CharacterLock(locked=True)
+        assert lock.is_locked() is False
+
+
+class TestEnvironmentProfile:
+    def test_is_complete(self):
+        profile = EnvironmentProfile(
+            environment_id="ENV_001",
+            master_image="env/maple_park.png",
+            layout_map="env/maple_park_layout.png",
+            lighting_presets=["morning", "afternoon"],
+            weather_presets=["sunny", "rainy"],
+            color_palette="natural_greens",
+            object_placement_rules=["bench_left", "tree_right"],
+        )
+        assert profile.is_complete() is True
+
+    def test_is_complete_missing_fields(self):
+        profile = EnvironmentProfile(environment_id="ENV_001")
+        assert profile.is_complete() is False
+
+
+class TestStyleGuide:
+    def test_studio_characteristics(self):
+        assert "soft_lighting" in STUDIO_STYLE_CHARACTERISTICS
+        assert len(STUDIO_STYLE_CHARACTERISTICS) == 7
+
+    def test_controlled_palette(self):
+        assert "pastels" in CONTROLLED_PALETTE
+
+    def test_characteristic_keys(self):
+        guide = StyleGuide()
+        keys = guide.characteristic_keys()
+        assert "clean_backgrounds" in keys
+
+    def test_contains_characteristic(self):
+        guide = StyleGuide()
+        assert guide.contains_characteristic("rounded_geometry")
+        assert not guide.contains_characteristic("photorealistic")
+
+
+class TestConsistencyManager:
+    def test_lock_and_get_character(self):
+        mgr = ConsistencyManager()
+        lock = CharacterLock(
+            character_id="lily",
+            reference_images=["refs/lily.png"],
+            identity_lora="lora/lily.safetensors",
+            approved_color_palette="pastels",
+            approved_costumes=["dress_a"],
+        )
+        mgr.lock_character(lock)
+        assert mgr.get_character_lock("lily") is lock
+        assert mgr.locked_character_count() == 1
+
+    def test_validate_character_unregistered(self):
+        mgr = ConsistencyManager()
+        result = mgr.validate_character("ghost")
+        assert result["registered"] is False
+
+    def test_unlock_character(self):
+        mgr = ConsistencyManager()
+        lock = CharacterLock(character_id="lily")
+        mgr.lock_character(lock)
+        assert mgr.unlock_character("lily") is True
+        assert lock.locked is False
+        assert mgr.unlock_character("ghost") is False
+
+    def test_register_and_validate_environment(self):
+        mgr = ConsistencyManager()
+        profile = EnvironmentProfile(
+            environment_id="maple_park",
+            master_image="env/maple_park.png",
+            layout_map="env/layout.png",
+            lighting_presets=["morning"],
+            weather_presets=["sunny"],
+            color_palette="natural_greens",
+            object_placement_rules=["bench_left"],
+        )
+        mgr.register_environment(profile)
+        assert mgr.get_environment("maple_park") is profile
+        assert mgr.environment_count() == 1
+        assert mgr.validate_environment("maple_park")["has_master_image"] is True
+
+    def test_validate_environment_unregistered(self):
+        mgr = ConsistencyManager()
+        assert mgr.validate_environment("ghost")["registered"] is False
+
+    def test_style_guide_default(self):
+        mgr = ConsistencyManager()
+        assert mgr.style_guide().name == "Studio Style Guide"
+
+    def test_validate_style_all_met(self):
+        mgr = ConsistencyManager()
+        satisfied = {
+            "soft_lighting": True,
+            "rounded_geometry": True,
+            "friendly_proportions": True,
+            "bright_pastel_colors": True,
+            "minimal_visual_noise": True,
+            "large_readable_shapes": True,
+            "clean_backgrounds": True,
+            "controlled_palette": True,
+            "no_oversaturation": True,
+        }
+        result = mgr.validate_style(satisfied)
+        assert result["all_style_characteristics_met"] is True
+
+    def test_validate_style_partial(self):
+        mgr = ConsistencyManager()
+        result = mgr.validate_style({"soft_lighting": True, "controlled_palette": True})
+        assert result["all_style_characteristics_met"] is False
+
+    def test_enforce_combined(self):
+        mgr = ConsistencyManager()
+        lock = CharacterLock(
+            character_id="lily",
+            reference_images=["r.png"],
+            identity_lora="lora.safetensors",
+            approved_color_palette="pastels",
+            approved_costumes=["dress"],
+        )
+        mgr.lock_character(lock)
+        result = mgr.enforce(character_id="lily", style_satisfied={})
+        assert result["all_locked"] is False
+        assert "character_locked" in result
+
+
+# ── Model Role Tests ────────────────────────────────────────────────────
+
+class TestModelRoleManager:
+    def test_models_present(self):
+        mgr = ModelRoleManager()
+        models = mgr.list_models()
+        assert "flux" in models
+        assert "sdxl" in models
+        assert "pony" in models
+
+    def test_purpose(self):
+        mgr = ModelRoleManager()
+        assert "production" in mgr.purpose("flux").lower()
+        assert mgr.purpose("sdxl") == "Batch generation, concepts, environments"
+        assert "stylized" in mgr.purpose("pony").lower()
+
+    def test_recommended_model(self):
+        mgr = ModelRoleManager()
+        assert mgr.recommended_model("environment") == "sdxl"
+        assert mgr.recommended_model("character_portrait") == "flux"
+        assert mgr.recommended_model("expression_sheet") == "pony"
+
+    def test_recommended_model_unknown(self):
+        mgr = ModelRoleManager()
+        assert mgr.recommended_model("unknown_type") == "flux"
+
+    def test_is_responsible(self):
+        mgr = ModelRoleManager()
+        assert mgr.is_responsible("sdxl", "environment") is True
+        assert mgr.is_responsible("flux", "environment") is False
+
+    def test_responsibilities(self):
+        mgr = ModelRoleManager()
+        resp = mgr.responsibilities()
+        assert "flux" in resp
+        assert len(resp) == 3

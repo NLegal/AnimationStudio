@@ -5,11 +5,11 @@ from typing import Optional
 
 @dataclass
 class IntroTemplate:
-    studio_logo_duration: float = 2.0
-    series_logo_duration: float = 1.5
-    theme_music_duration: float = 5.0
-    character_greeting_duration: float = 3.0
-    episode_title_duration: float = 3.0
+    studio_logo_duration: float = 1.5
+    series_logo_duration: float = 1.0
+    theme_music_duration: float = 3.5
+    character_greeting_duration: float = 2.0
+    episode_title_duration: float = 2.0
     total_duration: float = 0.0
 
     def __post_init__(self):
@@ -20,6 +20,9 @@ class IntroTemplate:
             + self.character_greeting_duration
             + self.episode_title_duration
         )
+
+    def is_within_standard(self, minimum: float = 5.0, maximum: float = 10.0) -> bool:
+        return minimum <= self.total_duration <= maximum
 
 
 @dataclass

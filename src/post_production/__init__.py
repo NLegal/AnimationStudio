@@ -15,6 +15,10 @@ from .exports import ExportEngine
 from .localization import LocalizationEngine, LocalizationPackage
 from .qc import PostProductionQC
 from .archive import ArchiveEngine
+from .color import ColorCorrectionEngine, ColorCorrectionSettings
+from .enhancement import EnhancementEngine, EnhancementSettings
+from .analytics import PostProductionAnalytics, AnalyticsReport
+from .editing import InteractiveElementEngine
 
 __all__ = [
     "TimelineTrack", "TimelineEvent", "MasterTimeline", "ClipReference",
@@ -28,4 +32,8 @@ __all__ = [
     "ThumbnailSelector", "ExportEngine",
     "LocalizationEngine", "LocalizationPackage",
     "PostProductionQC", "ArchiveEngine",
+    "ColorCorrectionEngine", "ColorCorrectionSettings",
+    "EnhancementEngine", "EnhancementSettings",
+    "PostProductionAnalytics", "AnalyticsReport",
+    "InteractiveElementEngine",
 ]

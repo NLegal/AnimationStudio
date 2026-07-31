@@ -4,6 +4,8 @@ from .models import AudioTrackType
 AUDIO_PRIORITY: list[AudioTrackType] = [
     AudioTrackType.DIALOGUE,
     AudioTrackType.NARRATION,
+    AudioTrackType.SINGING,
+    AudioTrackType.LEARNING_SOUNDS,
     AudioTrackType.SOUND_EFFECTS,
     AudioTrackType.MUSIC,
     AudioTrackType.AMBIENCE,
@@ -15,6 +17,8 @@ class AudioSyncEngine:
         base_levels: dict[AudioTrackType, float] = {
             AudioTrackType.DIALOGUE: 0.0,
             AudioTrackType.NARRATION: -3.0,
+            AudioTrackType.SINGING: -3.0,
+            AudioTrackType.LEARNING_SOUNDS: -6.0,
             AudioTrackType.SOUND_EFFECTS: -8.0,
             AudioTrackType.MUSIC: -12.0,
             AudioTrackType.AMBIENCE: -18.0,
