@@ -3,14 +3,19 @@
 All routes are server-rendered HTML via Jinja2 templates.  No JavaScript
 framework; no build step.  Dependency injection through ``create_app()``
 facilitates testing without a live database.
+
+The app also exposes a lightweight generation panel (``POST /generate``) that
+queues catalog seeds through the standard pipeline in the background, plus
+auto-seeding of the universe catalog when a real repository is injected.
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import Optional
 
 import jinja2
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import BackgroundTasks, FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -79,16 +84,28 @@ def create_app(
     asset_repo=None,
     character_repo=None,
     job_queue=None,
+    generation_backend=None,
+    seed_catalog=None,
+    universe_dir: str = "Universe",
+    world_dir: str = "World",
+    assets_dir: str = "Assets",
 ) -> FastAPI:
     """Application factory with optional dependency injection.
 
     Args:
         asset_repo: Object implementing ``list_characters()``,
             ``get_character(id)``, ``find_assets(...)``,
-            ``find_approved(...)``.  Falls back to an in-memory stub.
-        character_repo: Alias for *asset_repo* (same object in Phase 1).
+            ``find_approved(...)`` and the async ``save``/``get``/
+            ``update_state`` handlers.  Falls back to an in-memory stub.
+        character_repo: Repository with ``save_character``/``find_character_by_name``
+            used for seeding and generation (usually the SQLite character repo).
         job_queue: Optional ``JobQueue`` instance for regeneration jobs.
             Falls back to a fresh ``JobQueue()``.
+        generation_backend: Optional ``GenerationBackend`` used by the
+            ``POST /generate`` panel.  Falls back to the mock backend.
+        seed_catalog: Optional async callable ``(char_repo) -> summary`` used
+            to auto-seed the universe catalog when the repo is empty.
+        universe_dir/world_dir/assets_dir: Catalog paths for the generate panel.
 
     Returns:
         Configured FastAPI application.
@@ -97,6 +114,11 @@ def create_app(
     char_repo = character_repo or repo
     jq = job_queue or JobQueue()
 
+    # Lazy batch runner built on first generate request (avoids importing
+    # heavy dependencies at import time).
+    runner = None
+    seeded = False
+
     app = FastAPI(title="Character Review Studio")
 
     # Mount static files
@@ -104,19 +126,167 @@ def create_app(
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 
     # ------------------------------------------------------------------ #
+    #  Helpers
+    # ------------------------------------------------------------------ #
+
+    def _get_state(item) -> str:
+        """Read a record's state whether it is a dict or a pydantic model."""
+        if isinstance(item, dict):
+            return item.get("state", "")
+        return getattr(item, "state", "")
+
+    def _field(item, key: str, default=None):
+        """Read a record field whether it is a dict or a pydantic model."""
+        if isinstance(item, dict):
+            return item.get(key, default)
+        return getattr(item, key, default)
+
+    def _record_dict(char) -> dict:
+        """Normalise a character record (dict or model) for templates."""
+        if isinstance(char, dict):
+            return {
+                "id": char.get("id", ""),
+                "name": char.get("name", ""),
+                "category": char.get("category", ""),
+                "species": char.get("species", ""),
+                "bio_data": char.get("bio_data", {}),
+            }
+        return {
+            "id": getattr(char, "id", ""),
+            "name": getattr(char, "name", ""),
+            "category": getattr(char, "category", ""),
+            "species": getattr(char, "species", ""),
+            "bio_data": getattr(char, "bio_data", {}),
+        }
+
+    def _dashboard_rows(category: str) -> list[dict]:
+        """Rows for one category section, enriched with asset counts."""
+        rows = []
+        for char in repo.list_characters():
+            rec = _record_dict(char)
+            if category == "all" or rec["category"] == category:
+                assets = repo.find_assets(rec["id"])
+                rec["asset_count"] = len(assets)
+                rec["pending_count"] = sum(
+                    1 for a in assets if _get_state(a) in ("scored", "generated", "shortlisted")
+                )
+                rows.append(rec)
+        order = {"main": 0, "family": 1, "friend": 2, "community": 3, "fantasy": 4}
+        rows.sort(key=lambda r: order.get(r["category"], 5))
+        return rows
+
+    async def _maybe_seed() -> None:
+        """Seed the universe catalog once if the repo is empty and a seeder exists."""
+        nonlocal seeded
+        if seeded:
+            return
+        seeded = True
+        if seed_catalog is None or not hasattr(char_repo, "save_character"):
+            return
+        try:
+            if len(repo.list_characters()) == 0:
+                await seed_catalog(char_repo)
+                logger.info("Auto-seeded universe catalog")
+        except Exception as exc:
+            logger.warning("Auto-seed failed: %s", exc)
+
+    def _get_runner():
+        """Lazily build the batch runner for the generate panel."""
+        nonlocal runner
+        if runner is not None:
+            return runner
+        from src.universe.batch_generator import BatchRunner
+        runner = BatchRunner(
+            asset_repo=repo,
+            char_repo=char_repo,
+            backend=generation_backend,
+        )
+        return runner
+
+    def _find_seeds(scope: str, item: str) -> list:
+        """Resolve catalog seeds for a scope + optional item filter."""
+        from src.universe.catalog import (
+            discover_characters,
+            discover_environments,
+            discover_props,
+        )
+        scope = (scope or "all").lower()
+        item = (item or "").strip()
+
+        groups = {}
+        if scope in ("all", "characters"):
+            groups["characters"] = discover_characters(universe_dir)
+        if scope in ("all", "environments"):
+            groups["environments"] = discover_environments(world_dir)
+        if scope in ("all", "props"):
+            groups["props"] = discover_props(world_dir, assets_dir)
+
+        if not item:
+            return [seed for group in groups.values() for seed in group]
+
+        item_l = item.lower()
+        for group in groups.values():
+            for seed in group:
+                name = getattr(seed, "name", "") or ""
+                asset_id = getattr(seed, "asset_id", "") or ""
+                if item_l in name.lower() or item_l in asset_id.lower():
+                    return [seed]
+
+        # Category filter for props
+        if "props" in groups:
+            matches = [
+                s for s in groups["props"]
+                if (s.category or "").lower() == item.lower()
+            ]
+            if matches:
+                return matches
+        return []
+
+    # ------------------------------------------------------------------ #
     #  Routes
     # ------------------------------------------------------------------ #
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
-        """Dashboard listing all characters with generation status."""
-        characters = repo.list_characters()
+        """Dashboard listing characters, environments, props, and jobs."""
+        await _maybe_seed()
+        all_rows = _dashboard_rows("all")
+        characters = [r for r in all_rows if r["category"] not in ("environment", "asset")]
+        envs = [r for r in all_rows if r["category"] == "environment"]
+        props = [r for r in all_rows if r["category"] == "asset"]
+
+        # Aggregate the asset library by its category field.
+        prop_categories: dict[str, dict] = {}
+        for p in props:
+            cat = p.get("bio_data", {}).get("category", "") or "Uncategorized"
+            entry = prop_categories.setdefault(
+                cat, {"name": cat, "count": 0, "pending": 0}
+            )
+            entry["count"] += 1
+            entry["pending"] += p["pending_count"]
+        prop_categories = sorted(prop_categories.values(), key=lambda e: -e["count"])
+
+        jobs = [
+            {
+                "id": j.id,
+                "character_id": j.character_id,
+                "job_type": j.job_type,
+                "status": j.status,
+                "count": j.config.get("count", ""),
+                "created_at": j.created_at.isoformat() if j.created_at else "",
+            }
+            for j in jq.list_jobs(status=None)
+        ]
+
         return templates.TemplateResponse(
             request,
             "review.html",
             {
                 "page": "dashboard",
                 "characters": characters,
+                "environments": envs,
+                "prop_categories": prop_categories,
+                "jobs": jobs,
                 "candidates": [],
             },
         )
@@ -128,11 +298,20 @@ def create_app(
         if character is None:
             return HTMLResponse("Character not found", status_code=404)
 
+        rec = _record_dict(character)
+        category = rec["category"]
+        if category in ("environment",):
+            asset_types = ["environment"]
+        elif category == "asset":
+            asset_types = ["prop"]
+        else:
+            asset_types = ["reference", "expression", "pose", "outfit"]
+
         # Group assets by type
         assets = repo.find_assets(character_id)
         by_type: dict[str, list] = {}
         for a in assets:
-            by_type.setdefault(a.get("asset_type", "unknown"), []).append(a)
+            by_type.setdefault(_field(a, "asset_type", "unknown"), []).append(a)
 
         return templates.TemplateResponse(
             request,
@@ -140,6 +319,8 @@ def create_app(
             {
                 "page": "character",
                 "character": character,
+                "rec": rec,
+                "asset_types": asset_types,
                 "assets_by_type": by_type,
             },
         )
@@ -163,7 +344,7 @@ def create_app(
         # Candidates awaiting review
         candidates = [
             a for a in repo.find_assets(character_id, asset_type)
-            if a.get("state") in ("scored", "generated", "shortlisted")
+            if _field(a, "state") in ("scored", "generated", "shortlisted")
         ]
 
         # Parse grid dimensions (D-16 configurable batch grids)
@@ -194,9 +375,9 @@ def create_app(
             card = {
                 "asset": asset,
                 "scores": sample_scores,
-                "seed": asset.get("seed", 42 + i),
-                "model": asset.get("model_id", "FLUX.1-dev"),
-                "prompt": asset.get("prompt", ""),
+                "seed": _field(asset, "seed", 42 + i),
+                "model": _field(asset, "model_id", "FLUX.1-dev"),
+                "prompt": _field(asset, "prompt", ""),
                 "visual_drift": 0.45 + (i * 0.08),  # dummy varied values
             }
             candidate_cards.append(card)
@@ -220,6 +401,110 @@ def create_app(
                 "current_grid": grid,
             },
         )
+
+    # ------------------------------------------------------------------ #
+    #  Generation & seeding  (POST /generate, POST /seed)
+    # ------------------------------------------------------------------ #
+
+    def _repo_can_generate() -> bool:
+        """A stub repo cannot persist generated assets; only real repos can."""
+        return all(hasattr(repo, m) for m in ("save", "get", "update_state"))
+
+    async def _background_batch(
+        scope: str,
+        item: str,
+        asset_type: str,
+        count: int,
+        backend_name: str,
+        variant: str,
+        limit: int,
+    ) -> None:
+        """Run a batch generation in the background and log the summary."""
+        from src.universe.batch_generator import resolve_backend
+        backend = resolve_backend(backend_name) if backend_name else None
+
+        kind_map = {
+            "characters": "character",
+            "environments": "environment",
+            "props": "prop",
+        }
+        scope_names = list(kind_map) if (scope or "").lower() == "all" else [(scope or "characters").lower()]
+
+        for scope_name in scope_names:
+            if scope_name not in kind_map:
+                continue
+            kind = kind_map[scope_name]
+            try:
+                seeds = _find_seeds(scope_name, item)
+            except Exception as exc:
+                logger.exception("Generate: seed discovery failed: %s", exc)
+                return
+            if not seeds:
+                continue
+            shortlist = min(count, 5)
+            try:
+                result = await _get_runner().run_seeds(
+                    seeds,
+                    kind,
+                    count=count,
+                    shortlist=shortlist,
+                    limit=limit or None,
+                    asset_type=asset_type or None,
+                    variant=variant or "front",
+                    batch_id=f"ui_{int(time.time())}",
+                    backend=backend,
+                )
+            except Exception as exc:
+                logger.exception("Generate: batch run failed: %s", exc)
+                return
+            logger.info(
+                "UI batch complete: kind=%s attempted=%s generated=%s shortlisted=%s",
+                result["kind"], result["items_attempted"],
+                result["total_generated"], result["total_shortlisted"],
+            )
+
+    @app.post("/generate")
+    async def generate(
+        request: Request,
+        background_tasks: BackgroundTasks,
+        scope: str = Form("characters"),
+        item: str = Form(""),
+        asset_type: str = Form(""),
+        count: int = Form(4),
+        backend: str = Form("mock"),
+        variant: str = Form("front"),
+        limit: int = Form(10),
+    ):
+        """Queue a background generation batch for catalog seeds."""
+        if not _repo_can_generate():
+            return RedirectResponse(
+                url=_get_referer(request), status_code=303
+            )
+        seeds = _find_seeds(scope, item)
+        if not seeds:
+            return RedirectResponse(url=_get_referer(request), status_code=303)
+
+        background_tasks.add_task(
+            _background_batch, scope, item, asset_type, count, backend, variant, limit
+        )
+        logger.info("Generate queued: scope=%s item=%r count=%s backend=%s", scope, item, count, backend)
+        return RedirectResponse(url=_get_referer(request), status_code=303)
+
+    @app.post("/seed")
+    async def seed(request: Request, background_tasks: BackgroundTasks):
+        """Seed the universe catalog from the markdown docs (idempotent)."""
+        if seed_catalog is None or not hasattr(char_repo, "save_character"):
+            return RedirectResponse(url=_get_referer(request), status_code=303)
+
+        async def _seed():
+            try:
+                summary = await seed_catalog(char_repo)
+                logger.info("Seeded universe: %s", summary)
+            except Exception as exc:
+                logger.exception("Seed failed: %s", exc)
+
+        background_tasks.add_task(_seed)
+        return RedirectResponse(url=_get_referer(request), status_code=303)
 
     # ------------------------------------------------------------------ #
     #  Action handlers  (D-15 lifecycle transitions)

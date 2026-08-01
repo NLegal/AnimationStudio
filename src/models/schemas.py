@@ -7,11 +7,18 @@ from pydantic import BaseModel, Field
 
 
 class CharacterModel(BaseModel):
-    """A character identity record in the studio universe."""
+    """A character identity record in the studio universe.
+
+    ``category`` also admits ``"environment"`` and ``"asset"`` so that
+    world zones and reusable props/prop-categories can be tracked through
+    the same repository and review pipeline (Phase 2 / Phase 3).
+    """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    category: Literal["main", "family", "friend", "community", "fantasy"]
+    category: Literal[
+        "main", "family", "friend", "community", "fantasy", "environment", "asset"
+    ]
     species: str
     bio_data: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
@@ -27,7 +34,9 @@ class AssetModel(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     character_id: str
-    asset_type: Literal["reference", "expression", "pose", "outfit"]
+    asset_type: Literal[
+        "reference", "expression", "pose", "outfit", "environment", "prop"
+    ]
     variant: Optional[str] = None
     state: str = "draft"
     file_path: str
@@ -48,7 +57,9 @@ class GenerationJobRequest(BaseModel):
     """Request to generate assets for a character."""
 
     character_id: str
-    job_type: Literal["reference", "expression", "pose", "outfit"]
+    job_type: Literal[
+        "reference", "expression", "pose", "outfit", "environment", "prop"
+    ]
     prompt: str
     negative_prompt: str = ""
     seed: Optional[int] = None

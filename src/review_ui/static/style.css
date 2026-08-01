@@ -151,6 +151,85 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
 }
 
 /* -------------------------------------------------------------------
+   Generation panel
+   ------------------------------------------------------------------- */
+.gen-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.gen-panel h2 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+}
+
+.gen-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+}
+
+.gen-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.gen-field label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.gen-field select,
+.gen-field input[type="text"],
+.gen-field input[type="number"] {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    min-width: 8rem;
+}
+
+.gen-hint {
+    margin: 0.75rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.badge-queued,
+.badge-scheduled {
+    background: var(--bg-nav);
+    color: var(--text-secondary);
+}
+
+.badge-running {
+    background: var(--yellow);
+    color: #8a7a30;
+}
+
+.badge-completed,
+.badge-approved,
+.badge-production {
+    background: var(--green);
+    color: #3a6a3a;
+}
+
+.badge-failed {
+    background: var(--pink);
+    color: #7a4a4a;
+}
+
+/* -------------------------------------------------------------------
    Badges
    ------------------------------------------------------------------- */
 .badge {

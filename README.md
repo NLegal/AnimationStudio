@@ -1,43 +1,122 @@
-# AI Nursery Rhyme Studio — Character System
+# AI Nursery Rhyme Studio
 
-Character consistency & asset reusability across every episode.
+A fully AI-powered production pipeline for generating unlimited, high-quality,
+Cocomelon-style nursery rhyme videos with consistent characters, reusable
+assets, and minimal manual work — from story to publishing.
+
+## Status
+
+All 12 phases implemented and audited. **1282 tests passing.**
+
+| Phase | System | Module |
+|-------|--------|--------|
+| 1 | Universe Creation & Character Bible | `models`, `identity_engine` |
+| 2 | World Building & Environment Bible | `identity_engine` |
+| 3 | Global Asset Library & Production Kit | `asset_repository` |
+| 4 | Animation Bible & Motion System | `generation_engine`, `prompt_builder` |
+| 5 | Audio Bible & Music Production System | `training_engine` |
+| 6 | Story Engine & Narrative Intelligence | `story_engine` |
+| 7 | Production Planning & Storyboard System | `production` |
+| 8 | AI Image Generation & Visual Asset Pipeline | `image_generation` |
+| 9 | AI Animation Pipeline & Motion Generation | `animation` |
+| 10 | Post-Production, Editing & Mastering | `post_production` |
+| 11 | Publishing, Distribution & Channel Management | `publishing` |
+| 12 | Studio Automation & AI Orchestration | `studio` |
 
 ## Project Structure
 
 ```
 src/
-├── models/schemas.py           # Data models (Character, GenerationOutput, etc.)
-├── asset_repository/           # SQLite-backed asset CRUD + migrations
-├── generation_engine/          # 5 backends: Flux, SDXL, Pony, Cloud API, ComfyUI
-├── identity_engine/            # Weighted scoring pipeline + 7 plugins + diversity filter
-│   └── plugins/                # DINOv2(40%), CLIP(20%), Color, Part, Pose, Expression, Style
-├── pipeline/                   # JobQueue + GenerationJob orchestrator
-├── prompt_builder/             # Template system + variants + negative prompts
-├── training_engine/            # Kohya SS LoRA training adapter
-└── review_ui/                  # FastAPI + Jinja2 web UI for asset review
+├── models/                   # Data models (Character, Asset, GenerationOutput)
+├── identity_engine/          # Weighted identity scoring + 7 plugins + brand score
+├── asset_repository/         # SQLite-backed asset CRUD + migrations
+├── generation_engine/        # 5 backends: Flux, SDXL, Pony, Cloud API, ComfyUI
+├── prompt_builder/           # Template system + variants + negative prompts
+├── training_engine/          # Kohya SS LoRA adapter + dataset builder + benchmark
+├── story_engine/             # Narrative intelligence: story/theme/plot/dialogue/song/curriculum
+├── production/               # Episodes, scenes, shots, manifests, continuity, render queue
+├── image_generation/         # ConsistencyManager, model roles, prompt versioning, thumbnails
+├── animation/                # Character/crowd/scene animation, camera, lipsync, lighting, physics
+├── post_production/          # Timeline, editing, transitions, color, subtitles, QC, exports
+├── publishing/               # Metadata, compliance, scheduling, localization, analytics, channels
+├── studio/                   # Orchestrator, workflow, agents, tasks, scheduler, quality gate, security
+├── universe/                 # Catalog parsing + seeding + batch generation (characters/worlds/props)
+├── review_ui/                # FastAPI + Jinja2 web UI for asset review & generation
+└── pipeline/                 # JobQueue + GenerationJob orchestrator + diversity filter
 ```
 
-## Running the UI
-
-The Review UI is a FastAPI app with server-rendered HTML.
+## Installation
 
 ```bash
-# Install dependencies
 pip install -e ".[dev]"
+```
 
-# Start the review server
+Optional extras:
+- `pip install -e ".[scoring]"` — aesthetics predictor + OpenCV for scoring plugins
+- `pip install -e ".[comfyui]"` — ComfyUI backend support
+
+## Running Tests
+
+```bash
+# Full suite (quiet)
+python -m pytest tests/ -q
+
+# Verbose with failure short-report
+python -m pytest tests/ -v --tb=short
+
+# Stop at first failure
+python -m pytest tests/ -x --quiet
+```
+
+Expected: **1282 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
+aesthetics predictor) are lazily loaded — the suite passes without them via
+mock/fallback values.
+
+### Test coverage by module
+
+| File | Covers |
+|------|--------|
+| `test_studio.py` | Orchestrator, workflow, agents, tasks, quality, security, recovery, backup, plugins, dashboards, API |
+| `test_publishing.py` | Metadata, compliance, scheduling, localization, analytics, archive, channels, lifecycle |
+| `test_post_production.py` | Timeline, editing, color, subtitles, QC, exports, localization, archive |
+| `test_animation.py` | Character/crowd/scene motion, camera, lipsync, lighting, physics, render, validation |
+| `test_image_generation.py` | Consistency, model roles, prompt versioning, thumbnail, upscaler, validator |
+| `test_story_engine.py` | Story/theme/plot/dialogue/song/curriculum generation, validation, continuity |
+| `test_production.py` | Episodes, scenes, shots, manifests, continuity, render queue, QC |
+| `test_story_to_production_integration.py` | End-to-end story → production flow |
+| `test_prompt_builder.py` | Template expansion, age/rotation/lighting variants |
+| `test_generation_engine.py` | Backend ABC compliance, lazy loading, graceful errors |
+| `test_identity_engine.py` | IdentityScorer wiring, weighted composition, DiversityFilter |
+| `test_scoring_plugins.py` | All 7 plugins — protocol compliance, degradation without torch/cv2 |
+| `test_asset_repository.py` | SQLite CRUD, schema migrations |
+| `test_training_engine.py` | Kohya SS adapter, environment validation |
+| `test_lora_training.py` | Dataset builder, versioning, benchmark |
+| `test_review_ui.py` | Review app routes |
+| `test_review_ui_generation.py` | UI generation panel, seeding, per-category detail pages |
+| `test_universe_catalog.py` | Universe/World/Assets markdown parsing (39 chars, 9 zones, 824 props) |
+| `test_universe_seed.py` | Idempotent seeding into the character repository |
+| `test_batch_generator.py` | Prompt building + mock end-to-end batch generation |
+| `test_character_bio.py` | Lily Bunny bio schema validation |
+
+## Running the Review UI
+
+The Review UI is a FastAPI app with server-rendered HTML for reviewing
+generated character assets.
+
+```bash
 uvicorn src.review_ui:create_app --factory --reload --port 8000
 ```
 
 Then open http://localhost:8000.
 
-The app starts with an in-memory stub (no database required). Dashboard, character detail, and side-by-side review pages all render with placeholder data. To inject real data, pass an `asset_repo` to `create_app()`.
+The app starts with an in-memory stub (no database required). To inject real
+data, pass an `asset_repo` to `create_app()`.
 
 **Available routes:**
 
 | Route | Page |
 |-------|------|
-| `/` | Dashboard — character list with pending counts |
+| `/` | Dashboard — characters, environments, props, jobs, generate panel |
 | `/character/{id}` | Character detail — bio + assets grouped by type |
 | `/review/{id}?asset_type=` | Side-by-side review with Brand Scores |
 | `/review/{id}?asset_type=&batch=true` | 2×2 batch compare mode |
@@ -45,81 +124,104 @@ The app starts with an in-memory stub (no database required). Dashboard, charact
 | `POST /reject/{id}` | Reject with reason |
 | `POST /regenerate/{id}` | Queue similar regeneration |
 | `POST /promote/{id}` | Promote to production |
+| `POST /generate` | Queue a background generation batch (scope/item/backend) |
+| `POST /seed` | Seed the universe catalog from the markdown docs (idempotent) |
 
-## Validating the Work
+## Universe Generation
 
-### Run all tests
+The Phase 1–3 universe content (39 character bios, 9 world zones, 824 reusable
+props) lives as markdown under `Universe/`, `World/`, and `Assets/`. Two
+scripts turn those documents into a populated, reviewable studio database —
+no GPU required (a deterministic mock backend is the default).
 
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+# 1. Seed the catalog from the markdown docs (idempotent)
+python scripts/seed_universe.py --db catalog.db
 
-# Run full suite
-python -m pytest tests/ -v
+# 2. Generate candidates with the mock backend (no hardware)
+python scripts/generate_universe.py --scope characters --backend mock --count 8
+python scripts/generate_universe.py --scope environments --backend mock --count 4
+python scripts/generate_universe.py --scope props --backend mock --count 4 --limit 20
 
-# Run with coverage
-python -m pytest tests/ -v --tb=short -x
+# 3. Preview the exact prompts without generating
+python scripts/generate_universe.py --scope all --prompt-only --limit 3
+
+# 4. Generate then start the Review UI against the same database
+python scripts/generate_universe.py --scope all --backend mock --serve --port 8000
 ```
 
-Expected: **156 tests passing** (8 warnings for optional deps `torch`, `cv2`).
+Real backends swap in via `--backend`:
 
-### CI-friendly check
+| Backend | Notes |
+|---------|-------|
+| `mock` | Deterministic placeholder images — works offline, ideal for tests/UI |
+| `comfyui` | Requires ComfyUI at `localhost:8188` with Flux installed (`--comfyui-url`) |
+| `cloud` | Requires `FAL_API_KEY` / `REPLICATE_API_KEY` / `BFL_API_KEY` (`--provider`) |
+
+The UI generation panel (dashboard → **Generate Assets**) queues the same
+pipeline in the background: prompt → generate → identity score → diversity
+filter → shortlist. Generated candidates land in the database and appear under
+"Pending Review" for approval.
+
+
+## Production Pipeline API
+
+The production layer exposes a FastAPI-style endpoint specification
+(`src/production/api.py`) covering episodes, scenes, shots, manifests, prompt
+generation, continuity validation, the render queue, and quality checks
+(`POST /api/episodes`, `GET /api/render-queue`, `POST /api/quality-check`, …).
+
+## Manual Validation
 
 ```bash
-python -m pytest tests/ -x --quiet
-```
-
-### What's tested
-
-| File | Tests |
-|------|-------|
-| `test_scoring_plugins.py` | All 7 plugins — protocol compliance, graceful degradation without torch/cv2 |
-| `test_identity_engine.py` | IdentityScorer wiring, weighted composition, DiversityFilter clustering |
-| `test_asset_repository.py` | SQLite CRUD, schema migrations |
-| `test_generation_engine.py` | Backend ABC compliance, lazy loading, graceful error handling |
-| `test_prompt_builder.py` | Template expansion, age/rotation/lighting variants |
-| `test_training_engine.py` | Kohya SS adapter, environment validation |
-| `test_character_bio.py` | Lily Bunny bio schema validation (9 tests) |
-
-### Manual validation
-
-```bash
-# 1. Verify imports (all modules load without torch/cv2)
-python -c "from src.models.schemas import Character; print('models OK')"
+# 1. Verify core imports (no torch/cv2 required)
+python -c "from src.models.schemas import CharacterModel; print('models OK')"
 python -c "from src.identity_engine import IdentityScorer; print('identity engine OK')"
 python -c "from src.generation_engine import FluxBackend; print('backends OK')"
+python -c "from src.studio import PipelineOrchestrator; print('orchestrator OK')"
+python -c "from src.publishing import PublishingEngine; print('publishing OK')"
 
-# 2. Start UI and check all 3 pages render
+# 2. Smoke-test the full pipeline in one line
+python -c "
+from src.story_engine import EpisodeGenerator
+from src.production import ProductionPipeline
+from src.studio import PipelineOrchestrator
+orchestrator = PipelineOrchestrator(); orchestrator.setup_defaults()
+orchestrator.create_pipeline('smoke-001')
+print('pipeline smoke test OK')
+"
+
+# 3. Start UI and check all 3 pages render
 uvicorn src.review_ui:create_app --factory --port 8000 &
 curl -s http://localhost:8000/ | head -5
 curl -s http://localhost:8000/character/test-char | head -5
 curl -s http://localhost:8000/review/test-char | head -5
 kill %1 2>/dev/null
-
-# 3. Verify project structure is intact
-python -c "
-from src.pipeline import JobQueue, GenerationJob, DiversityFilter
-from src.prompt_builder import PromptBuilder
-from src.training_engine import KohyaSSAdapter
-from src.asset_repository import SQLiteAssetRepository
-print('All pipeline modules OK')
-"
 ```
-
-### Environment
-
-Copy `.env.example` to `.env` and set API keys for cloud generation backends. The system works without any keys — local backends (Flux, SDXL, Pony) will warn about missing `torch` and use mock/fallback values during testing.
 
 ## Architecture
 
 ```
-[PromptBuilder] → [GenerationBackend] → [IdentityScorer]
-                                          ↓
-                              [DiversityFilter]
-                                          ↓
-                              [AssetRepository]
-                                          ↓
-                              [Review UI] ← human
+[Story Engine] → [Production Planning] → [Image Generation] → [Animation]
+        ↓                ↓                       ↓                ↓
+   Curriculum      Episodes/Shots/       Consistency &       Character/Crowd/
+   Validation      Manifests/QC         Model Roles          Scene Motion
+        ↓                ↓                       ↓                ↓
+        └────────[ Post-Production: Edit → Color → Subtitles → QC → Export ]────────┐
+                                                                                    ↓
+                       [ Publishing: Metadata → Compliance → Schedule → Localize → Publish ]
+                                                                                    ↓
+                   [ Studio Orchestration: Workflow → Tasks → Agents → Quality → Ops Dashboard ]
 ```
 
-The pipeline runs as a `GenerationJob` — each variant goes through generate → score → filter → save → shortlist. Partial failures are isolated per variant.
+Each phase is an independent department. The Phase 12 `PipelineOrchestrator`
+ties them together into an autonomous production platform: `EpisodeWorkflowFactory`
+builds an 8-step workflow (story → storyboard → images → animation → edit → qc →
+publish), `TaskQueue` schedules work, `WorkerPool` assigns it, `QualityGate`
+validates every domain, and the event bus drives hand-offs.
+
+## Environment
+
+Copy `.env.example` to `.env` and set API keys for cloud generation backends.
+The system works without any keys — local backends (Flux, SDXL, Pony) will warn
+about missing `torch` and use mock/fallback values during testing.

@@ -18,8 +18,63 @@
   <!-- ============================================================ -->
   <!--  DASHBOARD                                                   -->
   <!-- ============================================================ -->
-  <h1>Character Dashboard</h1>
+  <h1>Universe Dashboard</h1>
 
+  <!-- ============================================================ -->
+  <!--  GENERATION PANEL                                            -->
+  <!-- ============================================================ -->
+  <section class="gen-panel">
+    <h2>Generate Assets</h2>
+    <form action="/generate" method="post" class="gen-form">
+      <div class="gen-field">
+        <label for="gen-scope">Scope</label>
+        <select name="scope" id="gen-scope">
+          <option value="characters" selected>Characters</option>
+          <option value="environments">Environments / Worlds</option>
+          <option value="props">Props &amp; Assets</option>
+          <option value="all">Everything</option>
+        </select>
+      </div>
+      <div class="gen-field">
+        <label for="gen-item">Item (optional)</label>
+        <input type="text" name="item" id="gen-item"
+               placeholder="Name, id, or category e.g. Lily / Furniture">
+      </div>
+      <div class="gen-field">
+        <label for="gen-count">Candidates</label>
+        <input type="number" name="count" id="gen-count" value="4" min="1" max="32">
+      </div>
+      <div class="gen-field">
+        <label for="gen-limit">Max items</label>
+        <input type="number" name="limit" id="gen-limit" value="10" min="1" max="100">
+      </div>
+      <div class="gen-field">
+        <label for="gen-backend">Backend</label>
+        <select name="backend" id="gen-backend">
+          <option value="mock" selected>Mock (no GPU)</option>
+          <option value="comfyui">ComfyUI</option>
+          <option value="cloud">Cloud API</option>
+        </select>
+      </div>
+      <div class="gen-field">
+        <label for="gen-variant">Variant</label>
+        <input type="text" name="variant" id="gen-variant" value="front">
+      </div>
+      <div class="gen-field">
+        <button type="submit" class="btn btn-primary">Generate</button>
+      </div>
+    </form>
+    <p class="gen-hint">
+      Runs in the background through the standard pipeline
+      (prompt &rarr; generate &rarr; score &rarr; diversity filter &rarr; shortlist).
+      Refresh the page to see new candidates.
+    </p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!--  CHARACTERS                                                  -->
+  <!-- ============================================================ -->
+  <h2>Characters</h2>
   {% if characters %}
     <table class="dashboard-table">
       <thead>
@@ -43,13 +98,130 @@
           <td>
             <a href="/character/{{ char.id }}" class="btn btn-sm">View</a>
             <a href="/review/{{ char.id }}?asset_type=expression" class="btn btn-sm btn-primary">Review</a>
+            <form action="/generate" method="post" style="display:inline">
+              <input type="hidden" name="scope" value="characters">
+              <input type="hidden" name="item" value="{{ char.name }}">
+              <input type="hidden" name="count" value="4">
+              <input type="hidden" name="limit" value="1">
+              <input type="hidden" name="backend" value="mock">
+              <button type="submit" class="btn btn-sm btn-secondary">Generate</button>
+            </form>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   {% else %}
-    <p class="empty-state">No characters yet.  Generate your first character to get started.</p>
+    <p class="empty-state">No characters yet.  Use the Generate panel or seed the catalog.</p>
+  {% endif %}
+
+  <!-- ============================================================ -->
+  <!--  ENVIRONMENTS                                                -->
+  <!-- ============================================================ -->
+  <h2>Environments / Worlds</h2>
+  {% if environments %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Assets</th>
+          <th>Pending Review</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for env in environments %}
+        <tr>
+          <td><strong>{{ env.name }}</strong></td>
+          <td>{{ env.get("asset_count", "—") }}</td>
+          <td><span class="badge badge-pending">{{ env.get("pending_count", 0) }}</span></td>
+          <td>
+            <a href="/character/{{ env.id }}" class="btn btn-sm">View</a>
+            <a href="/review/{{ env.id }}?asset_type=environment" class="btn btn-sm btn-primary">Review</a>
+            <form action="/generate" method="post" style="display:inline">
+              <input type="hidden" name="scope" value="environments">
+              <input type="hidden" name="item" value="{{ env.name }}">
+              <input type="hidden" name="count" value="4">
+              <input type="hidden" name="limit" value="1">
+              <input type="hidden" name="backend" value="mock">
+              <button type="submit" class="btn btn-sm btn-secondary">Generate</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No environments yet.</p>
+  {% endif %}
+
+  <!-- ============================================================ -->
+  <!--  ASSET LIBRARY  (props, reusable assets)                     -->
+  <!-- ============================================================ -->
+  <h2>Props &amp; Asset Library</h2>
+  {% if prop_categories %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Count</th>
+          <th>Pending Review</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in prop_categories %}
+        <tr>
+          <td><strong>{{ cat.name }}</strong></td>
+          <td>{{ cat.count }}</td>
+          <td><span class="badge badge-pending">{{ cat.pending }}</span></td>
+          <td>
+            <form action="/generate" method="post" style="display:inline">
+              <input type="hidden" name="scope" value="props">
+              <input type="hidden" name="item" value="{{ cat.name }}">
+              <input type="hidden" name="count" value="4">
+              <input type="hidden" name="limit" value="5">
+              <input type="hidden" name="backend" value="mock">
+              <button type="submit" class="btn btn-sm btn-secondary">Generate 5</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No assets in the library yet.</p>
+  {% endif %}
+
+  <!-- ============================================================ -->
+  <!--  RECENT JOBS                                                 -->
+  <!-- ============================================================ -->
+  <h2>Recent Jobs</h2>
+  {% if jobs %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Job</th>
+          <th>Target</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs[:10] %}
+        <tr>
+          <td><code>{{ job.id }}</code></td>
+          <td>{{ job.character_id }}</td>
+          <td>{{ job.job_type }}</td>
+          <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
+          <td>{{ job.created_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No generation jobs yet.</p>
   {% endif %}
 
 {% elif page == "character" and character %}
@@ -79,7 +251,7 @@
     </section>
   {% endif %}
 
-  {% set asset_types = ["reference", "expression", "pose", "outfit"] %}
+  {% set asset_types = asset_types | default(["reference", "expression", "pose", "outfit"]) %}
   {% for atype in asset_types %}
     {% set assets = assets_by_type.get(atype, []) %}
     <section class="asset-section">
@@ -96,9 +268,20 @@
       {% else %}
         <p class="empty-state">No {{ atype }} assets yet.</p>
       {% endif %}
-      <a href="/review/{{ character.id }}?asset_type={{ atype }}" class="btn btn-sm btn-primary">
-        Review {{ atype }}s
-      </a>
+      <div class="action-row">
+        <a href="/review/{{ character.id }}?asset_type={{ atype }}" class="btn btn-sm btn-primary">
+          Review {{ atype }}s
+        </a>
+        <form action="/generate" method="post" style="display:inline">
+          <input type="hidden" name="scope" value="{% if character.category == 'environment' %}environments{% elif character.category == 'asset' %}props{% else %}characters{% endif %}">
+          <input type="hidden" name="item" value="{{ character.name }}">
+          <input type="hidden" name="asset_type" value="{{ atype }}">
+          <input type="hidden" name="count" value="4">
+          <input type="hidden" name="limit" value="1">
+          <input type="hidden" name="backend" value="mock">
+          <button type="submit" class="btn btn-sm btn-secondary">Generate {{ atype }}s</button>
+        </form>
+      </div>
     </section>
   {% endfor %}
 

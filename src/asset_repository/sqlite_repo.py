@@ -74,7 +74,7 @@ class SQLiteCharacterRepository(CharacterRepository):
         # across queries (each sqlite3.connect(":memory:") creates a new db).
         if self._conn is not None:
             return self._conn
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
@@ -160,7 +160,7 @@ class SQLiteAssetRepository(AssetRepository):
         # across queries (each sqlite3.connect(":memory:") creates a new db).
         if self._conn is not None:
             return self._conn
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
