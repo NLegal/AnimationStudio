@@ -35,7 +35,8 @@ class AssetModel(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     character_id: str
     asset_type: Literal[
-        "reference", "expression", "pose", "outfit", "environment", "prop"
+        "reference", "expression", "pose", "outfit",
+        "lighting", "environment", "prop",
     ]
     variant: Optional[str] = None
     state: str = "draft"
@@ -58,7 +59,8 @@ class GenerationJobRequest(BaseModel):
 
     character_id: str
     job_type: Literal[
-        "reference", "expression", "pose", "outfit", "environment", "prop"
+        "reference", "expression", "pose", "outfit",
+        "lighting", "environment", "prop",
     ]
     prompt: str
     negative_prompt: str = ""

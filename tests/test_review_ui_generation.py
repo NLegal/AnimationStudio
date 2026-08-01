@@ -192,3 +192,51 @@ class TestSeedEndpoint:
         client = TestClient(app)
         response = client.post("/seed")
         assert response.status_code in (200, 303)
+
+
+class TestDefaultFactory:
+    """create_app() with no repos wires itself to SQLite + mock backend."""
+
+    def test_lists_provisioned_catalog(self, tmp_path):
+        app = create_app(db_path=str(tmp_path / "default.db"))
+        client = TestClient(app)
+        body = client.get("/").text
+        assert "Universe Dashboard" in body
+        assert "Lily Bunny" in body
+        assert "Sunny Meadow" in body
+        assert "Props &amp; Asset Library" in body
+
+    def test_generates_into_default_database(self, tmp_path):
+        db = str(tmp_path / "default.db")
+        app = create_app(db_path=db)
+        client = TestClient(app)
+        client.get("/")
+        response = client.post("/generate", data={
+            "scope": "characters", "item": "Lily", "count": "2",
+            "limit": "1", "backend": "mock",
+        })
+        assert response.status_code in (200, 303)
+        from src.asset_repository.sqlite_repo import SQLiteAssetRepository
+        asset_repo = SQLiteAssetRepository(db_path=db)
+        conn = asset_repo._get_conn()
+        count = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
+        assert count > 0
+
+    def test_dashboard_shows_activity_log_panel(self, tmp_path):
+        app = create_app(db_path=str(tmp_path / "default.db"))
+        client = TestClient(app)
+        body = client.get("/").text
+        assert "Activity Log" in body
+        assert 'id="log-list"' in body
+
+    def test_logs_endpoint_returns_generate_entries(self, tmp_path):
+        app = create_app(db_path=str(tmp_path / "default.db"))
+        client = TestClient(app)
+        client.post("/generate", data={
+            "scope": "characters", "item": "Lily", "count": "2",
+            "limit": "1", "backend": "mock",
+        })
+        data = client.get("/logs").json()
+        entries = data.get("entries", [])
+        assert any("Generate queued" in e["message"] for e in entries)
+        assert any("UI batch complete" in e["message"] for e in entries)

@@ -11,6 +11,8 @@ auto-seeding of the universe catalog when a real repository is injected.
 
 import logging
 import time
+from collections import deque
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -26,12 +28,52 @@ from src.pipeline.job_queue import JobQueue
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Activity log (in-app buffer surfaced on the dashboard via GET /logs)
+# ---------------------------------------------------------------------------
+
+_LOG_BUFFER: deque[dict] = deque(maxlen=250)
+
+
+class _LogBufferHandler(logging.Handler):
+    """Appends formatted log records from src.* loggers to ``_LOG_BUFFER``."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            _LOG_BUFFER.append({
+                "time": datetime.fromtimestamp(record.created).strftime("%H:%M:%S"),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": self.format(record),
+            })
+        except Exception:
+            pass
+
+
+def _is_src_record(record: logging.LogRecord) -> bool:
+    return record.name == "src" or record.name.startswith("src.")
+
+
+_LOG_HANDLER = _LogBufferHandler()
+_LOG_HANDLER.setLevel(logging.INFO)
+_LOG_HANDLER.setFormatter(logging.Formatter("%(message)s"))
+_LOG_HANDLER.addFilter(_is_src_record)
+
+
+def _ensure_log_buffer_attached() -> None:
+    """Attach the in-app log handler once per process and raise src log level."""
+    root = logging.getLogger()
+    if _LOG_HANDLER not in root.handlers:
+        root.addHandler(_LOG_HANDLER)
+    logging.getLogger("src").setLevel(logging.INFO)
+
+# ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
 _HERE = Path(__file__).parent
 _TEMPLATES = _HERE / "templates"
 _STATIC = _HERE / "static"
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Disable Jinja2 template cache (cache_size=0) to avoid unhashable key
 # errors with starlette's Jinja2Templates wrapper and newer jinja2 releases.
@@ -86,17 +128,23 @@ def create_app(
     job_queue=None,
     generation_backend=None,
     seed_catalog=None,
-    universe_dir: str = "Universe",
-    world_dir: str = "World",
-    assets_dir: str = "Assets",
+    db_path: Optional[str] = "catalog.db",
+    universe_dir: str = str(_PROJECT_ROOT / "Universe"),
+    world_dir: str = str(_PROJECT_ROOT / "World"),
+    assets_dir: str = str(_PROJECT_ROOT / "Assets"),
 ) -> FastAPI:
     """Application factory with optional dependency injection.
+
+    When no ``asset_repo`` is injected, the app is wired to a real SQLite
+    repository (``db_path``, default ``catalog.db``) with the mock generation
+    backend and universe auto-seeding, so ``uvicorn src.review_ui:create_app
+    --factory`` lists the provisioned catalog and can generate immediately.
 
     Args:
         asset_repo: Object implementing ``list_characters()``,
             ``get_character(id)``, ``find_assets(...)``,
             ``find_approved(...)`` and the async ``save``/``get``/
-            ``update_state`` handlers.  Falls back to an in-memory stub.
+            ``update_state`` handlers.  Falls back to a SQLite-backed repo.
         character_repo: Repository with ``save_character``/``find_character_by_name``
             used for seeding and generation (usually the SQLite character repo).
         job_queue: Optional ``JobQueue`` instance for regeneration jobs.
@@ -105,11 +153,46 @@ def create_app(
             ``POST /generate`` panel.  Falls back to the mock backend.
         seed_catalog: Optional async callable ``(char_repo) -> summary`` used
             to auto-seed the universe catalog when the repo is empty.
+        db_path: SQLite database path used when ``asset_repo`` is not injected.
         universe_dir/world_dir/assets_dir: Catalog paths for the generate panel.
 
     Returns:
         Configured FastAPI application.
     """
+    _ensure_log_buffer_attached()
+
+    if asset_repo is None and db_path is not None:
+        from src.asset_repository.sqlite_repo import (
+            SQLiteAssetRepository,
+            SQLiteCharacterRepository,
+        )
+        from src.universe.batch_generator import resolve_backend
+        from src.universe.seed import seed_all
+        from src.universe.sqlite_bridge import SQLiteCombinedRepo
+
+        char_repo = SQLiteCharacterRepository(db_path=db_path)
+        asset_repo = SQLiteCombinedRepo(char_repo, SQLiteAssetRepository(db_path=db_path))
+        if character_repo is None:
+            character_repo = char_repo
+        if generation_backend is None:
+            generation_backend = resolve_backend("mock")
+        if seed_catalog is None:
+
+            def _default_seed(
+                char_repo_,
+                universe_dir=universe_dir,
+                world_dir=world_dir,
+                assets_dir=assets_dir,
+            ):
+                return seed_all(
+                    char_repo_,
+                    universe_dir=universe_dir,
+                    world_dir=world_dir,
+                    assets_dir=assets_dir,
+                )
+
+            seed_catalog = _default_seed
+
     repo = asset_repo or _StubAssetRepo()
     char_repo = character_repo or repo
     jq = job_queue or JobQueue()
@@ -185,8 +268,8 @@ def create_app(
             return
         try:
             if len(repo.list_characters()) == 0:
-                await seed_catalog(char_repo)
-                logger.info("Auto-seeded universe catalog")
+                summary = await seed_catalog(char_repo)
+                logger.info("Auto-seeded universe catalog: %s", summary)
         except Exception as exc:
             logger.warning("Auto-seed failed: %s", exc)
 
@@ -287,9 +370,15 @@ def create_app(
                 "environments": envs,
                 "prop_categories": prop_categories,
                 "jobs": jobs,
+                "logs": list(_LOG_BUFFER)[-50:],
                 "candidates": [],
             },
         )
+
+    @app.get("/logs")
+    async def activity_logs():
+        """Recent activity log entries as JSON (polled by the dashboard)."""
+        return {"entries": list(_LOG_BUFFER)}
 
     @app.get("/character/{character_id}", response_class=HTMLResponse)
     async def character_detail(character_id: str, request: Request):

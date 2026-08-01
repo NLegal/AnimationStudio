@@ -1,9 +1,9 @@
 # Character Bible
 
-> **Version:** 1.0
-> **Total Characters:** 38
+> **Version:** 1.1
+> **Total Characters:** 39
 > **Universe:** AI Nursery Rhyme Studio — Cocomelon-inspired, Pixar-quality
-> **Date:** 2026-07-29
+> **Date:** 2026-08-01
 
 ---
 
@@ -106,18 +106,96 @@
 
 ---
 
+## Character Relationships
+
+| Relationship | Characters | Notes |
+|--------------|-----------|-------|
+| Core trio | Lily Bunny, Ben Bear, Charlie Fox | The three learn together in every episode; each covers a different skill (creativity, building, discovery). |
+| Duo | Daisy Duck + Musician Parrot | Song-and-dance pair; shared love of rhythm and movement. |
+| Family | Mommy, Daddy, Grandma, Grandpa, Baby, Lily Bunny | Bunny family unit; Lily's home base. |
+| Sibling bond | Baby Bunny → Lily Bunny | Lily teaches/cares for Baby; classic big-sister dynamic. |
+| Best friends | Monkey + Dog | Playground rivals-turned-partners; high energy. |
+| Study buddies | Cat + Mouse | Artist/inventor duo; quiet, curious pair. |
+| Mentor circle | Teacher Owl, Doctor Panda, Firefighter Dalmatian, Police Officer Beaver, Mail Carrier Turtle, Farmer Goat, Librarian Hedgehog, Chef Pig, Construction Worker Beaver | Community adults Lily visits to learn a lesson; mentors, never authorities. |
+| Nature guides | Friendly Dragon, Unicorn, Friendly Dinosaur, Rainbow, Cloud, Moon, Sun, Stars | Fantasy characters that personify weather/emotions; safe, gentle, non-threatening. |
+| Helping hands | Robot, Alien | New-tech curiosity; help solve gentle problems. |
+| Conflict pair (resolved) | Cow + Sheep | Gardener vs. comforter — shows that different strengths work together. |
+
+---
+
+## Growth & Ages
+
+| Age Band | Characters | Visual/Design Notes |
+|----------|-----------|---------------------|
+| Toddler (2-3) | Baby Bunny | Smallest head-to-body ratio; oversized head, short limbs, big eyes. |
+| Preschool (4-5) | Lily, Ben, Charlie, Daisy, Monkey, Elephant, Cat, Dog, Mouse, Cow, Horse, Pig, Chicken, Sheep | Standard child proportions; head ~1/3 of height, expressive eyes. |
+| Adult caregivers (30+) | Mommy, Daddy Bunny | Taller, slimmer; still rounded and child-friendly — never "adult" in look or tone. |
+| Senior | Grandma, Grandpa Bunny | Rounded posture, soft wrinkles implied only by glasses/scarf; gentle, warm. |
+| Ageless / fantasy | Sun, Moon, Cloud, Rainbow, Stars, Alien, Robot, Dragon, Unicorn, Dinosaur | Timeless designs; no aging arc. |
+
+Growth rule: characters are **static** in age within a season. Any visual aging
+happens only via wardrobe/accessory swaps, never via redesign.
+
+---
+
+## Emotion Matrix
+
+Primary emotion vocabulary across all characters (see each character's
+`expressions/` library — all 32 expressions generated for every character):
+
+| Emotion | Typical Usage | Characterizing Feature |
+|---------|---------------|------------------------|
+| Happy / Smiling | Default state | Warm smile, relaxed ears/eyes |
+| Very Happy / Excited | Achievements, surprises | Arms up, wide grin, bright eyes |
+| Laughing / Giggling | Play, silliness | Open mouth, body bounce implied |
+| Curious / Thinking | Discovery beats | Tilted head, one eyebrow raised |
+| Surprised | Plot twists | Wide eyes, raised brows, small "o" mouth |
+| Sad / Crying | Gentle setbacks | Downturned mouth, tear (only for 4+ chars) |
+| Angry | Resolved quickly (never scary) | Puffed cheeks, furrowed brows |
+| Scared | Soft "oops" moments | Ears down, wide eyes, slight shrink |
+| Shy / Embarrassed | Praise, new friends | Blush, looking down, ears in |
+| Sleepy / Tired | Bedtime episodes | Drooping lids, soft posture |
+| Proud | Accomplishments | Chest out, chin up |
+| Blowing Kiss | Affection beats | Paw to lips, heart implied |
+
+Emotion rules: negative emotions are **brief, resolved, and never cruel**;
+fear is never paired with danger (see Negative Prompt standards).
+
+---
+
+## Silhouette & Palette Consistency
+
+Every character is recognizable at a glance (quality checklist item):
+
+| Rule | Detail |
+|------|--------|
+| Unique silhouette | Each character owns a distinct outline — long ears (Lily), round head (Ben), tall neck (Horse), shell (Turtle), trunk (Elephant). Never reuse another character's dominant shape. |
+| Signature accessory | One repeatable prop ties the design together (Lily's blue bow, Ben's tool belt, Daisy's bow, Doctor Panda's stethoscope). Kept in every reference/turnaround. |
+| Brand palette | All colors derive from `ColorPalette/brand-palette.json` (pastel primaries); each character has a 1-2 color identity listed in the palette summary above. |
+| Consistency in production | Reuse the approved reference sheets + model sheets; regenerate any asset from the same prompt + character seed to stay on-design. |
+| Wardrobe rule | Outfits extend but never replace the character's palette or silhouette. |
+
+---
+
 ## Asset Generation Status
 
-| Character | Bio | Expressions (23) | Poses (20) | Outfits (12) | Turnaround | Prompts |
-|-----------|-----|-----------------|------------|--------------|------------|---------|
-| Lily Bunny | ✅ | Pending | Pending | Pending | Pending | ✅ |
-| Ben Bear | ✅ | Pending | Pending | Pending | Pending | Pending |
-| Charlie Fox | ✅ | Pending | Pending | Pending | Pending | Pending |
-| Daisy Duck | ✅ | Pending | Pending | Pending | Pending | Pending |
-| Family (5) | ✅ | Pending | Pending | Pending | Pending | Pending |
-| Friends (10) | ✅ | Pending | Pending | Pending | Pending | Pending |
-| Community (10) | ✅ | Pending | Pending | Pending | Pending | Pending |
-| Fantasy (10) | ✅ | Pending | Pending | Pending | Pending | Pending |
+Status: **complete** — generated with the mock pipeline, exported to the file
+tree, and approved (see `scripts/finalize_phase1.py`).
+
+| Character | Bio | Expressions (32) | Poses (28) | Outfits | Turnaround (6) | Lighting (11) | Model Sheet | Prompts |
+|-----------|-----|------------------|------------|---------|----------------|---------------|-------------|---------|
+| Lily Bunny | ✅ | ✅ | ✅ | ✅ (12) | ✅ | ✅ | ✅ | ✅ |
+| Ben Bear | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Charlie Fox | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Daisy Duck | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Family (5) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Friends (10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Community (10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Fantasy (10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+> Each character folder holds `references/`, `expressions/`, `poses/`,
+> `outfits/`, `turnarounds/` (+ `model_sheet.png`), and `lighting/`.
+> Composite model sheets live in `ModelSheets/<Name>_model_sheet.png`.
 
 ---
 
@@ -128,4 +206,4 @@ Standalone library with 12 categories. See `Accessories/INDEX.md` for details.
 ---
 
 *Part of the AI Nursery Rhyme Studio — Universe Library*
-*Version 1.0 — 2026-07-29*
+*Version 1.1 — 2026-08-01*

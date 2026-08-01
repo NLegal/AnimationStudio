@@ -62,20 +62,41 @@ class IdentityScorer:
         brand = scorer.brand_score(image)
     """
 
-    def __init__(self, plugins: Optional[list[ScoringPlugin]] = None):
-        self.plugins = plugins or self._default_plugins()
+    def __init__(self, plugins: Optional[list[ScoringPlugin]] = None,
+                 light: bool = False):
+        self.plugins = plugins or self._default_plugins(light=light)
 
-    def _default_plugins(self) -> list[ScoringPlugin]:
+    def _default_plugins(self, light: bool = False) -> list[ScoringPlugin]:
         """Return the default set of scoring plugins with D-06 weights.
 
         D-06 weights: DINOv2 40%, CLIP 20%, Color 10%, Part 10%,
         Pose 5%, Expression 5%, Style 10%.
         Each plugin class carries its own weight default; we instantiate
         from ALL_PLUGINS so future plugins auto-register.
+
+        ``light=True`` drops the torch-backed plugins (DINOv2, CLIP) whose
+        CPU inference dominates runtime.  Scores from the remaining
+        numpy/PIL plugins are still deterministic and sufficient for
+        placeholder/mock library population.
         """
         from src.identity_engine.plugins import ALL_PLUGINS
 
-        return [cls() for cls in ALL_PLUGINS]
+        if not light:
+            return [cls() for cls in ALL_PLUGINS]
+
+        from src.identity_engine.plugins.clip_score import CLIPScoringPlugin
+        from src.identity_engine.plugins.color_verification import ColorVerificationPlugin
+        from src.identity_engine.plugins.dinov2_score import DINOv2ScoringPlugin
+
+        plugins = []
+        for cls in ALL_PLUGINS:
+            if cls in (CLIPScoringPlugin, DINOv2ScoringPlugin):
+                continue
+            if cls is ColorVerificationPlugin:
+                plugins.append(cls(use_kmeans=False))
+            else:
+                plugins.append(cls())
+        return plugins
 
     def score_all(self, image: Image.Image, **kwargs) -> dict[str, float]:
         """Run all plugins and return a dict of {name: score}."""

@@ -167,6 +167,34 @@ class TestIdentityScorerDefaults:
             assert 0.0 <= value <= 1.0, f"{name} score {value} out of range"
 
 
+class TestIdentityScorerLightMode:
+    """Verifies the fast/light scoring path."""
+
+    def test_light_plugins_exclude_torch(self):
+        """Light mode drops DINOv2 and CLIP, keeps the rest."""
+        scorer = IdentityScorer(light=True)
+        names = {p.name for p in scorer.plugins}
+        assert "color_harmony" in names
+        assert "facial_appeal" in names
+        assert len(names) < len(ALL_PLUGINS)
+
+    def test_light_color_plugin_uses_sampling(self):
+        """Light mode disables k-means in the color plugin."""
+        from src.identity_engine.plugins.color_verification import ColorVerificationPlugin
+        scorer = IdentityScorer(light=True)
+        color = next(p for p in scorer.plugins if isinstance(p, ColorVerificationPlugin))
+        assert color.use_kmeans is False
+
+    def test_light_score_all_valid(self, test_img):
+        """Light scoring still returns in-range values."""
+        scorer = IdentityScorer(light=True)
+        scores = scorer.score_all(test_img)
+        for name, value in scores.items():
+            assert 0.0 <= value <= 1.0, f"{name} score {value} out of range"
+        brand = scorer.brand_score(test_img)
+        assert 0.0 <= brand["total"] <= 1.0
+
+
 class TestIdentityScorerBrandScore:
     """Verifies brand_score() integration."""
 

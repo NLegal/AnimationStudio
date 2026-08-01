@@ -210,6 +210,24 @@ class TestColorVerificationPlugin:
         assert isinstance(score, float)
         assert 0.0 <= score <= 1.0
 
+    def test_color_plugin_fast_sampling_matches_contract(self, test_img):
+        """use_kmeans=False avoids clustering but still returns 0-1."""
+        from src.identity_engine.plugins.color_verification import ColorVerificationPlugin
+
+        plugin = ColorVerificationPlugin(use_kmeans=False)
+        assert plugin.use_kmeans is False
+        score = plugin.score(test_img, reference=None)
+        assert isinstance(score, float)
+        assert 0.0 <= score <= 1.0
+
+    def test_color_plugin_fast_sampling_with_reference(self, test_img, ref_img):
+        """Fast sampling path also handles an explicit reference palette."""
+        from src.identity_engine.plugins.color_verification import ColorVerificationPlugin
+
+        plugin = ColorVerificationPlugin(use_kmeans=False)
+        score = plugin.score(test_img, reference=ref_img)
+        assert 0.0 <= score <= 1.0
+
     def test_color_plugin_palette_caching(self, test_img, monkeypatch):
         """Cached palette is reused across instances (file read once per process)."""
         from src.identity_engine.plugins.color_verification import ColorVerificationPlugin

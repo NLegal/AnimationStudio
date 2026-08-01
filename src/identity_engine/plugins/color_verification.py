@@ -86,7 +86,7 @@ def _load_brand_palette_from_file() -> list[tuple[int, int, int]]:
 
 def _color_distance(c1: tuple[int, int, int], c2: tuple[int, int, int]) -> float:
     """Euclidean distance in RGB space."""
-    return np.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
+    return np.sqrt(sum((int(a) - int(b)) ** 2 for a, b in zip(c1, c2)))
 
 
 def _closest_palette_distance(
@@ -97,9 +97,15 @@ def _closest_palette_distance(
 
 
 def _extract_dominant_colors(
-    image: Image.Image, n_colors: int = 5
+    image: Image.Image, n_colors: int = 5, use_kmeans: bool = True
 ) -> list[tuple[int, int, int]]:
     """Extract dominant colors via K-Means clustering."""
+    if not use_kmeans:
+        arr = np.array(image.convert("RGB").resize((64, 64)))
+        pixels = arr.reshape(-1, 3)
+        idx = np.linspace(0, len(pixels) - 1, n_colors, dtype=int)
+        return [tuple(pixels[i]) for i in idx]
+
     try:
         from sklearn.cluster import KMeans
     except ImportError as exc:
@@ -142,9 +148,11 @@ class ColorVerificationPlugin:
         self,
         weight: float = 0.10,
         brand_palette: Optional[list[tuple[int, int, int]]] = None,
+        use_kmeans: bool = True,
     ):
         self.weight = weight
         self.brand_palette = brand_palette
+        self.use_kmeans = use_kmeans
 
     def _get_palette(self) -> list[tuple[int, int, int]]:
         """Return the brand palette, loading from filesystem on first call.
@@ -180,10 +188,12 @@ class ColorVerificationPlugin:
         # Determine target palette
         palette = self._get_palette()
         if reference is not None:
-            palette = _extract_dominant_colors(reference, n_colors=5)
+            palette = _extract_dominant_colors(reference, n_colors=5,
+                                               use_kmeans=self.use_kmeans)
 
         try:
-            dominant = _extract_dominant_colors(image, n_colors=5)
+            dominant = _extract_dominant_colors(image, n_colors=5,
+                                                use_kmeans=self.use_kmeans)
         except Exception as exc:
             warnings.warn(f"Color extraction failed: {exc}. Returning 0.0.")
             return 0.0

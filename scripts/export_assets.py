@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""export_assets.py — Write generated assets from the DB to the file tree.
+
+Phase 1 requires an *organized asset repository*: image files on disk under
+``Universe/Characters/<Name>/references|expressions|poses|outfits|
+turnarounds|lighting`` (plus ``World/`` zones and ``Assets/`` categories).
+
+The pipeline stores assets in SQLite with metadata but does not persist the
+image bytes.  This script reproduces each asset's image from its stored
+prompt+seed and writes a PNG into the right folder, then records the
+``file_path`` on the asset row.
+
+Only the mock backend is reproducible offline (deterministic from
+prompt + seed).  Assets produced by a real backend should have a real
+``file_path`` already set by the pipeline / generation run.
+
+Usage:
+    python scripts/export_assets.py --db catalog.db
+    python scripts/export_assets.py --states shortlisted approved
+    python scripts/export_assets.py --scope characters --asset-types expressions poses
+"""
+
+import argparse
+import asyncio
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from src.asset_repository.sqlite_repo import SQLiteAssetRepository, SQLiteCharacterRepository
+from src.generation_engine.base import GenerationInput
+from src.generation_engine.mock_backend import MockBackend
+
+# Turnaround angles (front is the reference library's own view).
+TURNAROUND_ANGLES = {"45", "left", "right", "back", "top", "bottom"}
+
+# asset_type → directory name (character scope)
+CHARACTER_DIRS = {
+    "reference": "references",
+    "expression": "expressions",
+    "pose": "poses",
+    "outfit": "outfits",
+    "lighting": "lighting",
+}
+
+
+def _slugify(name: str) -> str:
+    """Filesystem-safe name."""
+    return re.sub(r"[^A-Za-z0-9 _.-]+", "", name).strip().replace(" ", "_")
+
+
+def _export_paths(character_name: str, category: str, asset_type: str,
+                  variant: str, universe_dir: str, world_dir: str,
+                  assets_dir: str) -> Path:
+    """Resolve the destination path for one asset record."""
+    if category in ("environment",):
+        zone = (variant or "").strip() or "Zones"
+        return Path(world_dir) / _slugify(zone) / f"{_slugify(character_name)}.png"
+    if category == "asset":
+        return Path(assets_dir) / _slugify(character_name) / f"{_slugify(variant or 'asset')}.png"
+
+    base = Path(universe_dir) / "Characters" / character_name
+    if asset_type == "reference" and variant in TURNAROUND_ANGLES:
+        return base / "turnarounds" / f"{_slugify(variant)}.png"
+    directory = CHARACTER_DIRS.get(asset_type, "references")
+    label = variant or "asset"
+    return base / directory / f"{_slugify(label)}.png"
+
+
+async def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--db", default="catalog.db",
+                        help="SQLite database path (default: catalog.db)")
+    parser.add_argument("--states", default="shortlisted,approved,production",
+                        help="Comma list of asset states to export (default: shortlisted,approved,production)")
+    parser.add_argument("--scope", default="characters",
+                        help="characters | environments | props | all (default: characters)")
+    parser.add_argument("--asset-types", default="",
+                        help="Optional comma list: reference,expression,pose,outfit,lighting")
+    parser.add_argument("--universe", default="Universe", help="Universe/ directory")
+    parser.add_argument("--world", default="World", help="World/ directory")
+    parser.add_argument("--assets", default="Assets", help="Assets/ directory")
+    parser.add_argument("--size", type=int, default=512,
+                        help="Image size for regenerated mock images (default: 512)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Print destinations without writing files")
+    args = parser.parse_args()
+
+    states = {s.strip().lower() for s in args.states.split(",") if s.strip()}
+    scopes = (args.scope or "characters").lower()
+    if scopes not in ("characters", "environments", "props", "all"):
+        raise SystemExit(f"Unknown scope '{scopes}'")
+    wanted_types = {t.strip() for t in args.asset_types.split(",") if t.strip()}
+
+    asset_repo = SQLiteAssetRepository(db_path=args.db)
+    char_repo = SQLiteCharacterRepository(db_path=args.db)
+    backend = MockBackend(base_size=args.size)
+
+    conn = asset_repo._get_conn()
+    rows = conn.execute(
+        "SELECT id, character_id, asset_type, variant, state, file_path, prompt, seed "
+        "FROM assets WHERE state IN (%s) ORDER BY character_id" % ", ".join("?" * len(states)),
+        tuple(states),
+    ).fetchall()
+
+    exported = 0
+    skipped = 0
+    for row in rows:
+        asset_id, character_id, asset_type, variant, state, file_path, prompt, seed = row
+        if wanted_types and asset_type not in wanted_types:
+            continue
+
+        char_row = char_repo._get_conn().execute(
+            "SELECT name, category FROM characters WHERE id = ?", (character_id,)
+        ).fetchone()
+        if char_row is None:
+            skipped += 1
+            continue
+        character_name, category = char_row
+
+        if scopes != "all" and not (
+            (scopes == "characters" and category not in ("environment", "asset"))
+            or (scopes == "environments" and category == "environment")
+            or (scopes == "props" and category == "asset")
+        ):
+            continue
+
+        if file_path and Path(file_path).exists():
+            skipped += 1
+            continue
+
+        destination = _export_paths(character_name, category, asset_type, variant or "",
+                                    args.universe, args.world, args.assets)
+        if args.dry_run:
+            print(f"  {destination}")
+            exported += 1
+            continue
+
+        if not prompt or seed is None:
+            skipped += 1
+            continue
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            output = backend.generate(
+                GenerationInput(prompt=prompt, seed=seed, num_images=1,
+                                width=args.size, height=args.size)
+            )
+            if not output.images:
+                skipped += 1
+                continue
+            output.images[0].save(destination, format="PNG")
+        except Exception as exc:
+            print(f"  ✗ {character_name}/{asset_type}/{variant}: {exc}")
+            skipped += 1
+            continue
+
+        asset_repo._get_conn().execute(
+            "UPDATE assets SET file_path = ? WHERE id = ?",
+            (str(destination), asset_id),
+        )
+        asset_repo._get_conn().commit()
+        exported += 1
+        print(f"  ✓ {destination}")
+
+    print(f"\nExported {exported} assets ({skipped} skipped) to the file tree.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(asyncio.run(main()))

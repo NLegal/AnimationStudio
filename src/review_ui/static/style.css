@@ -698,6 +698,68 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
 }
 
 /* -------------------------------------------------------------------
+   Activity log panel
+   ------------------------------------------------------------------- */
+.log-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.log-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8rem;
+}
+
+.log-line {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.log-line:last-child {
+    border-bottom: none;
+}
+
+.log-time {
+    color: var(--text-muted);
+    flex: 0 0 auto;
+}
+
+.log-level {
+    flex: 0 0 auto;
+    font-weight: bold;
+}
+
+.log-msg {
+    flex: 1 1 auto;
+    word-break: break-word;
+}
+
+.log-info .log-level {
+    color: var(--blue-dark);
+}
+
+.log-warning .log-level {
+    color: var(--yellow-dark);
+}
+
+.log-error .log-level {
+    color: var(--pink-dark);
+}
+
+.log-empty {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* -------------------------------------------------------------------
    Responsive adjustments
    ------------------------------------------------------------------- */
 @media (max-width: 768px) {

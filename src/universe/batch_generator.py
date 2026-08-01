@@ -62,13 +62,32 @@ def resolve_backend(name: str = "mock", comfyui_url: str = "http://localhost:818
 def build_prompt(seed, kind: str, asset_type: str, variant: str) -> tuple[str, str]:
     """Build a (positive, negative) prompt pair for a catalog seed."""
     if kind == "character":
+        outfit = getattr(seed, "default_outfit", "") or "default outfit"
+        if asset_type == "outfit":
+            # Resolve a wardrobe variant name to its full description so the
+            # prompt carries the detail (variant is the clean wardrobe name).
+            wardrobe = getattr(seed, "bio_data", {}).get("wardrobe", {})
+            description = wardrobe.get(variant, "")
+            if not description:
+                for _name, desc in wardrobe.items():
+                    if variant and (
+                        variant.lower() in desc.lower()
+                        or desc.lower() in variant.lower()
+                    ):
+                        description = desc
+                        break
+            outfit = description or variant or outfit
         prompt = CharacterPrompt(
             name=seed.name,
             species=getattr(seed, "species", ""),
             appearance=getattr(seed, "appearance", ""),
-            outfit=getattr(seed, "default_outfit", "") or "default outfit",
+            outfit=outfit,
             style=ART_DIRECTION,
         )
+        if asset_type == "lighting":
+            return PromptBuilder().build(
+                prompt, asset_type="reference", lighting=variant
+            )
         return PromptBuilder().build(prompt, asset_type=asset_type, variant=variant)
     if kind == "environment":
         negative = getattr(seed, "negative_prompt", "") or _DEFAULT_NEGATIVE

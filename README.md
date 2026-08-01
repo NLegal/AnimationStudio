@@ -109,14 +109,19 @@ uvicorn src.review_ui:create_app --factory --reload --port 8000
 
 Then open http://localhost:8000.
 
-The app starts with an in-memory stub (no database required). To inject real
-data, pass an `asset_repo` to `create_app()`.
+By default the app wires itself to the SQLite database (`catalog.db` in the
+working directory), auto-seeds the universe catalog on first load, and uses
+the mock generation backend — so the dashboard lists the provisioned
+characters/environments/props immediately and the Generate panel works with
+no extra configuration.  To run against a specific database, start from the
+directory that contains it, or pass an explicit `asset_repo`/`character_repo`
+to `create_app()`.
 
 **Available routes:**
 
 | Route | Page |
 |-------|------|
-| `/` | Dashboard — characters, environments, props, jobs, generate panel |
+| `/` | Dashboard — characters, environments, props, jobs, generate panel, activity log |
 | `/character/{id}` | Character detail — bio + assets grouped by type |
 | `/review/{id}?asset_type=` | Side-by-side review with Brand Scores |
 | `/review/{id}?asset_type=&batch=true` | 2×2 batch compare mode |
@@ -126,6 +131,7 @@ data, pass an `asset_repo` to `create_app()`.
 | `POST /promote/{id}` | Promote to production |
 | `POST /generate` | Queue a background generation batch (scope/item/backend) |
 | `POST /seed` | Seed the universe catalog from the markdown docs (idempotent) |
+| `/logs` | Recent activity log entries (JSON, polled by the dashboard) |
 
 ## Universe Generation
 
@@ -162,6 +168,51 @@ The UI generation panel (dashboard → **Generate Assets**) queues the same
 pipeline in the background: prompt → generate → identity score → diversity
 filter → shortlist. Generated candidates land in the database and appear under
 "Pending Review" for approval.
+
+## Phase 1 Character Library
+
+`scripts/generate_phase1_library.py` produces the full Phase 1 per-character
+library from `PHASE1.md` — reference sheets, every expression, every pose,
+every wardrobe outfit, turnarounds, and lighting studies — for every character:
+
+```bash
+# Generate the complete library for all 39 characters (mock backend)
+python scripts/generate_phase1_library.py --fast-scoring --jobs 12
+
+# Subset / filters
+python scripts/generate_phase1_library.py --characters "Lily Bunny" --asset-types expressions
+python scripts/generate_phase1_library.py --asset-types turnarounds,lighting
+
+# Preview prompts only
+python scripts/generate_phase1_library.py --prompt-only --limit 3
+
+# Real backends
+python scripts/generate_phase1_library.py --backend comfyui
+python scripts/generate_phase1_library.py --backend cloud --provider fal
+```
+
+`--fast-scoring` skips the torch-backed scoring plugins (DINOv2/CLIP), which
+are the runtime bottleneck and add nothing for deterministic mock placeholders
+(≈60× faster on CPU).
+
+The pipeline stores images in SQLite but not on disk. Two scripts turn the
+database into the *organized asset repository* PHASE1.md requires:
+
+```bash
+# Reproduce each asset's PNG from its prompt+seed and record file_path
+python scripts/export_assets.py --db catalog.db --scope characters
+
+# Composite the turnarounds into a labeled model sheet per character
+python scripts/build_model_sheets.py --db catalog.db
+
+# Promote assets to "approved" (--all = full library; default = best reference)
+python scripts/finalize_phase1.py --db catalog.db --all
+```
+
+Assets land under `Universe/Characters/<Name>/{references,expressions,poses,
+outfits,turnarounds,lighting}` plus `Universe/ModelSheets/<Name>_model_sheet.png`.
+Only the mock backend is reproducible offline — real-backend assets should have
+a real `file_path` already recorded by the generation run.
 
 
 ## Production Pipeline API
