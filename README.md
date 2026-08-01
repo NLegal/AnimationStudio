@@ -6,7 +6,7 @@ assets, and minimal manual work — from story to publishing.
 
 ## Status
 
-All 12 phases implemented and audited. **1282 tests passing.**
+All 12 phases implemented and audited. **1291 tests passing.**
 
 | Phase | System | Module |
 |-------|--------|--------|
@@ -68,7 +68,7 @@ python -m pytest tests/ -v --tb=short
 python -m pytest tests/ -x --quiet
 ```
 
-Expected: **1282 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
+Expected: **1291 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
 aesthetics predictor) are lazily loaded — the suite passes without them via
 mock/fallback values.
 
@@ -213,6 +213,102 @@ Assets land under `Universe/Characters/<Name>/{references,expressions,poses,
 outfits,turnarounds,lighting}` plus `Universe/ModelSheets/<Name>_model_sheet.png`.
 Only the mock backend is reproducible offline — real-backend assets should have
 a real `file_path` already recorded by the generation run.
+
+### Run Phase 1 from scratch (both platforms)
+
+The full Phase 1 pipeline, in order. These are the only commands you need.
+
+**Windows (PowerShell):**
+
+```powershell
+cd <project-root>
+
+# 0. Install (one-time)
+python -m pip install -e ".[dev]"
+
+# 1. Seed the catalog from the markdown docs (idempotent)
+python scripts\seed_universe.py --db catalog.db
+
+# 2. Generate the complete Phase 1 library for all 39 characters
+python scripts\generate_phase1_library.py --fast-scoring --jobs 12
+
+# 3. Write PNGs to the asset repository + record file_path
+python scripts\export_assets.py --db catalog.db --scope characters
+
+# 4. Composite turnarounds into model sheets
+python scripts\build_model_sheets.py --db catalog.db
+
+# 5. Approve the library (--all = full library; default = best reference)
+python scripts\finalize_phase1.py --db catalog.db --all
+
+# 6. Review everything in the web UI
+uvicorn src.review_ui:create_app --factory --reload --port 8000
+#    → open http://localhost:8000
+```
+
+**macOS / Linux (bash):**
+
+```bash
+cd <project-root>
+
+python3 -m pip install -e ".[dev]"
+python3 scripts/seed_universe.py --db catalog.db
+python3 scripts/generate_phase1_library.py --fast-scoring --jobs 12
+python3 scripts/export_assets.py --db catalog.db --scope characters
+python3 scripts/build_model_sheets.py --db catalog.db
+python3 scripts/finalize_phase1.py --db catalog.db --all
+uvicorn src.review_ui:create_app --factory --reload --port 8000
+```
+
+> `--fast-scoring` skips the torch-backed DINOv2/CLIP plugins (≈60× faster) —
+> fine for the mock pipeline. Drop it when scoring real generated images.
+
+### Local generation (ComfyUI + Flux)
+
+ComfyUI is the optional R&D backend for real (non-placeholder) images. Install
+it plus a quantized Flux checkpoint with the platform setup script:
+
+**Windows (PowerShell):**
+
+```powershell
+.\scripts\setup_comfyui_flux.ps1                  # install + download (~9GB)
+.\scripts\setup_comfyui_flux.ps1 -Serve           # start the server on :8188
+python scripts\generate_phase1_library.py --backend comfyui --comfyui-url http://localhost:8188
+```
+
+If PowerShell blocks the script, bypass for this session first:
+`Set-ExecutionPolicy -Scope Process Bypass`.
+
+**macOS / Linux (bash):**
+
+```bash
+bash scripts/setup_comfyui_flux.sh                # install + download (~9GB)
+bash scripts/setup_comfyui_flux.sh --serve        # start the server on :8188
+python3 scripts/generate_phase1_library.py --backend comfyui
+```
+
+The script clones ComfyUI into `tools/comfyui/`, installs the ComfyUI-GGUF
+custom node, downloads the quantized Flux (dev) checkpoint, and places it at
+the exact path the workflow templates reference (`models/checkpoints/
+flux1-dev.safetensors`). The server runs with `--cpu` — expect minutes per
+image; for fast real generation prefer the cloud backends instead.
+
+### Cloud generation (optional)
+
+Set keys in `.env` (copy from `.env.example`), then use `--backend cloud`:
+
+```powershell
+# Windows (PowerShell)
+$env:FAL_API_KEY = "<key>"          # or set in .env
+python scripts\generate_phase1_library.py --backend cloud --provider fal
+```
+
+```bash
+# macOS / Linux
+FAL_API_KEY=<key> python3 scripts/generate_phase1_library.py --backend cloud --provider fal
+```
+
+Providers: `fal`, `replicate` (`REPLICATE_API_KEY`), `bfl` (`BFL_API_KEY`).
 
 
 ## Production Pipeline API
