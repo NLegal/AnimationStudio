@@ -65,6 +65,8 @@ class SchedulingEngine:
         timezone: str = "UTC",
         visibility: Visibility = Visibility.PUBLIC,
         is_premiere: bool = False,
+        language: str = "en",
+        embargo_date: str = "",
     ) -> ReleaseSchedule:
         self._counter += 1
         schedule = ReleaseSchedule(
@@ -76,6 +78,8 @@ class SchedulingEngine:
             timezone=timezone,
             visibility=visibility,
             is_premiere=is_premiere,
+            language=language,
+            embargo_date=embargo_date,
         )
         self._schedules[schedule.schedule_id] = schedule
         return schedule
@@ -94,3 +98,55 @@ class SchedulingEngine:
 
     def count(self) -> int:
         return len(self._schedules)
+
+
+class ReleaseCalendar:
+    CADENCES = ["daily", "weekly", "bi_weekly", "monthly", "holiday_special", "season_launch", "premiere"]
+
+    def __init__(self):
+        self._entries: list[dict] = []
+        self._counter = 0
+
+    def add_release(
+        self,
+        episode_id: str,
+        publish_date: str,
+        cadence: str = "weekly",
+        platform: str = "youtube",
+        notes: str = "",
+    ) -> dict | None:
+        if cadence not in self.CADENCES:
+            return None
+        self._counter += 1
+        entry = {
+            "entry_id": f"RC_{self._counter}",
+            "episode_id": episode_id,
+            "publish_date": publish_date,
+            "cadence": cadence,
+            "platform": platform,
+            "notes": notes,
+        }
+        self._entries.append(entry)
+        return entry
+
+    def list_cadences(self) -> list[str]:
+        return list(self.CADENCES)
+
+    def releases(self) -> list[dict]:
+        return list(self._entries)
+
+    def releases_for_cadence(self, cadence: str) -> list[dict]:
+        return [e for e in self._entries if e["cadence"] == cadence]
+
+    def releases_on_date(self, publish_date: str) -> list[dict]:
+        return [e for e in self._entries if e["publish_date"] == publish_date]
+
+    def upcoming(self) -> list[dict]:
+        return [e for e in self._entries if e["cadence"] not in ("monthly", "holiday_special")]
+
+    def count(self) -> int:
+        return len(self._entries)
+
+    def consistent_cadence(self, cadence: str) -> bool:
+        dates = [e["publish_date"] for e in self.releases_for_cadence(cadence)]
+        return len(dates) >= 2

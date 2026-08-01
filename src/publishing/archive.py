@@ -13,6 +13,7 @@ class PublishingArchiveEngine:
         publication: PublicationRecord,
         analytics: AnalyticsSnapshot | None = None,
         extra_metadata: dict | None = None,
+        subtitles: list[str] | None = None,
     ) -> dict:
         entry = {
             "record_id": publication.record_id,
@@ -24,6 +25,7 @@ class PublishingArchiveEngine:
             "description": publication.description,
             "tags": list(publication.tags),
             "thumbnail": publication.thumbnail,
+            "subtitles": list(subtitles or []),
             "published_at": publication.published_at,
             "version": publication.version,
             "archived_at": datetime.now().isoformat(),

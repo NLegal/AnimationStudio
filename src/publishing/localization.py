@@ -10,6 +10,7 @@ class LocalizedPublication:
     tags: list[str] = field(default_factory=list)
     thumbnail: str = ""
     subtitle_file: str = ""
+    audio_track: str = ""
     end_screen: str = ""
 
 
@@ -51,6 +52,7 @@ class PublishingLocalizationEngine:
             tags=tags or [],
             thumbnail=thumbnail,
             subtitle_file=f"{episode_id}.{language}.srt",
+            audio_track=f"{episode_id}.{language}.m4a",
             end_screen=f"end_screen_{language}",
         )
 

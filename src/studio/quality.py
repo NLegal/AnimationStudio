@@ -5,12 +5,36 @@ from .models import QualityReport, TaskStatus, Task
 
 
 class QualityGate:
+    DOMAIN_CHECKERS = {
+        "story": ["structure", "learning_objective", "age_appropriate_language"],
+        "image": ["resolution", "clarity", "character_consistency"],
+        "animation": ["smoothness", "frame_rate", "render_consistency"],
+        "audio": ["clarity", "volume_level", "no_noise"],
+        "video": ["resolution", "duration", "bitrate"],
+        "metadata": ["title", "description", "keywords"],
+        "publishing": ["thumbnail", "visibility", "schedule"],
+        "localization": ["translations", "subtitles", "audio_track"],
+        "branding": ["logo", "colors", "social_links"],
+        "accessibility": ["captions", "audio_description", "color_contrast"],
+    }
+
     def __init__(self):
         self._reports: dict[str, QualityReport] = {}
         self._checkers: dict[str, str] = {}
 
     def register_checker(self, check_name: str, description: str = "") -> None:
         self._checkers[check_name] = description
+
+    def register_domain_checkers(self, domain: str) -> None:
+        for check_name in self.DOMAIN_CHECKERS.get(domain, []):
+            self.register_checker(f"{domain}:{check_name}")
+
+    def register_all_domain_checkers(self) -> None:
+        for domain in self.DOMAIN_CHECKERS:
+            self.register_domain_checkers(domain)
+
+    def domains(self) -> list[str]:
+        return list(self.DOMAIN_CHECKERS.keys())
 
     def checkers(self) -> list[str]:
         return list(self._checkers.keys())

@@ -78,6 +78,8 @@ class PromptRegistry:
         version: str = "1.0",
         author: str = "",
         approved: bool = False,
+        model_compatibility: list[str] | None = None,
+        performance: dict | None = None,
     ) -> RegistryEntry:
         if prompt_id not in self._prompts:
             self._prompts[prompt_id] = []
@@ -91,6 +93,8 @@ class PromptRegistry:
                 "text": prompt_text,
                 "author": author,
                 "revision": len(self._prompts[prompt_id]),
+                "model_compatibility": model_compatibility or [],
+                "performance": performance or {},
             },
         )
         self._prompts[prompt_id].append(entry)

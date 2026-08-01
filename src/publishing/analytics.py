@@ -94,5 +94,79 @@ class AnalyticsEngine:
         if test is None:
             return ABTest()
         test.status = "concluded"
-        test.variant_a = test.variant_a if winner == "a" else test.variant_a
+        test.winner = winner
         return test
+
+
+class EducationalAnalyticsEngine:
+    """Educational design metrics correlated with audience engagement."""
+
+    def __init__(self):
+        self._records: list[dict] = []
+
+    def record(
+        self,
+        episode_id: str,
+        learning_topic: str,
+        target_age: str = "2-5",
+        episode_length: float = 0.0,
+        song_count: int = 0,
+        question_count: int = 0,
+        interactive_moments: int = 0,
+        completion_rate: float = 0.0,
+        replay_rate: float = 0.0,
+    ) -> dict:
+        record = {
+            "episode_id": episode_id,
+            "learning_topic": learning_topic,
+            "target_age": target_age,
+            "episode_length": episode_length,
+            "song_count": song_count,
+            "question_count": question_count,
+            "interactive_moments": interactive_moments,
+            "completion_rate": completion_rate,
+            "replay_rate": replay_rate,
+        }
+        self._records.append(record)
+        return record
+
+    def for_episode(self, episode_id: str) -> dict:
+        for record in reversed(self._records):
+            if record["episode_id"] == episode_id:
+                return record
+        return {}
+
+    def topic_performance(self, learning_topic: str) -> dict:
+        topic_records = [r for r in self._records if r["learning_topic"] == learning_topic]
+        if not topic_records:
+            return {"learning_topic": learning_topic, "episode_count": 0}
+        return {
+            "learning_topic": learning_topic,
+            "episode_count": len(topic_records),
+            "average_completion_rate": round(
+                sum(r["completion_rate"] for r in topic_records) / len(topic_records), 4
+            ),
+            "average_replay_rate": round(
+                sum(r["replay_rate"] for r in topic_records) / len(topic_records), 4
+            ),
+            "total_songs": sum(r["song_count"] for r in topic_records),
+            "total_questions": sum(r["question_count"] for r in topic_records),
+        }
+
+    def list_topics(self) -> list[str]:
+        topics: list[str] = []
+        for r in self._records:
+            if r["learning_topic"] not in topics:
+                topics.append(r["learning_topic"])
+        return topics
+
+    def popular_topics(self, limit: int = 5) -> list[dict]:
+        ranked = sorted(
+            (self.topic_performance(t) for t in self.list_topics()),
+            key=lambda t: t["episode_count"],
+            reverse=True,
+        )
+        return ranked[:limit]
+
+    def count(self) -> int:
+        return len(self._records)

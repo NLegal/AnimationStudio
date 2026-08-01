@@ -38,8 +38,7 @@ class PipelineOrchestrator:
         self.worker_pool.add_worker("gpu-renderer-1", WorkerType.GPU)
         self.worker_pool.add_worker("cpu-worker-1", WorkerType.CPU)
         self.worker_pool.add_worker("cpu-worker-2", WorkerType.CPU)
-        self.quality_gate.register_checker("resolution")
-        self.quality_gate.register_checker("duration")
+        self.quality_gate.register_all_domain_checkers()
 
     def create_pipeline(self, episode_id: str) -> Workflow:
         pipeline = self.episode_factory.build_episode_workflow(episode_id)

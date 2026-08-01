@@ -21,6 +21,12 @@ from src.studio import (
     LearningLoop,
     StudioAnalytics, AIPerformanceTracker,
     PipelineOrchestrator,
+    ErrorRecoveryEngine, Checkpoint, RecoveryRecord,
+    AccessControl, AuditLog, SecurityManager,
+    BackupManager, BackupJob, DisasterRecovery,
+    PluginRegistry, Plugin,
+    StudioDashboard,
+    StudioAPI,
 )
 
 
@@ -664,6 +670,23 @@ class TestPromptRegistry:
         assert self.registry.list_prompt_ids() == ["a", "b"]
         assert self.registry.count() == 3
 
+    def test_model_compatibility_and_performance(self):
+        entry = self.registry.register_prompt(
+            "character_v1",
+            "A cheerful robot",
+            author="artist",
+            approved=True,
+            model_compatibility=["gpt-4o", "claude-sonnet"],
+            performance={"latency_ms": 250, "success_rate": 0.98},
+        )
+        assert entry.metadata["model_compatibility"] == ["gpt-4o", "claude-sonnet"]
+        assert entry.metadata["performance"]["success_rate"] == 0.98
+
+    def test_model_compatibility_defaults(self):
+        entry = self.registry.register_prompt("p", "t")
+        assert entry.metadata["model_compatibility"] == []
+        assert entry.metadata["performance"] == {}
+
 
 class TestAssetRegistry:
     def setup_method(self):
@@ -891,6 +914,23 @@ class TestResourceManager:
         assert snap.cpu_utilization == 0.5
         assert snap.ram_used_gb == 32.0
 
+    def test_snapshot_all_fields(self):
+        snap = self.manager.snapshot()
+        assert snap.gpu_utilization == 0.0
+        assert snap.cpu_utilization == 0.0
+        assert snap.ram_used_gb == 0.0
+        assert snap.vram_used_gb == 0.0
+        assert snap.disk_used_gb == 0.0
+        assert snap.bandwidth_mbps == 0.0
+        assert snap.power_watts == 0.0
+        assert snap.timestamp != ""
+
+    def test_capacity_totals(self):
+        assert self.manager.total_vram == 96
+        assert self.manager.total_disk == 2048
+        assert self.manager.total_bandwidth == 1000
+        assert self.manager.total_power == 5000
+
     def test_utilization(self):
         self.manager.allocate("T1", gpu=8, cpu=32)
         assert self.manager.utilization() == 1.0
@@ -1057,7 +1097,10 @@ class TestPipelineOrchestrator:
     def test_default_setup(self):
         assert self.studio.agent_registry.count() == 16
         assert self.studio.worker_pool.count() == 3
-        assert len(self.studio.quality_gate.checkers()) == 2
+        assert len(self.studio.quality_gate.checkers()) == 30
+        assert "story:structure" in self.studio.quality_gate.checkers()
+        assert "publishing:thumbnail" in self.studio.quality_gate.checkers()
+        assert "accessibility:captions" in self.studio.quality_gate.checkers()
 
     def test_create_pipeline(self):
         pipeline = self.studio.create_pipeline("ep-001")
@@ -1137,3 +1180,394 @@ class TestPipelineOrchestrator:
         passed = self.studio.quality_gate.gate_task(task, {"resolution": True, "duration": True})
         assert passed is True
         assert task.status == TaskStatus.VALIDATED
+
+
+# ── QualityGate Domain Checkers Tests ───────────────────────────────────
+
+class TestQualityGateDomainCheckers:
+    def setup_method(self):
+        self.gate = QualityGate()
+
+    def test_domains(self):
+        domains = self.gate.domains()
+        assert len(domains) == 10
+        assert "story" in domains
+        assert "image" in domains
+        assert "animation" in domains
+        assert "audio" in domains
+        assert "video" in domains
+        assert "metadata" in domains
+        assert "publishing" in domains
+        assert "localization" in domains
+        assert "branding" in domains
+        assert "accessibility" in domains
+
+    def test_register_domain_checkers(self):
+        self.gate.register_domain_checkers("story")
+        assert "story:structure" in self.gate.checkers()
+        assert "story:learning_objective" in self.gate.checkers()
+
+    def test_register_all_domain_checkers(self):
+        self.gate.register_all_domain_checkers()
+        assert len(self.gate.checkers()) == 30
+
+    def test_unknown_domain(self):
+        self.gate.register_domain_checkers("nope")
+        assert self.gate.checkers() == []
+
+
+# ── ErrorRecoveryEngine Tests ───────────────────────────────────────────
+
+class TestErrorRecoveryEngine:
+    def setup_method(self):
+        self.engine = ErrorRecoveryEngine()
+
+    def test_retry_strategy(self):
+        record = self.engine.handle_failure("images", "boom")
+        assert record.status == "recovered"
+        assert self.engine.recovered_count() == 1
+
+    def test_fallback_model(self):
+        self.engine.set_fallback_model("images", "sd-turbo")
+        record = self.engine.handle_failure("images", "boom", capability="images", strategy="fallback_model")
+        assert record.status == "recovered"
+        assert self.engine.fallback_model("images") == "sd-turbo"
+
+    def test_fallback_model_escalates_without_configured(self):
+        record = self.engine.handle_failure("images", "boom", capability="images", strategy="fallback_model")
+        assert record.status == "escalated"
+        assert self.engine.escalated_count() == 1
+        assert self.engine.escalation_ids() == [record.record_id]
+
+    def test_fallback_prompt(self):
+        self.engine.set_fallback_prompt("story", "story_v2")
+        record = self.engine.handle_failure("story", "bad output", capability="story", strategy="fallback_prompt")
+        assert record.status == "recovered"
+        assert self.engine.fallback_prompt("story") == "story_v2"
+
+    def test_checkpoint_resume(self):
+        ckpt = self.engine.save_checkpoint("WF_1", "step_2", {"progress": 0.5})
+        assert ckpt.workflow_id == "WF_1"
+        resumed = self.engine.resume_from_checkpoint("WF_1")
+        assert resumed.state == {"progress": 0.5}
+        assert self.engine.latest_checkpoint("WF_1").step_id == "step_2"
+        assert len(self.engine.checkpoints_for("WF_1")) == 1
+
+    def test_checkpoint_missing(self):
+        assert self.engine.resume_from_checkpoint("nope") is None
+
+    def test_checkpoint_strategy(self):
+        self.engine.save_checkpoint("WF_1", "step_2", {"progress": 0.5})
+        record = self.engine.handle_failure("WF_1", "crash", capability="WF_1", strategy="checkpoint")
+        assert record.status == "recovered"
+
+    def test_checkpoint_strategy_escalates_without(self):
+        record = self.engine.handle_failure("WF_1", "crash", capability="WF_1", strategy="checkpoint")
+        assert record.status == "escalated"
+
+    def test_manual_approval(self):
+        record = self.engine.handle_failure("publish", "needs review", strategy="manual_approval")
+        assert record.status == "awaiting_approval"
+        assert self.engine.approve(record.record_id) is True
+        assert self.engine.record(record.record_id).status == "recovered"
+
+    def test_approve_unknown(self):
+        assert self.engine.approve("nope") is False
+
+    def test_record_and_rate(self):
+        self.engine.handle_failure("a", "e1")
+        self.engine.handle_failure("b", "e2")
+        assert self.engine.record("nope").record_id == ""
+        assert len(self.engine.records()) == 2
+        assert self.engine.recovery_rate() == 1.0
+
+    def test_metadata(self):
+        record = self.engine.handle_failure("a", "err")
+        assert record.source == "a"
+        assert record.error == "err"
+        assert record.max_attempts == 3
+        assert record.created_at != ""
+
+
+# ── Security Tests ──────────────────────────────────────────────────────
+
+class TestAccessControl:
+    def test_assign_and_check(self):
+        ac = AccessControl()
+        ac.assign_role("alice", "editor")
+        ac.grant("editor", "assets")
+        assert ac.role_of("alice") == "editor"
+        assert ac.can_access("alice", "assets") is True
+        assert ac.can_access("alice", "models") is False
+
+    def test_unknown_user_denied(self):
+        ac = AccessControl()
+        assert ac.can_access("bob", "assets") is False
+
+    def test_allowed_resources(self):
+        ac = AccessControl()
+        ac.assign_role("bob", "admin")
+        ac.grant("admin", "assets")
+        ac.grant("admin", "characters")
+        assert ac.allowed_resources("bob") == ["assets", "characters"]
+
+
+class TestAuditLog:
+    def test_log_and_query(self):
+        log = AuditLog()
+        event = log.log("alice", "read", "models", "allowed")
+        assert event.event_id == "AUDIT_1"
+        assert log.events_for("alice") == [event]
+        assert log.events_on("models") == [event]
+        assert log.count() == 1
+
+    def test_multiple_actors(self):
+        log = AuditLog()
+        log.log("a", "read", "assets", "allowed")
+        log.log("b", "read", "assets", "denied")
+        assert len(log.all_events()) == 2
+        assert len(log.events_for("a")) == 1
+        assert len(log.events_on("assets")) == 2
+
+
+class TestSecurityManager:
+    def setup_method(self):
+        self.manager = SecurityManager()
+
+    def test_admin_defaults(self):
+        self.manager.access.assign_role("admin_user", "admin")
+        for category in self.manager.list_categories():
+            assert self.manager.access.can_access("admin_user", category)
+
+    def test_protect_allowed(self):
+        self.manager.access.assign_role("admin_user", "admin")
+        assert self.manager.protect("admin_user", "assets", "read") is True
+
+    def test_protect_denied_logs(self):
+        assert self.manager.protect("guest", "models", "read") is False
+        assert self.manager.audit.count() == 1
+        assert self.manager.audit.all_events()[0].result == "denied"
+
+    def test_secrets(self):
+        self.manager.access.assign_role("admin_user", "admin")
+        self.manager.store_secret("api_key", "sk-123", "admin_user")
+        assert self.manager.get_secret("api_key", "admin_user") == "sk-123"
+
+    def test_secret_denied(self):
+        self.manager.access.assign_role("admin_user", "admin")
+        self.manager.store_secret("api_key", "sk-123", "admin_user")
+        assert self.manager.get_secret("api_key", "guest") == ""
+
+
+# ── Backup Tests ────────────────────────────────────────────────────────
+
+class TestBackupManager:
+    def setup_method(self):
+        self.manager = BackupManager()
+
+    def test_create_backup(self):
+        job = self.manager.create_backup("assets", size_mb=5.2)
+        assert job.backup_id == "BACKUP_1"
+        assert job.scope == "assets"
+        assert job.status == "completed"
+        assert job.created_at != ""
+
+    def test_queries(self):
+        self.manager.create_backup("assets")
+        self.manager.create_backup("assets")
+        self.manager.create_backup("models")
+        assert len(self.manager.backups_for("assets")) == 2
+        assert len(self.manager.all_backups()) == 3
+        assert self.manager.count() == 3
+        assert self.manager.latest_backup("assets").backup_id == "BACKUP_2"
+        assert self.manager.latest_backup("none") is None
+        assert self.manager.backup("nope").backup_id == ""
+
+
+class TestDisasterRecovery:
+    def test_recovery_targets(self):
+        dr = DisasterRecovery()
+        dr.set_recovery_target("assets", "60 minutes")
+        assert dr.recovery_target("assets") == "60 minutes"
+        assert dr.recovery_target("none") == ""
+
+    def test_procedures(self):
+        dr = DisasterRecovery()
+        dr.add_procedure("Restore assets from latest backup")
+        assert dr.procedures() == ["Restore assets from latest backup"]
+
+    def test_restore(self):
+        bm = BackupManager()
+        job = bm.create_backup("assets", size_mb=1.0)
+        dr = DisasterRecovery(bm)
+        assert dr.restore(job.backup_id) is True
+        assert dr.restore_count() == 1
+        assert len(dr.restore_records()) == 1
+
+    def test_restore_unknown(self):
+        dr = DisasterRecovery()
+        assert dr.restore("nope") is False
+
+    def test_restore_from_latest(self):
+        bm = BackupManager()
+        bm.create_backup("assets")
+        bm.create_backup("assets")
+        dr = DisasterRecovery(bm)
+        assert dr.restore_from_latest("assets") is True
+        assert "v2" in dr.restore_records()[0]
+        assert dr.restore_from_latest("none") is False
+
+    def test_verify(self):
+        bm = BackupManager()
+        job = bm.create_backup("assets")
+        dr = DisasterRecovery(bm)
+        assert dr.verify(job.backup_id) is True
+        assert dr.verify("nope") is False
+
+
+# ── PluginRegistry Tests ────────────────────────────────────────────────
+
+class TestPluginRegistry:
+    def setup_method(self):
+        self.registry = PluginRegistry()
+
+    def test_register(self):
+        plugin = self.registry.register("stable-diffusion-xl", "image_model", version="2.0")
+        assert plugin.plugin_id == "PLUGIN_stable-diffusion-xl"
+        assert plugin.category == "image_model"
+        assert plugin.version == "2.0"
+
+    def test_register_invalid_category(self):
+        assert self.registry.register("weird", "not_a_category") is None
+
+    def test_categories(self):
+        cats = self.registry.categories()
+        assert len(cats) == 9
+        assert "voice_model" in cats
+        assert "publishing_platform" in cats
+        assert "translation_engine" in cats
+        assert "storage_provider" in cats
+        assert "rendering_backend" in cats
+
+    def test_by_category_and_get(self):
+        self.registry.register("sd-xl", "image_model")
+        self.registry.register("dall-e", "image_model")
+        self.registry.register("gpt-4o", "video_model")
+        assert len(self.registry.by_category("image_model")) == 2
+        assert self.registry.get("PLUGIN_gpt-4o").category == "video_model"
+        assert self.registry.get("nope").plugin_id == ""
+        assert self.registry.count() == 3
+
+    def test_replace(self):
+        self.registry.register("model-a", "image_model")
+        self.registry.register("model-b", "image_model")
+        assert self.registry.replace("PLUGIN_model-a", "PLUGIN_model-b") is True
+        assert self.registry.get("PLUGIN_model-a").status == "inactive"
+        assert self.registry.get("PLUGIN_model-b").status == "active"
+        assert self.registry.replace("nope", "PLUGIN_model-b") is False
+
+    def test_disable(self):
+        self.registry.register("model-a", "image_model")
+        assert self.registry.disable("PLUGIN_model-a") is True
+        assert self.registry.get("PLUGIN_model-a").status == "inactive"
+        assert self.registry.disable("nope") is False
+
+    def test_active(self):
+        self.registry.register("model-a", "image_model")
+        self.registry.register("model-b", "image_model")
+        self.registry.disable("PLUGIN_model-a")
+        assert len(self.registry.active()) == 1
+
+
+# ── StudioDashboard Tests ───────────────────────────────────────────────
+
+class TestStudioDashboard:
+    def setup_method(self):
+        self.dashboard = StudioDashboard()
+
+    def test_reports(self):
+        self.dashboard.report_queue(2, 1, 9, 0)
+        self.dashboard.report_gpu(0.5, 4, 8)
+        self.dashboard.report_workers(2, 1, 3)
+        self.dashboard.report_publishing(1, 5, 0)
+        self.dashboard.report_localization(8, 10)
+        self.dashboard.report_failures(1, 2)
+        self.dashboard.report_render_time(45.0, 90.0)
+        self.dashboard.report_episode("in_production", "ep-001")
+        self.dashboard.report_revenue(1200.0, 15.0)
+        self.dashboard.report_subscribers(10000, 5.0)
+        self.dashboard.report_channel_health("healthy")
+
+    def test_snapshot_sections(self):
+        self.dashboard.report_queue(1, 0, 0, 0)
+        self.dashboard.report_revenue(100.0)
+        snap = self.dashboard.snapshot()
+        assert set(snap.keys()) == {
+            "production_queue", "gpu_status", "worker_status",
+            "publishing_queue", "localization_status", "failures",
+            "render_time", "episode_status", "revenue",
+            "subscriber_growth", "channel_health",
+        }
+        assert snap["production_queue"]["queued"] == 1
+        assert snap["revenue"]["total"] == 100.0
+
+    def test_from_orchestrator(self):
+        studio = PipelineOrchestrator()
+        studio.setup_defaults()
+        dashboard = StudioDashboard(studio)
+        snap = dashboard.from_orchestrator()
+        assert snap["gpu_status"]["total_units"] == 8
+        assert snap["worker_status"]["total"] == 3
+
+    def test_from_orchestrator_without(self):
+        snap = StudioDashboard().from_orchestrator()
+        assert snap["production_queue"] == {}
+
+
+# ── StudioAPI Tests ─────────────────────────────────────────────────────
+
+class TestStudioAPI:
+    def setup_method(self):
+        self.api = StudioAPI()
+
+    def test_register_route(self):
+        assert self.api.register_route("publishing", "/publish", "PublishingEngine.publish", "post") is True
+        assert self.api.endpoint_exists("post", "/publishing/publish") is True
+        assert self.api.count() == 1
+
+    def test_register_route_invalid(self):
+        assert self.api.register_route("not_a_domain", "/x", "handler") is False
+        assert self.api.register_route("publishing", "/x", "handler", "frobnicate") is False
+
+    def test_call(self):
+        self.api.register_route("studio", "/episodes", "StudioAPI.list_episodes")
+        result = self.api.call("get", "/studio/episodes", limit=10)
+        assert result["ok"] is True
+        assert result["handler"] == "StudioAPI.list_episodes"
+        assert result["params"] == {"limit": 10}
+
+    def test_call_missing_route(self):
+        result = self.api.call("get", "/studio/missing")
+        assert result["ok"] is False
+        assert result["error"] == "route_not_found"
+
+    def test_call_count(self):
+        self.api.register_route("analytics", "/revenue", "handler")
+        self.api.call("get", "/analytics/revenue")
+        self.api.call("get", "/analytics/revenue")
+        assert self.api.call_count("/analytics/revenue") == 2
+
+    def test_routes_and_domains(self):
+        self.api.register_route("publishing", "/publish", "h1", "post")
+        self.api.register_route("publishing", "/status", "h2")
+        self.api.register_route("rendering", "/render", "h3")
+        assert len(self.api.routes()) == 3
+        assert len(self.api.routes_for_domain("publishing")) == 2
+        assert "POST /publishing/publish" in self.api.routes()
+
+    def test_expose(self):
+        self.api.register_route("studio", "/overview", "h")
+        exposed = self.api.expose("studio")
+        assert exposed["domain"] == "studio"
+        assert exposed["base_path"] == "/api/studio"
+        assert exposed["endpoints"] == ["GET /studio/overview"]

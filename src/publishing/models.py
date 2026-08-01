@@ -123,6 +123,7 @@ class ABTest:
     variant_b: str = ""
     status: str = "running"
     metric: str = "ctr"
+    winner: str = ""
 
 
 @dataclass
@@ -137,6 +138,13 @@ class AnalyticsSnapshot:
     likes: int = 0
     comments: int = 0
     shares: int = 0
+    playlist_adds: int = 0
+    traffic_sources: list[str] = field(default_factory=list)
+    geography: dict = field(default_factory=dict)
+    language: str = "en"
+    device_type: str = ""
+    platform: str = "youtube"
+    revenue: float = 0.0
     timestamp: str = ""
 
     @property

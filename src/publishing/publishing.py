@@ -126,3 +126,30 @@ class PublishingEngine:
             "metadata": metadata,
             "description": description,
         }
+
+    def validate_ready(
+        self,
+        record_id: str,
+        thumbnail_approved: bool = False,
+        metadata_generated: bool = False,
+        localization_complete: bool = False,
+        compliance_passed: bool = False,
+        schedule_assigned: bool = False,
+    ) -> dict:
+        record = self._records.get(record_id)
+        if record is None:
+            return {"passed": False, "checks": {}, "errors": ["record_not_found"]}
+        checks = {
+            "record_approved": record.status in (PublishStatus.APPROVED, PublishStatus.SCHEDULED),
+            "thumbnail_approved": thumbnail_approved,
+            "metadata_generated": metadata_generated,
+            "localization_complete": localization_complete,
+            "compliance_passed": compliance_passed,
+            "schedule_assigned": schedule_assigned,
+        }
+        errors = [k for k, v in checks.items() if not v]
+        return {
+            "passed": len(errors) == 0,
+            "checks": checks,
+            "errors": errors,
+        }

@@ -18,10 +18,23 @@ class ResourceAllocation:
 
 
 class ResourceManager:
-    def __init__(self, gpu_units: int = 8, cpu_cores: int = 32, ram_gb: int = 64):
+    def __init__(
+        self,
+        gpu_units: int = 8,
+        cpu_cores: int = 32,
+        ram_gb: int = 64,
+        vram_gb: int = 96,
+        disk_gb: int = 2048,
+        bandwidth_mbps: int = 1000,
+        power_watts: int = 5000,
+    ):
         self.total_gpu = gpu_units
         self.total_cpu = cpu_cores
         self.total_ram = ram_gb
+        self.total_vram = vram_gb
+        self.total_disk = disk_gb
+        self.total_bandwidth = bandwidth_mbps
+        self.total_power = power_watts
         self._allocations: dict[str, ResourceAllocation] = {}
         self._counter = 0
 
@@ -74,6 +87,10 @@ class ResourceManager:
             gpu_utilization=round((self.total_gpu - self.available_gpu()) / self.total_gpu, 2) if self.total_gpu else 0.0,
             cpu_utilization=round((self.total_cpu - self.available_cpu()) / self.total_cpu, 2) if self.total_cpu else 0.0,
             ram_used_gb=float(self.total_ram - self.available_ram()),
+            vram_used_gb=0.0,
+            disk_used_gb=0.0,
+            bandwidth_mbps=0.0,
+            power_watts=0.0,
             timestamp=datetime.now().isoformat(),
         )
 

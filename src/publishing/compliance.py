@@ -36,6 +36,7 @@ class BrandingEngine:
             "has_outro": bool(profile.outro_asset),
             "has_end_screen": bool(profile.end_screen_asset),
             "has_website": bool(profile.website),
+            "has_social_links": len(profile.social_links) > 0,
         }
         errors = [k for k, v in checks.items() if not v]
         return {
@@ -98,12 +99,48 @@ class ComplianceEngine:
             "thumbnail_approved": thumbnail_approved,
         }
 
+    def check_platform_policies(self, platform: str = "youtube") -> dict:
+        checks = {
+            "platform_supported": platform in (
+                "youtube", "youtube_kids", "tiktok", "instagram",
+                "facebook", "pinterest", "website",
+            ),
+            "not_flagged_for_age": True,
+            "advertiser_friendly": True,
+        }
+        errors = [k for k, v in checks.items() if not v]
+        return {
+            "passed": len(errors) == 0,
+            "checks": checks,
+            "errors": errors,
+        }
+
+    def check_community_guidelines(self, metadata: dict) -> dict:
+        text = " ".join([
+            metadata.get("title", ""),
+            metadata.get("description", ""),
+            " ".join(metadata.get("keywords") or []),
+        ]).lower()
+        checks = {
+            "no_violent_content": not any(w in text for w in ("violent", "violence", "weapon")),
+            "no_inappropriate_content": not any(w in text for w in ("nsfw", "adult")),
+            "safe_for_children": True,
+        }
+        errors = [k for k, v in checks.items() if not v]
+        return {
+            "passed": len(errors) == 0,
+            "checks": checks,
+            "errors": errors,
+        }
+
     def full_compliance_check(self, metadata: dict, content_rating: str = "G") -> dict:
         results = {
             "coppa": self.check_coppa(metadata)["passed"],
             "age_appropriate": self.check_age_appropriate(metadata, content_rating)["passed"],
             "copyright": self.check_copyright()["passed"],
             "thumbnail": self.check_thumbnail_compliance()["passed"],
+            "platform_policies": self.check_platform_policies()["passed"],
+            "community_guidelines": self.check_community_guidelines(metadata)["passed"],
         }
         return {
             "passed": all(results.values()),

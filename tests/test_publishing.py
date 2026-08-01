@@ -12,15 +12,16 @@ from src.publishing import (
     AnalyticsSnapshot, PublicationRecord,
     MetadataEngine, TitleGenerator, DescriptionEngine, KeywordEngine,
     BrandingEngine, BrandProfile, ComplianceEngine,
-    PlaylistEngine, SchedulingEngine,
+    PlaylistEngine, SchedulingEngine, ReleaseCalendar,
     ThumbnailStrategy, ContentVariantEngine,
     PublishingLocalizationEngine, LocalizedPublication,
     PublishingEngine,
-    AnalyticsEngine,
+    AnalyticsEngine, EducationalAnalyticsEngine,
     PublishingArchiveEngine,
     ChannelManager,
     NotificationEngine, Notification,
     LifecycleManager,
+    PublishingDashboard,
 )
 
 
@@ -397,6 +398,7 @@ class TestBrandingEngine:
             outro_asset="outro.mp4",
             end_screen_asset="endscreen.png",
             website="https://example.com",
+            social_links=["https://youtube.com/@lilykids"],
         )
         result = engine.verify_branding(profile)
         assert result["passed"], result["errors"]
@@ -593,12 +595,13 @@ class TestThumbnailStrategy:
         strategy = ThumbnailStrategy()
         result = strategy.evaluate()
         assert result["total_score"] == pytest.approx(0.5)
+        assert "emotion" in result
 
     def test_evaluate_high_scores(self):
         strategy = ThumbnailStrategy()
         result = strategy.evaluate(
             eye_contact=1.0, facial_expression=1.0, brightness=1.0,
-            contrast=1.0, readability=1.0, educational_focus=1.0,
+            contrast=1.0, readability=1.0, emotion=1.0, educational_focus=1.0,
         )
         assert result["total_score"] == pytest.approx(1.0)
 
@@ -622,12 +625,18 @@ class TestContentVariantEngine:
     def test_plan_variants(self):
         engine = ContentVariantEngine()
         variants = engine.plan_variants("EP_001", 300.0)
-        assert len(variants) == 7
+        assert len(variants) == 13
         kinds = [v.kind for v in variants]
         assert "full" in kinds
         assert "shorts" in kinds
         assert "trailer" in kinds
         assert "gif" in kinds
+        assert "facebook_clip" in kinds
+        assert "thumbnail" in kinds
+        assert "preview" in kinds
+        assert "newsletter" in kinds
+        assert "website" in kinds
+        assert "bts" in kinds
 
     def test_plan_variants_durations(self):
         engine = ContentVariantEngine()
@@ -657,7 +666,7 @@ class TestContentVariantEngine:
 
     def test_list_variant_kinds(self):
         engine = ContentVariantEngine()
-        assert len(engine.list_variant_kinds()) == 7
+        assert len(engine.list_variant_kinds()) == 13
 
 
 # ── PublishingLocalizationEngine Tests ──────────────────────────────────
@@ -1162,3 +1171,349 @@ class TestLifecycleManager:
         manager.advance("EP_002", "production")
         assert len(manager.list_by_stage("concept")) == 1
         assert len(manager.list_by_stage("production")) == 1
+
+
+# ── ReleaseCalendar Tests ───────────────────────────────────────────────
+
+class TestReleaseCalendar:
+    def test_add_release(self):
+        calendar = ReleaseCalendar()
+        entry = calendar.add_release("EP_001", "2026-08-01", "weekly")
+        assert entry["entry_id"] == "RC_1"
+        assert entry["cadence"] == "weekly"
+        assert calendar.count() == 1
+
+    def test_add_release_invalid_cadence(self):
+        calendar = ReleaseCalendar()
+        assert calendar.add_release("EP_001", "2026-08-01", "never") is None
+
+    def test_cadences(self):
+        calendar = ReleaseCalendar()
+        cadences = calendar.list_cadences()
+        assert "daily" in cadences
+        assert "weekly" in cadences
+        assert "bi_weekly" in cadences
+        assert "monthly" in cadences
+        assert "holiday_special" in cadences
+        assert "season_launch" in cadences
+        assert "premiere" in cadences
+        assert len(cadences) == 7
+
+    def test_releases_for_cadence(self):
+        calendar = ReleaseCalendar()
+        calendar.add_release("EP_001", "2026-08-01", "weekly")
+        calendar.add_release("EP_002", "2026-08-08", "weekly")
+        calendar.add_release("EP_003", "2026-09-01", "monthly")
+        assert len(calendar.releases_for_cadence("weekly")) == 2
+        assert len(calendar.releases()) == 3
+
+    def test_releases_on_date(self):
+        calendar = ReleaseCalendar()
+        calendar.add_release("EP_001", "2026-08-01")
+        calendar.add_release("EP_002", "2026-08-01")
+        calendar.add_release("EP_003", "2026-08-02")
+        assert len(calendar.releases_on_date("2026-08-01")) == 2
+
+    def test_upcoming(self):
+        calendar = ReleaseCalendar()
+        calendar.add_release("EP_001", "2026-08-01", "weekly")
+        calendar.add_release("EP_002", "2026-09-01", "monthly")
+        calendar.add_release("EP_003", "2026-12-25", "holiday_special")
+        upcoming = calendar.upcoming()
+        assert len(upcoming) == 1
+        assert upcoming[0]["episode_id"] == "EP_001"
+
+    def test_consistent_cadence(self):
+        calendar = ReleaseCalendar()
+        assert calendar.consistent_cadence("weekly") is False
+        calendar.add_release("EP_001", "2026-08-01", "weekly")
+        calendar.add_release("EP_002", "2026-08-08", "weekly")
+        assert calendar.consistent_cadence("weekly") is True
+
+
+# ── EducationalAnalyticsEngine Tests ────────────────────────────────────
+
+class TestEducationalAnalyticsEngine:
+    def setup_method(self):
+        self.engine = EducationalAnalyticsEngine()
+
+    def test_record(self):
+        record = self.engine.record("EP_001", "colors", question_count=3)
+        assert record["episode_id"] == "EP_001"
+        assert record["learning_topic"] == "colors"
+        assert record["question_count"] == 3
+        assert self.engine.count() == 1
+
+    def test_for_episode(self):
+        self.engine.record("EP_001", "colors")
+        self.engine.record("EP_002", "numbers")
+        assert self.engine.for_episode("EP_001")["learning_topic"] == "colors"
+        assert self.engine.for_episode("EP_003") == {}
+
+    def test_topic_performance(self):
+        self.engine.record("EP_001", "colors", completion_rate=0.8, replay_rate=0.4, song_count=1, question_count=3)
+        self.engine.record("EP_002", "colors", completion_rate=0.6, replay_rate=0.2, song_count=1, question_count=2)
+        perf = self.engine.topic_performance("colors")
+        assert perf["episode_count"] == 2
+        assert perf["average_completion_rate"] == pytest.approx(0.7)
+        assert perf["average_replay_rate"] == pytest.approx(0.3)
+        assert perf["total_songs"] == 2
+        assert perf["total_questions"] == 5
+
+    def test_topic_performance_empty(self):
+        perf = self.engine.topic_performance("colors")
+        assert perf["episode_count"] == 0
+
+    def test_list_topics(self):
+        self.engine.record("EP_001", "colors")
+        self.engine.record("EP_002", "colors")
+        self.engine.record("EP_003", "numbers")
+        topics = self.engine.list_topics()
+        assert len(topics) == 2
+        assert "colors" in topics
+        assert "numbers" in topics
+
+    def test_popular_topics(self):
+        self.engine.record("EP_001", "colors")
+        self.engine.record("EP_002", "colors")
+        self.engine.record("EP_003", "numbers")
+        popular = self.engine.popular_topics()
+        assert popular[0]["learning_topic"] == "colors"
+        assert popular[0]["episode_count"] == 2
+
+    def test_popular_topics_empty(self):
+        assert self.engine.popular_topics() == []
+
+
+# ── Compliance Expansion Tests ──────────────────────────────────────────
+
+class TestComplianceExpansion:
+    def test_platform_policies_supported(self):
+        engine = ComplianceEngine()
+        result = engine.check_platform_policies("youtube")
+        assert result["passed"], result["errors"]
+        assert result["checks"]["platform_supported"] is True
+
+    def test_platform_policies_unsupported(self):
+        engine = ComplianceEngine()
+        result = engine.check_platform_policies("mystery-site")
+        assert not result["passed"]
+        assert "platform_supported" in result["errors"]
+
+    def test_community_guidelines_clean(self):
+        engine = ComplianceEngine()
+        result = engine.check_community_guidelines({
+            "title": "Learn Colors",
+            "description": "Fun preschool learning",
+            "keywords": ["colors", "shapes"],
+        })
+        assert result["passed"], result["errors"]
+
+    def test_community_guidelines_violent(self):
+        engine = ComplianceEngine()
+        result = engine.check_community_guidelines({
+            "title": "Fighting game violence",
+            "description": "",
+            "keywords": ["weapon"],
+        })
+        assert not result["passed"]
+        assert "no_violent_content" in result["errors"]
+
+    def test_full_check_includes_expanded(self):
+        engine = ComplianceEngine()
+        result = engine.full_compliance_check({"age_group": "2-5"}, "TV-Y")
+        assert result["passed"]
+        assert result["results"]["platform_policies"] is True
+        assert result["results"]["community_guidelines"] is True
+
+
+# ── Scheduling Expansion Tests ──────────────────────────────────────────
+
+class TestSchedulingExpansion:
+    def test_create_schedule_language(self):
+        engine = SchedulingEngine()
+        sched = engine.create_schedule("EP_001", "2026-08-01", language="es")
+        assert sched.language == "es"
+
+    def test_create_schedule_embargo(self):
+        engine = SchedulingEngine()
+        sched = engine.create_schedule("EP_001", "2026-08-01", embargo_date="2026-07-30")
+        assert sched.embargo_date == "2026-07-30"
+
+    def test_create_schedule_language_and_embargo_defaults(self):
+        engine = SchedulingEngine()
+        sched = engine.create_schedule("EP_001", "2026-08-01")
+        assert sched.language == "en"
+        assert sched.embargo_date == ""
+
+
+# ── Localization Expansion Tests ────────────────────────────────────────
+
+class TestLocalizationExpansion:
+    def test_create_package_audio_track(self):
+        engine = PublishingLocalizationEngine()
+        pkg = engine.create_package("EP_001", "es")
+        assert pkg is not None
+        assert pkg.audio_track == "EP_001.es.m4a"
+
+    def test_audio_track_field_exists(self):
+        assert LocalizedPublication().audio_track == ""
+
+
+# ── ABTest Winner Tests ─────────────────────────────────────────────────
+
+class TestABTestWinner:
+    def test_conclude_records_winner(self):
+        engine = AnalyticsEngine()
+        test = engine.create_ab_test("EP_001", "title", "A", "B")
+        engine.conclude_ab_test(test.test_id, "b")
+        assert test.status == "concluded"
+        assert test.winner == "b"
+
+    def test_default_winner(self):
+        assert ABTest().winner == ""
+
+    def test_conclude_unknown(self):
+        engine = AnalyticsEngine()
+        result = engine.conclude_ab_test("missing", "a")
+        assert result.test_id == ""
+
+
+# ── AnalyticsSnapshot Expansion Tests ───────────────────────────────────
+
+class TestAnalyticsSnapshotExpansion:
+    def test_new_fields_defaults(self):
+        s = AnalyticsSnapshot()
+        assert s.playlist_adds == 0
+        assert s.traffic_sources == []
+        assert s.geography == {}
+        assert s.language == "en"
+        assert s.device_type == ""
+        assert s.platform == "youtube"
+        assert s.revenue == 0.0
+
+    def test_new_fields_initialized(self):
+        s = AnalyticsSnapshot(
+            views=100,
+            playlist_adds=5,
+            traffic_sources=[{"source": "search", "percent": 60}],
+            geography={"US": 70},
+            language="en",
+            device_type="mobile",
+            platform="youtube",
+            revenue=25.5,
+        )
+        assert s.playlist_adds == 5
+        assert s.geography["US"] == 70
+        assert s.revenue == 25.5
+
+
+# ── Archive Expansion Tests ─────────────────────────────────────────────
+
+class TestArchiveExpansion:
+    def test_store_with_subtitles(self):
+        engine = PublishingArchiveEngine()
+        entry = engine.store(PublicationRecord(episode_id="EP_001"), subtitles=["en.srt", "es.srt"])
+        assert entry["subtitles"] == ["en.srt", "es.srt"]
+
+    def test_store_no_subtitles(self):
+        engine = PublishingArchiveEngine()
+        entry = engine.store(PublicationRecord(episode_id="EP_001"))
+        assert entry["subtitles"] == []
+
+
+# ── PublishingEngine validate_ready Tests ───────────────────────────────
+
+class TestValidateReady:
+    def _ready_engine(self):
+        engine = PublishingEngine()
+        engine.create_record("EP_001", "CH_1")
+        engine.approve("PUB_1")
+        return engine
+
+    def test_ready_approved_record(self):
+        engine = self._ready_engine()
+        result = engine.validate_ready(
+            "PUB_1",
+            thumbnail_approved=True,
+            metadata_generated=True,
+            localization_complete=True,
+            compliance_passed=True,
+            schedule_assigned=True,
+        )
+        assert result["passed"]
+        assert result["errors"] == []
+
+    def test_ready_missing_checks(self):
+        engine = self._ready_engine()
+        result = engine.validate_ready("PUB_1", thumbnail_approved=True)
+        assert not result["passed"]
+        assert "metadata_generated" in result["errors"]
+        assert "localization_complete" in result["errors"]
+        assert "compliance_passed" in result["errors"]
+        assert "schedule_assigned" in result["errors"]
+
+    def test_ready_unknown_record(self):
+        engine = PublishingEngine()
+        result = engine.validate_ready("MISSING")
+        assert not result["passed"]
+        assert result["errors"] == ["record_not_found"]
+
+    def test_ready_draft_record_fails(self):
+        engine = PublishingEngine()
+        engine.create_record("EP_001", "CH_1")
+        result = engine.validate_ready(
+            "PUB_1",
+            thumbnail_approved=True,
+            metadata_generated=True,
+            localization_complete=True,
+            compliance_passed=True,
+            schedule_assigned=True,
+        )
+        assert not result["passed"]
+        assert "record_approved" in result["errors"]
+
+
+# ── PublishingDashboard Tests ───────────────────────────────────────────
+
+class TestPublishingDashboard:
+    def test_overview_sections(self):
+        dashboard = PublishingDashboard()
+        overview = dashboard.overview()
+        assert set(overview.keys()) == {
+            "upcoming_releases", "publishing_queue", "localization_status",
+            "copyright_alerts", "analytics_overview", "trending_episodes",
+            "failed_uploads", "performance_reports", "revenue_summary",
+            "automation_status",
+        }
+
+    def test_setters(self):
+        dashboard = PublishingDashboard()
+        dashboard.set_upcoming_releases([{"episode_id": "EP_001"}])
+        dashboard.set_publishing_queue([{"task": "upload"}])
+        dashboard.set_localization_status([{"language": "es"}])
+        dashboard.add_copyright_alert({"message": "claim"})
+        dashboard.add_failed_upload({"episode_id": "EP_002"})
+        overview = dashboard.overview()
+        assert len(overview["upcoming_releases"]) == 1
+        assert len(overview["publishing_queue"]) == 1
+        assert len(overview["copyright_alerts"]) == 1
+        assert len(overview["failed_uploads"]) == 1
+
+    def test_trending_episodes(self):
+        dashboard = PublishingDashboard()
+        dashboard.set_analytics_overview({"episodes": [
+            {"episode_id": "EP_001", "views": 100},
+            {"episode_id": "EP_002", "views": 300},
+        ]})
+        trending = dashboard.trending_episodes()
+        assert trending[0]["episode_id"] == "EP_002"
+
+    def test_revenue_and_automation(self):
+        dashboard = PublishingDashboard()
+        dashboard.set_analytics_overview({"revenue": 100.5})
+        dashboard.set_publishing_queue([{"task": "upload"}, {"task": "schedule"}])
+        assert dashboard.revenue_summary() == 100.5
+        status = dashboard.automation_status()
+        assert status["queue_count"] == 2
+        assert status["failed_uploads"] == 0
