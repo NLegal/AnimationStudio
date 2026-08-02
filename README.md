@@ -6,7 +6,7 @@ assets, and minimal manual work — from story to publishing.
 
 ## Status
 
-All 12 phases implemented and audited. **1334 tests passing.**
+All 12 phases implemented and audited. **1382 tests passing.**
 
 | Phase | System | Module |
 |-------|--------|--------|
@@ -68,7 +68,7 @@ python -m pytest tests/ -v --tb=short
 python -m pytest tests/ -x --quiet
 ```
 
-Expected: **1334 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
+Expected: **1382 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
 aesthetics predictor) are lazily loaded — the suite passes without them via
 mock/fallback values.
 
@@ -85,6 +85,7 @@ mock/fallback values.
 | `test_production.py` | Episodes, scenes, shots, manifests, continuity, render queue, QC |
 | `test_story_to_production_integration.py` | End-to-end story → production flow |
 | `test_prompt_builder.py` | Template expansion, age/rotation/lighting variants + environment/vehicle/background templates |
+| `test_animation_bible.py` | Animation Bible & Motion System — cycle library, expressions, blinks, gestures, camera/transitions, physics, prompt templates, doc↔code consistency |
 | `test_generation_engine.py` | Backend ABC compliance, lazy loading, graceful errors |
 | `test_identity_engine.py` | IdentityScorer wiring, weighted composition, DiversityFilter |
 | `test_scoring_plugins.py` | All 7 plugins — protocol compliance, degradation without torch/cv2 |
