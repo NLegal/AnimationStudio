@@ -67,6 +67,17 @@ class TestBuildPrompt:
         assert "single object" in positive
         assert negative
 
+    def test_prop_variant_prompts(self):
+        seed = discover_props("World", "Assets")[0]
+        for atype, variant in (("reference", "front"), ("view", "side"),
+                               ("view", "top"), ("view", "back"),
+                               ("material", "wood"), ("color", "pastel_blue"),
+                               ("lighting", "studio")):
+            positive, negative = build_prompt(seed, "prop", atype, variant)
+            assert positive
+            assert negative
+            assert "**" not in positive
+
     def test_prop_without_description_no_double_comma(self):
         seed = discover_props("World", "Assets")[0]
         # Force empty description/colors to simulate bare rows.

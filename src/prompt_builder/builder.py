@@ -7,7 +7,12 @@ assembly to produce the final prompt pair for generation.
 import logging
 from typing import Optional
 
-from src.prompt_builder.templates import CharacterPrompt, EnvironmentPrompt, PromptTemplates
+from src.prompt_builder.templates import (
+    CharacterPrompt,
+    EnvironmentPrompt,
+    PromptTemplates,
+    PropPrompt,
+)
 from src.prompt_builder.negative import build_negative_prompt
 
 logger = logging.getLogger(__name__)
@@ -209,6 +214,67 @@ class PromptBuilder:
             p for p in (self.ENVIRONMENT_NEGATIVE, custom_negative) if p
         )
         return self.templates.background(bg, layer=variant), negative
+
+    # ------------------------------------------------------------------ #
+    #  Prop / asset builders (Phase 3)
+    # ------------------------------------------------------------------ #
+
+    # PHASE3.md prop negative prompt (asset rules).
+    PROP_NEGATIVE = (
+        "broken, dirty, rust, sharp edges, blood, weapon, adult, "
+        "realistic wear, dark, horror, graffiti, blurry, text, logo, "
+        "watermark, low quality, multiple objects, cluttered scene, "
+        "distorted, deformed, extra limbs, wrong anatomy"
+    )
+
+    def build_prop(
+        self,
+        prop: PropPrompt,
+        asset_type: str = "reference",
+        variant: Optional[str] = None,
+        custom_negative: str = "",
+    ) -> tuple[str, str]:
+        """Build a (positive, negative) prompt pair for a reusable prop.
+
+        Args:
+            prop: PropPrompt for the catalog seed.
+            asset_type: One of ``reference`` (front product shot), ``view``
+                (turnaround angle), ``material`` (finish swap), ``color``
+                (alternate palette), or ``lighting`` (lighting study).  The
+                ``variant`` carries the dimension value.
+            variant: Dimension value (view angle, material, color, or
+                lighting condition).
+            custom_negative: Extra negative terms appended to the base set.
+        """
+        negative = ", ".join(
+            p for p in (self.PROP_NEGATIVE, custom_negative) if p
+        )
+
+        if asset_type in ("view",):
+            return (
+                self.templates.prop(prop, view=variant or "front"),
+                negative,
+            )
+        if asset_type in ("material",):
+            return (
+                self.templates.prop(prop, material=variant or "plastic"),
+                negative,
+            )
+        if asset_type in ("color",):
+            return (
+                self.templates.prop(prop, color=variant or "pastel_blue"),
+                negative,
+            )
+        if asset_type in ("lighting",):
+            return (
+                self.templates.prop(prop, lighting=variant or "studio"),
+                negative,
+            )
+        # Base reference (asset_type "reference" or "prop")
+        return (
+            self.templates.prop(prop, view="front"),
+            negative,
+        )
 
     # ------------------------------------------------------------------ #
     #  Helpers

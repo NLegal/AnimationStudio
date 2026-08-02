@@ -56,6 +56,16 @@ WORLD_DIRS = {
     "camera": "camera",
 }
 
+# prop asset_type → folder suffix used under Assets/<Category>/
+PROP_DIRS = {
+    "reference": "references",
+    "prop": "references",
+    "view": "views",
+    "material": "materials",
+    "color": "colors",
+    "lighting": "lighting",
+}
+
 
 def _slugify(name: str) -> str:
     """Filesystem-safe name."""
@@ -79,7 +89,15 @@ def _export_paths(character_name: str, category: str, asset_type: str,
         label = _slugify(variant or "view")
         return base / f"{_slugify(identifier)}_{label}.png"
     if category == "asset":
-        return Path(assets_dir) / _slugify(character_name) / f"{_slugify(variant or 'asset')}.png"
+        category_dir = _slugify(bio_data.get("category_dir") or "Props")
+        identifier = bio_data.get("asset_id") or character_name
+        sub = PROP_DIRS.get(asset_type)
+        if sub:
+            base = Path(assets_dir) / category_dir / sub
+        else:
+            base = Path(assets_dir) / category_dir
+        label = _slugify(variant or "asset")
+        return base / f"{_slugify(identifier)}_{label}.png"
 
     base = Path(universe_dir) / "Characters" / character_name
     if asset_type == "reference" and variant in TURNAROUND_ANGLES:
@@ -100,7 +118,8 @@ async def main() -> int:
                         help="characters | environments | vehicles | backgrounds | props | all (default: characters)")
     parser.add_argument("--asset-types", default="",
                         help="Optional comma list: reference,expression,pose,outfit,lighting,"
-                             "exterior,interior,season,time_of_day,weather,camera,vehicle,background")
+                             "exterior,interior,season,time_of_day,weather,camera,vehicle,"
+                             "background,view,material,color")
     parser.add_argument("--universe", default="Universe", help="Universe/ directory")
     parser.add_argument("--world", default="World", help="World/ directory")
     parser.add_argument("--assets", default="Assets", help="Assets/ directory")

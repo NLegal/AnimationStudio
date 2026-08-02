@@ -112,6 +112,28 @@ class SQLiteCharacterRepository(CharacterRepository):
             )
         return char.id
 
+    async def update_character(self, character_id: str, char: CharacterModel) -> bool:
+        """Refresh an existing record's fields from a fresh model.
+
+        Returns True when the record was updated.  Used by idempotent seeding
+        to self-heal stale metadata (e.g. ``category_dir`` added after the
+        record was first seeded).
+        """
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                "UPDATE characters SET name = ?, category = ?, species = ?, "
+                "bio_data = ? WHERE id = ?",
+                (
+                    char.name,
+                    char.category,
+                    char.species,
+                    json.dumps(char.bio_data),
+                    character_id,
+                ),
+            )
+            conn.commit()
+        return cur.rowcount > 0
+
     async def get_character(self, character_id: str) -> Optional[CharacterModel]:
         with self._get_conn() as conn:
             row = conn.execute(
@@ -137,6 +159,24 @@ class SQLiteCharacterRepository(CharacterRepository):
             row = conn.execute(
                 "SELECT * FROM characters WHERE name = ? AND category = ?",
                 (name, category),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_character(row)
+
+    async def find_character_by_asset_id(
+        self, asset_id: str, category: str = "asset"
+    ) -> Optional[CharacterModel]:
+        """Look up a prop record by its permanent ``asset_id`` bio field.
+
+        Props are keyed by asset_id rather than display name — duplicate names
+        (e.g. two "Banana" seeds) must never merge.
+        """
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM characters WHERE category = ? AND "
+                "json_extract(bio_data, '$.asset_id') = ?",
+                (category, asset_id),
             ).fetchone()
         if row is None:
             return None

@@ -48,6 +48,8 @@ class TestBuildModels:
         model = build_prop_model(seed)
         assert model.category == "asset"
         assert model.name == seed.name
+        assert model.bio_data["asset_id"] == seed.asset_id
+        assert model.bio_data["category_dir"] == seed.category_dir
 
     def test_build_vehicle_model(self):
         seed = discover_vehicles("World")[0]
@@ -88,7 +90,15 @@ class TestSeedAll:
         second = await seed_all(char_repo)
         assert second["total"] == 0
         chars = await char_repo.list_characters()
-        assert len(chars) == 1048
+        expected = (
+            len(discover_characters("Universe"))
+            + 9
+            + len(discover_world_environments("World"))
+            + len(discover_vehicles("World"))
+            + len(discover_backgrounds("World"))
+            + len(discover_props("World", "Assets"))
+        )
+        assert len(chars) == expected
 
     async def test_categories_in_repo(self, char_repo):
         await seed_all(char_repo)
@@ -102,3 +112,37 @@ class TestSeedAll:
         assert summary["characters"] == 39
         assert summary["zones"] == 9
         assert summary["locations"] == len(discover_world_environments("World"))
+
+    async def test_reseeding_refreshes_stale_metadata(self, char_repo):
+        """Re-seeding self-heals records seeded with outdated bio fields."""
+        await seed_all(char_repo)
+        target = discover_props("World", "Assets")[0]
+        conn = char_repo._get_conn()
+        conn.execute(
+            "UPDATE characters SET bio_data = ? WHERE category = 'asset' AND "
+            "json_extract(bio_data, '$.asset_id') = ?",
+            ('{"asset_id": "' + target.asset_id + '", "category_dir": "Stale"}',
+             target.asset_id),
+        )
+        conn.commit()
+        summary = await seed_all(char_repo)
+        assert summary["total"] == 0
+        record = await char_repo.find_character_by_asset_id(target.asset_id)
+        assert record is not None
+        assert record.bio_data["category_dir"] == target.category_dir
+        assert record.bio_data["material"] == target.material
+
+    async def test_duplicate_names_stay_on_separate_records(self, char_repo):
+        """Props sharing a display name (e.g. 'Banana') never merge."""
+        await seed_all(char_repo)
+        props = [s for s in discover_props("World", "Assets")
+                 if s.name.lower() == "banana"]
+        assert len(props) >= 2
+        conn = char_repo._get_conn()
+        for seed in props:
+            row = conn.execute(
+                "SELECT count(*) FROM characters WHERE category='asset' AND "
+                "json_extract(bio_data, '$.asset_id') = ?",
+                (seed.asset_id,),
+            ).fetchone()
+            assert row[0] == 1

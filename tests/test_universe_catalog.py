@@ -174,7 +174,7 @@ class TestDiscoverProps:
 
     def test_parses_prop_rows(self):
         seeds = discover_props("World", "Assets")
-        assert len(seeds) > 500
+        assert len(seeds) > 1500
 
     def test_no_empty_categories(self):
         seeds = discover_props("World", "Assets")
@@ -196,3 +196,38 @@ class TestDiscoverProps:
         """A prop needs at least a name to build a generation prompt."""
         seeds = discover_props("World", "Assets")
         assert all(s.name for s in seeds)
+
+    def test_all_prefixes_discovered(self):
+        """Every index format (headings, ID tables, name tables) is parsed."""
+        seeds = discover_props("World", "Assets")
+        prefixes = {s.asset_id.split("_")[0] for s in seeds}
+        for expected in ("TOY", "BOOK", "EDUC", "MUS", "MED", "OCC",
+                         "SCH", "SPORT", "PLAY", "PROP", "FOOD", "ANM"):
+            assert expected in prefixes, f"missing prefix {expected}"
+
+    def test_no_duplicate_ids(self):
+        seeds = discover_props("World", "Assets")
+        ids = [s.asset_id for s in seeds]
+        assert len(ids) == len(set(ids))
+
+    def test_metadata_fields_captured(self):
+        """Heading-style entries carry material/scale/animation metadata."""
+        seeds = discover_props("World", "Assets")
+        by_id = {s.asset_id: s for s in seeds}
+        block = by_id.get("TOY_Block_001")
+        assert block is not None
+        assert block.category_dir == "Toys"
+        assert block.category == "Blocks"
+        assert "wood" in block.material.lower() or block.material
+        assert block.scale or block.animation or block.interactive
+
+    def test_table_entries_use_id_column(self):
+        """Docs with an ``ID`` header (not ``Asset ID``) are still parsed."""
+        seeds = discover_props("World", "Assets")
+        by_id = {s.asset_id: s for s in seeds}
+        for expected in ("MUS_Keyboard_001", "MED_Tool_001", "SCH_Furniture_001"):
+            assert expected in by_id, f"missing {expected}"
+
+    def test_description_has_no_markdown_labels(self):
+        seeds = discover_props("World", "Assets")
+        assert all("**" not in s.description for s in seeds)

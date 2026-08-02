@@ -20,7 +20,7 @@ from src.pipeline.diversity_filter import DiversityFilter
 from src.pipeline.generation_job import GenerationJob
 from src.pipeline.job_queue import Job, JobQueue
 from src.prompt_builder.builder import PromptBuilder
-from src.prompt_builder.templates import CharacterPrompt, EnvironmentPrompt
+from src.prompt_builder.templates import CharacterPrompt, EnvironmentPrompt, PropPrompt
 from src.universe.catalog import (
     ART_DIRECTION,
     CharacterSeed,
@@ -121,19 +121,16 @@ def build_prompt(seed, kind: str, asset_type: str, variant: str) -> tuple[str, s
         )
         return PromptBuilder().build_background(bg, variant=variant)
     if kind == "prop":
-        name = getattr(seed, "name", seed.asset_id)
-        desc = getattr(seed, "description", "")
-        colors = getattr(seed, "colors", "")
-        details = ", ".join(p for p in (desc, colors) if p)
-        base = (
-            "single object, product shot, clean background, "
-            f"{ART_DIRECTION}, rounded edges, soft shadows, masterpiece, 8k"
+        prop = PropPrompt(
+            name=getattr(seed, "name", seed.asset_id),
+            description=getattr(seed, "description", ""),
+            colors=getattr(seed, "colors", ""),
+            material=getattr(seed, "material", ""),
+            category=getattr(seed, "category", ""),
         )
-        if details:
-            positive = f"{name}, {details}, {base}"
-        else:
-            positive = f"{name}, {base}"
-        return positive, _DEFAULT_NEGATIVE
+        if asset_type not in ("reference", "prop", "view", "material", "color", "lighting"):
+            asset_type = "reference"
+        return PromptBuilder().build_prop(prop, asset_type=asset_type, variant=variant)
     raise ValueError(f"Unknown seed kind '{kind}'")
 
 
@@ -170,40 +167,78 @@ class BatchRunner:
         from being merged onto the wrong record.
         """
         model = None
-        allowed_categories: set[str] = set()
         if kind == "character":
             model = build_character_model(seed)  # type: ignore[arg-type]
-            allowed_categories = {"main", "family", "friend", "community", "fantasy"}
         elif kind == "environment":
             model = build_environment_model(seed)  # type: ignore[arg-type]
-            allowed_categories = {"environment"}
         elif kind in ("prop", "vehicle", "background"):
             model = build_prop_model(seed)  # type: ignore[arg-type]
-            allowed_categories = {
-                "asset" if kind == "prop" else kind,
-            }
         if model is None:
             return None
 
+        existing = await self._find_record(model)
+        if existing is None:
+            try:
+                return await self.char_repo.save_character(model)
+            except Exception as exc:
+                logger.warning("Could not seed '%s': %s", model.name, exc)
+                return None
+
+        # Self-heal stale metadata (e.g. category_dir added after the record
+        # was first seeded) when reusing an existing record.
         try:
-            existing = await self.char_repo.find_character_by_name_and_category(
+            updater = self.char_repo.update_character
+        except (NotImplementedError, AttributeError):
+            updater = None
+        if updater is not None and getattr(existing, "bio_data", None) != model.bio_data:
+            try:
+                await updater(existing.id, model)
+            except Exception as exc:
+                logger.warning("Could not refresh '%s': %s", model.name, exc)
+
+        # Props are keyed by their permanent asset_id — a shared display name
+        # (e.g. "banana") must not merge two distinct catalog entries.
+        if kind == "prop":
+            existing_id = (getattr(existing, "bio_data", None) or {}).get("asset_id", "")
+            if existing_id != getattr(seed, "asset_id", ""):
+                model.name = f"{model.name} ({seed.asset_id})"
+                renamed = await self._find_record(model)
+                if renamed is not None:
+                    return renamed.id
+                try:
+                    return await self.char_repo.save_character(model)
+                except Exception as exc:
+                    logger.warning("Could not seed '%s': %s", model.name, exc)
+                    return None
+        return existing.id
+
+    async def _find_record(self, model) -> Optional[object]:
+        """Look up an existing record, preferring a category-exact match."""
+        try:
+            return await self.char_repo.find_character_by_name_and_category(
                 model.name, model.category
             )
         except (NotImplementedError, AttributeError):
             try:
-                existing = await self.char_repo.find_character_by_name(model.name)
+                return await self.char_repo.find_character_by_name(model.name)
             except (NotImplementedError, AttributeError):
-                existing = None
-            if existing is not None and getattr(existing, "category", "") not in allowed_categories:
-                existing = None
-        if existing is not None:
-            return existing.id
+                return None
 
+    async def _has_variant(
+        self, character_id: str, asset_type: str, variant: str
+    ) -> bool:
+        """True when this record already owns a usable asset for the variant."""
         try:
-            return await self.char_repo.save_character(model)
-        except Exception as exc:
-            logger.warning("Could not seed '%s': %s", model.name, exc)
-            return None
+            existing = await self.asset_repo.find_by_character(
+                character_id, asset_type
+            )
+        except (NotImplementedError, AttributeError):
+            return False
+        return any(
+            getattr(a, "variant", "") == variant
+            and getattr(a, "state", "") in ("shortlisted", "approved", "production")
+            for a in existing
+        )
 
     # ------------------------------------------------------------------ #
     #  Generation
@@ -225,7 +260,7 @@ class BatchRunner:
         asset_type = asset_type or {
             "character": "reference",
             "environment": "environment",
-            "prop": "prop",
+            "prop": "reference",
             "vehicle": "vehicle",
             "background": "background",
         }[kind]
@@ -238,6 +273,21 @@ class BatchRunner:
                 "error": "could not create character record",
                 "generated": 0,
                 "shortlisted": 0,
+            }
+
+        # Idempotency: skip variants that already have a shortlisted/approved
+        # asset for this record so reruns never duplicate the library
+        # (PHASE3.md — "Never create the same object twice").
+        if await self._has_variant(character_id, asset_type, variant):
+            return {
+                "name": getattr(seed, "name", ""),
+                "kind": kind,
+                "character_id": character_id,
+                "asset_type": asset_type,
+                "variant": variant,
+                "skipped": True,
+                "generated": 0,
+                "shortlisted": [],
             }
 
         positive, negative = build_prompt(seed, kind, asset_type, variant)

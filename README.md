@@ -6,7 +6,7 @@ assets, and minimal manual work — from story to publishing.
 
 ## Status
 
-All 12 phases implemented and audited. **1319 tests passing.**
+All 12 phases implemented and audited. **1334 tests passing.**
 
 | Phase | System | Module |
 |-------|--------|--------|
@@ -68,7 +68,7 @@ python -m pytest tests/ -v --tb=short
 python -m pytest tests/ -x --quiet
 ```
 
-Expected: **1319 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
+Expected: **1334 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
 aesthetics predictor) are lazily loaded — the suite passes without them via
 mock/fallback values.
 
@@ -93,9 +93,9 @@ mock/fallback values.
 | `test_lora_training.py` | Dataset builder, versioning, benchmark |
 | `test_review_ui.py` | Review app routes |
 | `test_review_ui_generation.py` | UI generation panel, seeding, per-category detail pages |
-| `test_universe_catalog.py` | Universe/World/Assets markdown parsing (39 chars, 9 zones, 130 locations, 20 vehicles, 26 backgrounds, 824 props) |
-| `test_universe_seed.py` | Idempotent seeding into the character repository |
-| `test_batch_generator.py` | Prompt building + mock end-to-end batch generation |
+| `test_universe_catalog.py` | Universe/World/Assets markdown parsing (39 chars, 9 zones, 130 locations, 20 vehicles, 26 backgrounds, 1,523 props) |
+| `test_universe_seed.py` | Idempotent, self-healing seeding keyed by permanent asset_id |
+| `test_batch_generator.py` | Prompt building + mock end-to-end batch generation (incl. prop variants) |
 | `test_character_bio.py` | Lily Bunny bio schema validation |
 
 ## Running the Review UI
@@ -135,13 +135,14 @@ to `create_app()`.
 
 ## Universe Generation
 
-The Phase 1–3 universe content (39 character bios, 9 world zones, 824 reusable
-props) lives as markdown under `Universe/`, `World/`, and `Assets/`. Two
-scripts turn those documents into a populated, reviewable studio database —
-no GPU required (a deterministic mock backend is the default).
+The Phase 1–3 universe content (39 character bios, 9 world zones, **1,523
+reusable props** across 20 asset categories) lives as markdown under
+`Universe/`, `World/`, and `Assets/`. Two scripts turn those documents into a
+populated, reviewable studio database — no GPU required (a deterministic mock
+backend is the default).
 
 ```bash
-# 1. Seed the catalog from the markdown docs (idempotent)
+# 1. Seed the catalog from the markdown docs (idempotent, self-healing)
 python scripts/seed_universe.py --db catalog.db
 
 # 2. Generate candidates with the mock backend (no hardware)
@@ -155,6 +156,32 @@ python scripts/generate_universe.py --scope all --prompt-only --limit 3
 # 4. Generate then start the Review UI against the same database
 python scripts/generate_universe.py --scope all --backend mock --serve --port 8000
 ```
+
+### Phase 3 — Global Asset Library & Production Kit
+
+The reusable production prop library (12,184 approved assets: references,
+turnaround views, material/color variants, and lighting studies for all 1,523
+props) is produced and maintained by the Phase 3 pipeline:
+
+```bash
+# Generate every prop variant (idempotent — existing variants are skipped)
+python scripts/generate_phase3_assets.py --db catalog.db \
+    --count 2 --shortlist 1 --fast-scoring --jobs 8
+
+# Export PNGs to Assets/<Category>/{references,views,materials,colors,lighting}/
+python scripts/export_assets.py --db catalog.db --scope props
+
+# Compose labeled reference sheets and approve the whole library
+python scripts/build_asset_sheets.py --db catalog.db
+python scripts/finalize_phase1.py --db catalog.db --all
+```
+
+The library lands at `Assets/<CategoryDir>/{references,views,materials,colors,
+lighting}/` with a composed reference sheet per prop under
+`Assets/ReferenceSheets/<CategoryDir>/`. Supporting production kit docs live in
+`Assets/` (`Assets/Metadata/METADATA_GUIDE.md`,
+`Assets/ReferenceSheets/{Scale,Color,Material}/*.md`,
+`Assets/PromptTemplates/`, `Assets/NegativePrompts/`). See `PHASE3_STATUS.md`.
 
 Real backends swap in via `--backend`:
 

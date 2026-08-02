@@ -7,7 +7,6 @@ can operate on the full universe.
 """
 
 import logging
-from collections import Counter
 from typing import Optional
 
 from src.models.schemas import CharacterModel
@@ -70,8 +69,13 @@ def build_prop_model(seed: PropSeed) -> CharacterModel:
         bio_data={
             "asset_id": seed.asset_id,
             "category": seed.category,
+            "category_dir": seed.category_dir,
             "description": seed.description,
             "colors": seed.colors,
+            "material": seed.material,
+            "scale": seed.scale,
+            "animation": seed.animation,
+            "interactive": seed.interactive,
             "typical_location": seed.location,
         },
     )
@@ -103,12 +107,30 @@ async def _find_existing(char_repo, model) -> Optional[object]:
         return await char_repo.find_character_by_name(model.name)
 
 
+async def _refresh_if_stale(char_repo, existing, model) -> None:
+    """Overwrite stale bio metadata on an existing record (self-healing).
+
+    Records seeded by an older catalog version can miss newly-added fields
+    (e.g. ``category_dir``); re-seeding refreshes them in place so exports and
+    the Review UI always see current metadata.  No-op for repositories that
+    don't implement ``update_character``.
+    """
+    try:
+        updater = char_repo.update_character
+    except (NotImplementedError, AttributeError):
+        return
+    if getattr(existing, "bio_data", None) != getattr(model, "bio_data", None):
+        await updater(existing.id, model)
+
+
 async def seed_characters(char_repo, universe_dir: str = "Universe") -> int:
     """Seed all parsed character bios.  Returns the number created."""
     created = 0
     for seed in discover_characters(universe_dir):
         model = build_character_model(seed)
-        if await _find_existing(char_repo, model) is not None:
+        existing = await _find_existing(char_repo, model)
+        if existing is not None:
+            await _refresh_if_stale(char_repo, existing, model)
             continue
         await char_repo.save_character(model)
         created += 1
@@ -120,7 +142,9 @@ async def seed_environments(char_repo, world_dir: str = "World") -> int:
     created = 0
     for seed in discover_environments(world_dir):
         model = build_environment_model(seed)
-        if await _find_existing(char_repo, model) is not None:
+        existing = await _find_existing(char_repo, model)
+        if existing is not None:
+            await _refresh_if_stale(char_repo, existing, model)
             continue
         await char_repo.save_character(model)
         created += 1
@@ -136,7 +160,9 @@ async def seed_world_locations(char_repo, world_dir: str = "World") -> int:
     created = 0
     for seed in discover_world_environments(world_dir):
         model = build_environment_model(seed)
-        if await _find_existing(char_repo, model) is not None:
+        existing = await _find_existing(char_repo, model)
+        if existing is not None:
+            await _refresh_if_stale(char_repo, existing, model)
             continue
         await char_repo.save_character(model)
         created += 1
@@ -148,7 +174,9 @@ async def seed_vehicles(char_repo, world_dir: str = "World") -> int:
     created = 0
     for seed in discover_vehicles(world_dir):
         model = build_prop_model(seed)
-        if await _find_existing(char_repo, model) is not None:
+        existing = await _find_existing(char_repo, model)
+        if existing is not None:
+            await _refresh_if_stale(char_repo, existing, model)
             continue
         await char_repo.save_character(model)
         created += 1
@@ -160,7 +188,9 @@ async def seed_backgrounds(char_repo, world_dir: str = "World") -> int:
     created = 0
     for seed in discover_backgrounds(world_dir):
         model = build_prop_model(seed)
-        if await _find_existing(char_repo, model) is not None:
+        existing = await _find_existing(char_repo, model)
+        if existing is not None:
+            await _refresh_if_stale(char_repo, existing, model)
             continue
         await char_repo.save_character(model)
         created += 1
@@ -170,21 +200,36 @@ async def seed_backgrounds(char_repo, world_dir: str = "World") -> int:
 async def seed_props(char_repo, world_dir: str = "World", assets_dir: str = "Assets") -> int:
     """Seed reusable props/assets.  Returns the number created.
 
-    Duplicate display names are made unique deterministically (suffixed with
-    the stable asset id) so that re-seeding is idempotent.
+    Props are keyed by their permanent ``asset_id`` — duplicate display names
+    (e.g. two "Banana" seeds) stay on separate records, so re-seeding is
+    idempotent and never merges distinct catalog entries.
     """
-    seeds = discover_props(world_dir, assets_dir)
-    name_counts = Counter(s.name for s in seeds)
     created = 0
-    for seed in seeds:
+    for seed in discover_props(world_dir, assets_dir):
         model = build_prop_model(seed)
-        if name_counts[seed.name] > 1:
-            model.name = f"{seed.name} ({seed.asset_id})"
-        if await _find_existing(char_repo, model) is not None:
+        existing = await _find_prop_existing(char_repo, seed.asset_id, model)
+        if existing is not None:
+            await _refresh_if_stale(char_repo, existing, model)
             continue
         await char_repo.save_character(model)
         created += 1
     return created
+
+
+async def _find_prop_existing(char_repo, asset_id: str, model) -> Optional[object]:
+    """Resolve an existing prop record by asset_id, falling back to name."""
+    try:
+        existing = await char_repo.find_character_by_asset_id(asset_id, model.category)
+        if existing is not None:
+            return existing
+    except (NotImplementedError, AttributeError):
+        pass
+    existing = await _find_existing(char_repo, model)
+    if existing is not None:
+        stored = (getattr(existing, "bio_data", None) or {}).get("asset_id", "")
+        if stored != asset_id:
+            return None
+    return existing
 
 
 async def seed_all(

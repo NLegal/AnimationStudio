@@ -129,6 +129,76 @@ _LIGHTING_DESCRIPTORS: dict[str, str] = {
     "natural": "natural daylight",
 }
 
+# ---------------------------------------------------------------------------
+#  Prop / asset variant descriptors (PHASE3.md)
+# ---------------------------------------------------------------------------
+
+_PROP_STYLE = (
+    "Pixar-quality, Cocomelon-inspired, bright colorful nursery world, "
+    "rounded edges, chunky child-safe proportions, soft shadows, "
+    "highly detailed, consistent asset style, single object, product shot, "
+    "clean background, no text, no logo, no watermark, masterpiece, 8k"
+)
+
+_PROP_VIEWS: dict[str, str] = {
+    "front": "front view",
+    "side": "side view",
+    "back": "back view",
+    "top": "top view",
+    "three_quarter": "three-quarter view",
+    "bottom": "bottom view",
+}
+
+_PROP_MATERIALS: dict[str, str] = {
+    "wood": "warm oak wood finish, visible grain",
+    "plastic": "smooth glossy plastic finish, primary color",
+    "metal": "smooth brushed metal finish, rounded edges",
+    "fabric": "soft plush fabric finish, cozy texture",
+    "rubber": "soft matte rubber finish, flexible look",
+    "glass": "clear rounded glass, safe smooth edges",
+    "paper": "thick cardstock paper finish, matte surface",
+    "cardboard": "sturdy cardboard finish, warm brown",
+    "ceramic": "smooth glazed ceramic finish, glossy",
+    "stone": "smooth polished stone finish, rounded",
+    "foam": "soft foam finish, squishy safe texture",
+}
+
+_PROP_COLOR_VARIANTS: dict[str, str] = {
+    "pastel_blue": "pastel blue",
+    "pastel_pink": "pastel pink",
+    "pastel_yellow": "pastel yellow",
+    "pastel_green": "pastel green",
+    "lavender": "lavender purple",
+    "peach": "soft peach",
+    "mint": "soft mint green",
+    "coral": "coral orange",
+    "teal": "teal",
+    "sky_blue": "sky blue",
+    "sunny_yellow": "sunny yellow",
+    "blush_pink": "blush pink",
+    "warm_red": "warm red",
+    "leaf_green": "leaf green",
+    "chocolate": "chocolate brown",
+    "cream": "cream white",
+}
+
+
+@dataclass
+class PropPrompt:
+    """Reusable prop/asset data used to parameterize prop templates.
+
+    Covers the Phase 3 asset library: toys, food, furniture, nature, holiday
+    and educational props, plus materials and textures.
+    """
+
+    name: str
+    description: str = ""
+    colors: str = ""
+    material: str = ""
+    category: str = ""
+    style: str = _PROP_STYLE
+    custom_tags: str = ""
+
 
 @dataclass
 class EnvironmentPrompt:
@@ -302,6 +372,53 @@ class PromptTemplates:
             "soft gradients, clean and bright, "
         )
         parts.append(bg.style)
+        return ", ".join(parts)
+
+    # ------------------------------------------------------------------ #
+    #  Prop / asset templates (Phase 3)
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def prop(
+        prop: "PropPrompt",
+        view: Optional[str] = None,
+        material: Optional[str] = None,
+        color: Optional[str] = None,
+        lighting: Optional[str] = None,
+    ) -> str:
+        """Build a reusable prop prompt with optional variant dims.
+
+        ``view`` switches the camera angle (default ``front``), ``material``
+        swaps the finish, ``color`` applies an alternate palette, and
+        ``lighting`` adds a lighting study.  Any subset may be supplied.
+        """
+        parts = [f"{prop.name}"]
+        if prop.category:
+            parts.append(f"child-friendly {prop.category} prop")
+        if view:
+            parts.append(_PROP_VIEWS.get(view, f"{view.replace('_', ' ')} view"))
+        details: list[str] = []
+        if material:
+            details.append(
+                _PROP_MATERIALS.get(material, f"{material.replace('_', ' ')} finish")
+            )
+        if color:
+            details.append(
+                _PROP_COLOR_VARIANTS.get(color, color.replace("_", " "))
+            )
+        if prop.material:
+            details.append(prop.material[:120])
+        if prop.description:
+            details.append(prop.description[:400])
+        if prop.colors:
+            details.append(prop.colors[:120])
+        if lighting:
+            details.append(_LIGHTING_DESCRIPTORS.get(lighting, f"{lighting} lighting"))
+        if details:
+            parts.append(", ".join(details))
+        parts.append(prop.style)
+        if prop.custom_tags:
+            parts.append(prop.custom_tags)
         return ", ".join(parts)
 
     # ------------------------------------------------------------------ #

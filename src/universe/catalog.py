@@ -120,6 +120,11 @@ class PropSeed:
     description: str = ""
     colors: str = ""
     location: str = ""
+    material: str = ""
+    scale: str = ""
+    animation: str = ""
+    interactive: str = ""
+    category_dir: str = "Props"
     prompt: str = ""
     negative_prompt: str = ""
 
@@ -571,24 +576,27 @@ def discover_props(world_dir: str = "World", assets_dir: str = "Assets") -> list
 
     Sources:
       - ``World/Props/INDEX.md``  (``## PROP_Category_Number — Name`` entries)
-      - ``Assets/*/INDEX.md``     (``| ID | Name | Description | ... |`` tables)
+      - ``Assets/*/INDEX.md``     (both ``## ID — Name`` heading entries and
+        ``| ID | Name | Description | ... |`` table rows)
     """
     seeds: list[PropSeed] = []
     world_index = Path(world_dir) / "Props" / "INDEX.md"
     if world_index.is_file():
-        seeds.extend(_parse_prop_entries(world_index))
+        seeds.extend(_parse_prop_entries(world_index, category_dir="Props"))
 
     assets_root = Path(assets_dir)
     if assets_root.is_dir():
         for index in sorted(assets_root.glob("*/INDEX.md")):
-            seeds.extend(_parse_prop_table_index(index))
+            category_dir = index.parent.name
+            seeds.extend(_parse_prop_entries(index, category_dir=category_dir))
+            seeds.extend(_parse_prop_table_index(index, category_dir=category_dir))
 
     seeds.sort(key=lambda s: s.asset_id)
     return seeds
 
 
-def _parse_prop_entries(index_path: Path) -> list[PropSeed]:
-    """Parse ``World/{Props,Vehicles,Backgrounds}/INDEX.md``-style entries."""
+def _parse_prop_entries(index_path: Path, category_dir: str = "Props") -> list[PropSeed]:
+    """Parse ``## ID — Name`` heading-style asset indexes."""
     text = index_path.read_text(encoding="utf-8")
     seeds: list[PropSeed] = []
     current_category = ""
@@ -597,10 +605,15 @@ def _parse_prop_entries(index_path: Path) -> list[PropSeed]:
         if not section.strip():
             continue
         header = section.splitlines()[0].strip()
-        # Section header: "Furniture (PROP_Furniture_001–020)"
+        # Section header: "Furniture (PROP_Furniture_001–020)" or a plain
+        # subcategory name (e.g. "Story Books", "Blocks").
         cat_match = re.match(r"^([^(]+)\s*\([A-Z]+_\w+_\d+", header)
         if cat_match:
             current_category = cat_match.group(1).strip()
+        else:
+            candidate = re.sub(r"\s*\(.*\)\s*$", "", header).strip()
+            if re.match(r"^[A-Za-z][A-Za-z /&'-]*$", candidate) and "—" not in candidate:
+                current_category = candidate
 
         for entry in re.finditer(
             r"^##\s+([A-Z]+_[A-Za-z]+_\d+)\s+[—\-–]\s+(.+)$",
@@ -616,30 +629,38 @@ def _parse_prop_entries(index_path: Path) -> list[PropSeed]:
             for line in body.splitlines():
                 line = line.strip()
                 if line and not line.startswith(("-", "|")):
+                    if line.startswith("**Description:**"):
+                        line = line.split("**Description:**", 1)[1].strip()
                     desc = line
                     break
 
-            colors = ""
-            loc = ""
+            fields = {"**Colors:**": "colors", "**Typical Location:**": "location",
+                      "**Materials:**": "material", "**Scale:**": "scale",
+                      "**Animation:**": "animation", "**Interactive:**": "interactive"}
+            values: dict[str, str] = {}
             for line in body.splitlines():
-                if "**Colors:**" in line:
-                    colors = line.split("**Colors:**", 1)[1].strip()
-                elif "**Typical Location:**" in line:
-                    loc = line.split("**Typical Location:**", 1)[1].strip()
+                for label, key in fields.items():
+                    if label in line:
+                        values[key] = line.split(label, 1)[1].strip()
 
             seeds.append(PropSeed(
                 asset_id=asset_id,
                 name=name,
                 category=current_category,
+                category_dir=category_dir,
                 description=desc,
-                colors=colors,
-                location=loc,
+                colors=values.get("colors", ""),
+                location=values.get("location", ""),
+                material=values.get("material", ""),
+                scale=values.get("scale", ""),
+                animation=values.get("animation", ""),
+                interactive=values.get("interactive", ""),
             ))
 
     return seeds
 
 
-def _parse_prop_table_index(index_path: Path) -> list[PropSeed]:
+def _parse_prop_table_index(index_path: Path, category_dir: str = "Props") -> list[PropSeed]:
     """Parse ``Assets/<Category>/INDEX.md`` table-based asset indexes."""
     text = index_path.read_text(encoding="utf-8")
     seeds: list[PropSeed] = []
@@ -653,18 +674,27 @@ def _parse_prop_table_index(index_path: Path) -> list[PropSeed]:
         cat_match = re.match(r"^([A-Za-z /&'-]+)\s*\([A-Z]+_", header)
         if cat_match:
             current_category = cat_match.group(1).strip()
+        else:
+            candidate = re.sub(r"\s*\(.*\)\s*$", "", header).strip()
+            if re.match(r"^[A-Za-z][A-Za-z /&'-]*$", candidate) and "—" not in candidate:
+                current_category = candidate
 
         for row in _parse_table(section):
-            asset_id = row.get("asset_id", "")
+            asset_id = row.get("asset_id", "") or row.get("id", "")
             if not re.match(r"^[A-Z]+_[A-Za-z]+_\d+$", asset_id):
                 continue
             seeds.append(PropSeed(
                 asset_id=asset_id,
                 name=row.get("name", ""),
                 category=current_category,
+                category_dir=category_dir,
                 description=row.get("description", ""),
-                colors=row.get("primary_color", ""),
+                colors=row.get("primary_color", row.get("colors", "")),
                 location=row.get("habitat", row.get("typical_location", "")),
+                material=row.get("materials", row.get("material", "")),
+                scale=row.get("scale", row.get("size", "")),
+                animation=row.get("animation", ""),
+                interactive=row.get("interactive", row.get("interactivity", "")),
             ))
 
     return seeds

@@ -30,6 +30,16 @@ class CharacterRepository(ABC):
     ) -> Optional["CharacterModel"]:
         ...
 
+    async def find_character_by_asset_id(
+        self, asset_id: str, category: str = "asset"
+    ) -> Optional["CharacterModel"]:
+        """Look up a record by its permanent ``asset_id`` bio field.
+
+        Optional; backends that don't support it raise ``NotImplementedError``
+        and callers fall back to name-based lookups.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     async def list_characters(self) -> list["CharacterModel"]:
         ...

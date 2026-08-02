@@ -40,6 +40,7 @@ class AssetModel(BaseModel):
         "lighting", "environment", "prop",
         "exterior", "interior", "season", "time_of_day", "weather",
         "camera", "vehicle", "background",
+        "view", "material", "color",
     ]
     variant: Optional[str] = None
     state: str = "draft"
@@ -66,6 +67,7 @@ class GenerationJobRequest(BaseModel):
         "lighting", "environment", "prop",
         "exterior", "interior", "season", "time_of_day", "weather",
         "camera", "vehicle", "background",
+        "view", "material", "color",
     ]
     prompt: str
     negative_prompt: str = ""

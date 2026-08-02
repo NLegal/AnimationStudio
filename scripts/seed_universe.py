@@ -45,7 +45,10 @@ async def main() -> int:
 
     print(f"Seeded '{args.db}':")
     print(f"  characters:   {summary['characters']}")
-    print(f"  environments: {summary['environments']}")
+    print(f"  zones:        {summary['zones']}")
+    print(f"  locations:    {summary['locations']}")
+    print(f"  vehicles:     {summary['vehicles']}")
+    print(f"  backgrounds:  {summary['backgrounds']}")
     print(f"  props:        {summary['props']}")
     print(f"  total new:    {summary['total']}")
     return 0

@@ -108,7 +108,8 @@ class TestCharacterDetail:
             "SELECT id FROM characters WHERE category='asset' LIMIT 1"
         ).fetchone()[0]
         body = client.get(f"/character/{prop_id}").text
-        assert "Generate prop" in body
+        assert "Generate references" in body
+        assert "Generate views" in body
         assert 'name="scope" value="props"' in body
 
 
@@ -142,14 +143,14 @@ class TestGenerateEndpoint:
         _, _, asset_repo = sqlite_app
         conn = asset_repo._get_conn()
         before = conn.execute(
-            "SELECT COUNT(*) FROM assets WHERE asset_type='prop'"
+            "SELECT COUNT(*) FROM assets WHERE asset_type='reference'"
         ).fetchone()[0]
         client.post("/generate", data={
             "scope": "props", "item": "Furniture", "count": "2",
             "limit": "2", "backend": "mock",
         })
         after = conn.execute(
-            "SELECT COUNT(*) FROM assets WHERE asset_type='prop'"
+            "SELECT COUNT(*) FROM assets WHERE asset_type='reference'"
         ).fetchone()[0]
         assert after > before
 

@@ -392,7 +392,7 @@ def create_app(
         if category in ("environment",):
             asset_types = ["environment"]
         elif category == "asset":
-            asset_types = ["prop"]
+            asset_types = ["reference", "view", "material", "color", "lighting"]
         else:
             asset_types = ["reference", "expression", "pose", "outfit"]
 

@@ -15,6 +15,7 @@ from src.prompt_builder import (
     PromptTemplates,
     CharacterPrompt,
     EnvironmentPrompt,
+    PropPrompt,
     build_negative_prompt,
 )
 from src.pipeline import GenerationJob, JobQueue, DiversityFilter
@@ -95,6 +96,55 @@ class TestEnvironmentPrompts:
         assert "Blue Sky Clear" in positive
         assert "sky background layer" in positive
         assert negative
+
+
+class TestPropPrompts:
+    """Prop template expansion and builder routing (Phase 3)."""
+
+    def test_reference_includes_name_and_style(self, builder):
+        prop = PropPrompt(name="Red Fire Truck", category="Toy",
+                          description="A rounded toy truck.")
+        positive, negative = builder.build_prop(prop, asset_type="reference")
+        assert "Red Fire Truck" in positive
+        assert "child-friendly Toy prop" in positive
+        assert "product shot" in positive
+        assert "broken" in negative and "weapon" in negative
+
+    def test_view_variant_swaps_angle(self, builder):
+        prop = PropPrompt(name="Block", description="")
+        positive, _ = builder.build_prop(prop, asset_type="view", variant="top")
+        assert "top view" in positive
+        positive, _ = builder.build_prop(prop, asset_type="view", variant="side")
+        assert "side view" in positive
+
+    def test_material_variant_appends_finish(self, builder):
+        prop = PropPrompt(name="Block", description="")
+        positive, _ = builder.build_prop(prop, asset_type="material", variant="wood")
+        assert "oak wood finish" in positive
+
+    def test_color_variant_appends_palette(self, builder):
+        prop = PropPrompt(name="Block", description="")
+        positive, _ = builder.build_prop(prop, asset_type="color", variant="pastel_pink")
+        assert "pastel pink" in positive
+
+    def test_lighting_variant(self, builder):
+        prop = PropPrompt(name="Block", description="")
+        positive, _ = builder.build_prop(prop, asset_type="lighting", variant="studio")
+        assert "studio" in positive
+
+    def test_prop_metadata_embedded(self, builder):
+        prop = PropPrompt(name="Toy Train", description="A wooden train.",
+                          colors="Red, Yellow", material="Maple wood")
+        positive, _ = builder.build_prop(prop)
+        assert "wooden train" in positive.lower()
+        assert "Maple wood" in positive
+
+    def test_prop_negative_is_child_safe(self, builder):
+        prop = PropPrompt(name="X", description="")
+        _, negative = builder.build_prop(prop)
+        for term in ("broken", "sharp edges", "weapon", "blood", "horror",
+                     "text", "watermark", "multiple objects"):
+            assert term in negative
 
 
 class TestEnvironmentTemplates:
