@@ -5,8 +5,9 @@ assembly to produce the final prompt pair for generation.
 """
 
 import logging
+from typing import Optional
 
-from src.prompt_builder.templates import CharacterPrompt, PromptTemplates
+from src.prompt_builder.templates import CharacterPrompt, EnvironmentPrompt, PromptTemplates
 from src.prompt_builder.negative import build_negative_prompt
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,117 @@ class PromptBuilder:
         # --- Negative prompt ---
         negative = self.negative_fn(custom=kwargs.get("custom_negative", ""))
         return positive, negative
+
+    # ------------------------------------------------------------------ #
+    #  Environment / world builders (Phase 2)
+    # ------------------------------------------------------------------ #
+
+    # PHASE2.md environment negative prompt (world rules).
+    ENVIRONMENT_NEGATIVE = (
+        "dark, abandoned, dirty, graffiti, broken windows, cracked roads, "
+        "trash, blood, violence, weapons, fire, explosion, realistic decay, "
+        "horror, foggy apocalypse, ruins, industrial pollution, "
+        "low quality, blurry, text, watermark, logo"
+    )
+
+    def build_environment(
+        self,
+        environment: EnvironmentPrompt,
+        asset_type: str = "exterior",
+        variant: Optional[str] = None,
+        set_name: Optional[str] = None,
+        custom_negative: str = "",
+    ) -> tuple[str, str]:
+        """Build a (positive, negative) prompt pair for a world location.
+
+        Args:
+            environment: EnvironmentPrompt for the named location.
+            asset_type: One of ``environment``/``exterior`` (reference),
+                ``interior`` (set), ``season``, ``time_of_day``, ``weather``,
+                ``camera``, or ``lighting``.  The ``variant`` carries the
+                dimension value for all but the base reference types.
+            variant: Dimension value (view, room, season, time, weather,
+                camera angle, or lighting condition).
+            set_name: Interior set name (alias for variant on interiors).
+            custom_negative: Extra negative terms appended to the base set.
+        """
+        negative = ", ".join(
+            p for p in (self.ENVIRONMENT_NEGATIVE, custom_negative) if p
+        )
+
+        if asset_type in ("interior",):
+            return (
+                self.templates.environment(
+                    environment, view="interior",
+                    set_name=set_name or variant or "default_interior",
+                ),
+                negative,
+            )
+        if asset_type in ("season",):
+            return (
+                self.templates.environment(
+                    environment, view="front", season=variant or "summer",
+                ),
+                negative,
+            )
+        if asset_type in ("time_of_day",):
+            return (
+                self.templates.environment(
+                    environment, view="front", time_of_day=variant or "day",
+                ),
+                negative,
+            )
+        if asset_type in ("weather",):
+            return (
+                self.templates.environment(
+                    environment, view="front", weather=variant or "sunny",
+                ),
+                negative,
+            )
+        if asset_type in ("camera",):
+            return (
+                self.templates.environment(
+                    environment, view="front", camera=variant or "wide",
+                ),
+                negative,
+            )
+        if asset_type in ("lighting",):
+            return (
+                self.templates.environment(
+                    environment, view="front", lighting=variant or "natural",
+                ),
+                negative,
+            )
+        # Base exterior reference (asset_type "environment" or "exterior")
+        view = variant or "front"
+        return (
+            self.templates.environment(environment, view=view),
+            negative,
+        )
+
+    def build_vehicle(
+        self,
+        vehicle: EnvironmentPrompt,
+        variant: str = "side",
+        custom_negative: str = "",
+    ) -> tuple[str, str]:
+        """Build a (positive, negative) prompt pair for a vehicle sheet."""
+        negative = ", ".join(
+            p for p in (self.ENVIRONMENT_NEGATIVE, custom_negative) if p
+        )
+        return self.templates.vehicle(vehicle, view=variant), negative
+
+    def build_background(
+        self,
+        bg: EnvironmentPrompt,
+        variant: str = "sky",
+        custom_negative: str = "",
+    ) -> tuple[str, str]:
+        """Build a (positive, negative) prompt pair for a background layer."""
+        negative = ", ".join(
+            p for p in (self.ENVIRONMENT_NEGATIVE, custom_negative) if p
+        )
+        return self.templates.background(bg, layer=variant), negative
 
     # ------------------------------------------------------------------ #
     #  Helpers

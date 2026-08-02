@@ -20,7 +20,7 @@ from src.pipeline.diversity_filter import DiversityFilter
 from src.pipeline.generation_job import GenerationJob
 from src.pipeline.job_queue import Job, JobQueue
 from src.prompt_builder.builder import PromptBuilder
-from src.prompt_builder.templates import CharacterPrompt
+from src.prompt_builder.templates import CharacterPrompt, EnvironmentPrompt
 from src.universe.catalog import (
     ART_DIRECTION,
     CharacterSeed,
@@ -90,12 +90,36 @@ def build_prompt(seed, kind: str, asset_type: str, variant: str) -> tuple[str, s
             )
         return PromptBuilder().build(prompt, asset_type=asset_type, variant=variant)
     if kind == "environment":
-        negative = getattr(seed, "negative_prompt", "") or _DEFAULT_NEGATIVE
-        positive = getattr(seed, "prompt", "") or (
-            f"Little Learning Town, {seed.name}, {seed.description}, "
-            f"{ART_DIRECTION}, masterpiece, 8k"
+        env = EnvironmentPrompt(
+            name=getattr(seed, "name", ""),
+            description=getattr(seed, "description", "")[:400],
         )
+        if asset_type not in (
+            "environment", "exterior", "interior", "season",
+            "time_of_day", "weather", "camera", "lighting",
+        ):
+            asset_type = "exterior"
+        positive, builder_neg = PromptBuilder().build_environment(
+            env, asset_type=asset_type, variant=variant,
+        )
+        # Fold in zone-specific negatives (e.g. "urban, realistic city").
+        zone_neg = getattr(seed, "negative_prompt", "") or ""
+        terms = [t for t in (builder_neg, zone_neg)
+                 if t and t != _DEFAULT_NEGATIVE]
+        negative = ", ".join(terms) if terms else _DEFAULT_NEGATIVE
         return positive, negative
+    if kind == "vehicle":
+        vehicle = EnvironmentPrompt(
+            name=getattr(seed, "name", ""),
+            description=getattr(seed, "description", "")[:400],
+        )
+        return PromptBuilder().build_vehicle(vehicle, variant=variant)
+    if kind == "background":
+        bg = EnvironmentPrompt(
+            name=getattr(seed, "name", ""),
+            description=getattr(seed, "description", "")[:400],
+        )
+        return PromptBuilder().build_background(bg, variant=variant)
     if kind == "prop":
         name = getattr(seed, "name", seed.asset_id)
         desc = getattr(seed, "description", "")
@@ -138,21 +162,40 @@ class BatchRunner:
     # ------------------------------------------------------------------ #
 
     async def ensure_character(self, seed, kind: str) -> Optional[str]:
-        """Seed the record for a catalog seed if missing; return its id."""
+        """Seed the record for a catalog seed if missing; return its id.
+
+        An existing record is only reused when its category matches the seed
+        kind — otherwise a new record is created.  This prevents world
+        locations and props that share a display name (e.g. "Pond", "Library")
+        from being merged onto the wrong record.
+        """
         model = None
+        allowed_categories: set[str] = set()
         if kind == "character":
             model = build_character_model(seed)  # type: ignore[arg-type]
+            allowed_categories = {"main", "family", "friend", "community", "fantasy"}
         elif kind == "environment":
             model = build_environment_model(seed)  # type: ignore[arg-type]
-        elif kind == "prop":
+            allowed_categories = {"environment"}
+        elif kind in ("prop", "vehicle", "background"):
             model = build_prop_model(seed)  # type: ignore[arg-type]
+            allowed_categories = {
+                "asset" if kind == "prop" else kind,
+            }
         if model is None:
             return None
 
         try:
-            existing = await self.char_repo.find_character_by_name(model.name)
+            existing = await self.char_repo.find_character_by_name_and_category(
+                model.name, model.category
+            )
         except (NotImplementedError, AttributeError):
-            existing = None
+            try:
+                existing = await self.char_repo.find_character_by_name(model.name)
+            except (NotImplementedError, AttributeError):
+                existing = None
+            if existing is not None and getattr(existing, "category", "") not in allowed_categories:
+                existing = None
         if existing is not None:
             return existing.id
 
@@ -183,6 +226,8 @@ class BatchRunner:
             "character": "reference",
             "environment": "environment",
             "prop": "prop",
+            "vehicle": "vehicle",
+            "background": "background",
         }[kind]
 
         character_id = await self.ensure_character(seed, kind)

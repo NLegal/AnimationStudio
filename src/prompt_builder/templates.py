@@ -20,6 +20,128 @@ _AGE_DESCRIPTORS: dict[str, str] = {
     "kindergarten": "kindergarten age, 5-6 years old",
 }
 
+# ---------------------------------------------------------------------------
+# Environment / world variant descriptors (PHASE2.md)
+# ---------------------------------------------------------------------------
+
+_ENVIRONMENT_STYLE = (
+    "Pixar-quality, Cocomelon-inspired, bright colorful nursery world, "
+    "rounded architecture, soft pastel colors, consistent world design, "
+    "highly detailed, cinematic lighting, child-safe, vibrant, masterpiece, 8k"
+)
+
+_ENVIRONMENT_VIEWS: dict[str, str] = {
+    "front": "front view of the exterior",
+    "back": "back view of the exterior",
+    "garage": "garage exterior view",
+    "garden": "garden view",
+    "mailbox": "mailbox and front yard view",
+    "driveway": "driveway view",
+    "top": "top view of the location",
+}
+
+_INTERIOR_SETS: dict[str, str] = {
+    "living_room": "cozy living room interior",
+    "kitchen": "bright kitchen interior",
+    "dining_room": "cheerful dining room interior",
+    "bathroom": "clean bathroom interior",
+    "bedroom": "cozy bedroom interior",
+    "childrens_bedroom": "playful children's bedroom interior",
+    "hallway": "bright hallway interior",
+    "laundry": "laundry room interior",
+    "attic": "cozy attic interior",
+    "basement": "warm finished basement interior",
+    "backyard": "backyard interior-facing view",
+    "classroom": "bright classroom interior",
+    "music_room": "music room interior",
+    "art_room": "art room interior",
+    "gym": "playful gym interior",
+    "playground": "school playground",
+    "lunch_room": "lunch room interior",
+    "science_room": "science room interior",
+    "library": "warm library interior",
+    "principal_office": "friendly principal's office interior",
+    "nurse_office": "cozy nurse's office interior",
+    "garden": "school garden",
+    "hallway_school": "bright school hallway interior",
+    "lobby": "welcoming lobby interior",
+    "default_interior": "bright child-friendly interior",
+}
+
+_SEASON_DESCRIPTORS: dict[str, str] = {
+    "spring": "spring, cherry blossoms and blooming flowers",
+    "summer": "summer, lush green trees and bright sunshine",
+    "autumn": "autumn, golden and orange leaves",
+    "winter": "winter, snow-capped rooftops and cozy warm windows",
+    "holiday": "festive holiday decorations, string lights and wreaths",
+    "halloween": "gentle Halloween decorations, friendly pumpkins, soft night",
+    "christmas": "Christmas decorations, colorful lights, decorated tree",
+    "new_year": "New Year decorations, confetti and sparkling lights",
+    "easter": "Easter decorations, pastel eggs and spring flowers",
+    "birthday": "birthday decorations, balloons and bunting",
+}
+
+_TIME_DESCRIPTORS: dict[str, str] = {
+    "morning": "bright morning light, fresh and cheerful",
+    "sunrise": "sunrise, soft pink and gold sky",
+    "noon": "noon, bright even daylight",
+    "afternoon": "warm afternoon light",
+    "golden_hour": "golden hour, warm honey light, long soft shadows",
+    "sunset": "sunset, orange and purple sky",
+    "evening": "gentle evening light, lamps beginning to glow",
+    "night": "night time, starry sky, warm glowing windows and street lamps",
+    "moonlight": "moonlit scene, soft silver-blue light, gentle stars",
+}
+
+_WEATHER_DESCRIPTORS: dict[str, str] = {
+    "sunny": "bright sunny day, clear blue sky",
+    "cloudy": "soft overcast sky, gentle clouds",
+    "rain": "gentle rain, rainbow-colored umbrellas, puddles to splash",
+    "snow": "soft fluffy snow, snow-capped rooftops",
+    "fog": "soft morning fog, friendly and dreamy",
+    "wind": "gentle breeze, leaves drifting, kites in the sky",
+    "rainbow": "a rainbow arching over the scene",
+    "light_storm": "gentle storm, soft distant lightning, warm cozy feeling",
+}
+
+_CAMERA_DESCRIPTORS: dict[str, str] = {
+    "wide": "wide establishing shot",
+    "ultra_wide": "ultra-wide establishing shot",
+    "medium": "medium shot",
+    "close": "close-up",
+    "extreme_close": "extreme close-up detail",
+    "overhead": "overhead view",
+    "birds_eye": "bird's eye view",
+    "ground_level": "ground-level view",
+    "tracking": "tracking shot",
+    "walking_follow": "walking follow shot",
+    "front": "front view",
+    "side": "side view",
+    "rear": "rear view",
+    "low_angle": "low angle shot",
+    "high_angle": "high angle shot",
+    "top": "top view",
+}
+
+_LIGHTING_DESCRIPTORS: dict[str, str] = {
+    "artificial": "warm indoor artificial lighting",
+    "studio": "soft even studio lighting",
+    "natural": "natural daylight",
+}
+
+
+@dataclass
+class EnvironmentPrompt:
+    """World/environment data used to parameterize environment templates.
+
+    Covers named locations (Phase 2), vehicles, and background layers.
+    """
+
+    name: str
+    description: str = ""
+    style: str = _ENVIRONMENT_STYLE
+    custom_tags: str = ""
+
 
 @dataclass
 class CharacterPrompt:
@@ -102,6 +224,85 @@ class PromptTemplates:
             f"wearing {outfit}, standing, front view, "
             f"{character.style}, highly detailed, full body"
         )
+
+    # ------------------------------------------------------------------ #
+    #  Environment / world templates (Phase 2)
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def environment(
+        env: "EnvironmentPrompt",
+        view: str = "front",
+        season: Optional[str] = None,
+        time_of_day: Optional[str] = None,
+        weather: Optional[str] = None,
+        camera: Optional[str] = None,
+        lighting: Optional[str] = None,
+        set_name: Optional[str] = None,
+    ) -> str:
+        """Build an environment reference prompt with optional variant dims.
+
+        The four variant dimensions (season / time-of-day / weather / camera)
+        and lighting are additive — any subset may be supplied.  ``set_name``
+        switches the prompt to a named interior set.
+        """
+        parts = [f"Little Learning Town, {env.name}"]
+        if set_name:
+            room = _INTERIOR_SETS.get(set_name, set_name.replace("_", " "))
+            parts.append(room)
+        elif view:
+            parts.append(_ENVIRONMENT_VIEWS.get(view, f"{view.replace('_', ' ')} view"))
+        if env.description:
+            parts.append(env.description[:400])
+        for label, table in (
+            ("season", _SEASON_DESCRIPTORS),
+            ("time_of_day", _TIME_DESCRIPTORS),
+            ("weather", _WEATHER_DESCRIPTORS),
+            ("camera", _CAMERA_DESCRIPTORS),
+            ("lighting", _LIGHTING_DESCRIPTORS),
+        ):
+            value = {"season": season, "time_of_day": time_of_day,
+                     "weather": weather, "camera": camera,
+                     "lighting": lighting}.get(label)
+            if value:
+                parts.append(table.get(value, value.replace("_", " ")))
+        parts.append(env.style)
+        if env.custom_tags:
+            parts.append(env.custom_tags)
+        return ", ".join(parts)
+
+    @staticmethod
+    def vehicle(vehicle: "EnvironmentPrompt", view: str = "side") -> str:
+        """Build a vehicle reference prompt."""
+        parts = [
+            f"Little Learning Town, {vehicle.name}",
+            _CAMERA_DESCRIPTORS.get(view, f"{view.replace('_', ' ')} view"),
+        ]
+        if vehicle.description:
+            parts.append(vehicle.description[:400])
+        parts.append(
+            "friendly rounded vehicle, smiling front grille, oversized windows, "
+            "no text, no logos, "
+        )
+        parts.append(vehicle.style)
+        parts.append("single vehicle, clean background, product shot")
+        return ", ".join(parts)
+
+    @staticmethod
+    def background(bg: "EnvironmentPrompt", layer: str = "sky") -> str:
+        """Build a reusable background layer prompt."""
+        parts = [
+            f"Little Learning Town, {bg.name}",
+            f"{layer.replace('_', ' ')} background layer",
+        ]
+        if bg.description:
+            parts.append(bg.description[:400])
+        parts.append(
+            "seamless modular background, no text, no logos, no people, "
+            "soft gradients, clean and bright, "
+        )
+        parts.append(bg.style)
+        return ", ".join(parts)
 
     # ------------------------------------------------------------------ #
     #  Extended templates (age, rotation, lighting)

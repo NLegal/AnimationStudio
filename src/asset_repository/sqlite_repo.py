@@ -130,6 +130,18 @@ class SQLiteCharacterRepository(CharacterRepository):
             return None
         return self._row_to_character(row)
 
+    async def find_character_by_name_and_category(
+        self, name: str, category: str
+    ) -> Optional[CharacterModel]:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM characters WHERE name = ? AND category = ?",
+                (name, category),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_character(row)
+
     async def list_characters(self) -> list[CharacterModel]:
         with self._get_conn() as conn:
             rows = conn.execute("SELECT * FROM characters ORDER BY created_at").fetchall()
@@ -188,6 +200,13 @@ class SQLiteAssetRepository(AssetRepository):
                     FOREIGN KEY (character_id) REFERENCES characters(id)
                 )
             """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_assets_character ON assets(character_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_assets_lookup "
+                "ON assets(character_id, asset_type, variant)"
+            )
         self._apply_migrations()
 
     def _apply_migrations(self) -> None:

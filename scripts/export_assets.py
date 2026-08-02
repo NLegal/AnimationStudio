@@ -22,6 +22,7 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import re
 import sys
 from pathlib import Path
@@ -44,6 +45,17 @@ CHARACTER_DIRS = {
     "lighting": "lighting",
 }
 
+# environment asset_type → folder suffix used in the World/ zone tree
+WORLD_DIRS = {
+    "exterior": "exteriors",
+    "environment": "exteriors",
+    "interior": "interiors",
+    "season": "seasons",
+    "time_of_day": "time_of_day",
+    "weather": "weather",
+    "camera": "camera",
+}
+
 
 def _slugify(name: str) -> str:
     """Filesystem-safe name."""
@@ -51,12 +63,21 @@ def _slugify(name: str) -> str:
 
 
 def _export_paths(character_name: str, category: str, asset_type: str,
-                  variant: str, universe_dir: str, world_dir: str,
-                  assets_dir: str) -> Path:
+                  variant: str, bio_data: dict, universe_dir: str,
+                  world_dir: str, assets_dir: str) -> Path:
     """Resolve the destination path for one asset record."""
-    if category in ("environment",):
-        zone = (variant or "").strip() or "Zones"
-        return Path(world_dir) / _slugify(zone) / f"{_slugify(character_name)}.png"
+    if category in ("environment", "vehicle", "background"):
+        identifier = bio_data.get("identifier") or bio_data.get("asset_id") or character_name
+        if category == "environment":
+            zone_dir = _slugify(bio_data.get("zone_dir") or "Zones")
+            base = Path(world_dir) / zone_dir
+        else:
+            base = Path(world_dir) / ("Vehicles" if category == "vehicle" else "Backgrounds")
+        sub = WORLD_DIRS.get(asset_type)
+        if sub:
+            base = base / sub
+        label = _slugify(variant or "view")
+        return base / f"{_slugify(identifier)}_{label}.png"
     if category == "asset":
         return Path(assets_dir) / _slugify(character_name) / f"{_slugify(variant or 'asset')}.png"
 
@@ -76,9 +97,10 @@ async def main() -> int:
     parser.add_argument("--states", default="shortlisted,approved,production",
                         help="Comma list of asset states to export (default: shortlisted,approved,production)")
     parser.add_argument("--scope", default="characters",
-                        help="characters | environments | props | all (default: characters)")
+                        help="characters | environments | vehicles | backgrounds | props | all (default: characters)")
     parser.add_argument("--asset-types", default="",
-                        help="Optional comma list: reference,expression,pose,outfit,lighting")
+                        help="Optional comma list: reference,expression,pose,outfit,lighting,"
+                             "exterior,interior,season,time_of_day,weather,camera,vehicle,background")
     parser.add_argument("--universe", default="Universe", help="Universe/ directory")
     parser.add_argument("--world", default="World", help="World/ directory")
     parser.add_argument("--assets", default="Assets", help="Assets/ directory")
@@ -90,7 +112,7 @@ async def main() -> int:
 
     states = {s.strip().lower() for s in args.states.split(",") if s.strip()}
     scopes = (args.scope or "characters").lower()
-    if scopes not in ("characters", "environments", "props", "all"):
+    if scopes not in ("characters", "environments", "vehicles", "backgrounds", "props", "all"):
         raise SystemExit(f"Unknown scope '{scopes}'")
     wanted_types = {t.strip() for t in args.asset_types.split(",") if t.strip()}
 
@@ -113,16 +135,19 @@ async def main() -> int:
             continue
 
         char_row = char_repo._get_conn().execute(
-            "SELECT name, category FROM characters WHERE id = ?", (character_id,)
+            "SELECT name, category, bio_data FROM characters WHERE id = ?", (character_id,)
         ).fetchone()
         if char_row is None:
             skipped += 1
             continue
-        character_name, category = char_row
+        character_name, category, bio_data_json = char_row
+        bio_data = json.loads(bio_data_json or "{}")
 
         if scopes != "all" and not (
-            (scopes == "characters" and category not in ("environment", "asset"))
+            (scopes == "characters" and category not in ("environment", "asset", "vehicle", "background"))
             or (scopes == "environments" and category == "environment")
+            or (scopes == "vehicles" and category == "vehicle")
+            or (scopes == "backgrounds" and category == "background")
             or (scopes == "props" and category == "asset")
         ):
             continue
@@ -132,7 +157,7 @@ async def main() -> int:
             continue
 
         destination = _export_paths(character_name, category, asset_type, variant or "",
-                                    args.universe, args.world, args.assets)
+                                    bio_data, args.universe, args.world, args.assets)
         if args.dry_run:
             print(f"  {destination}")
             exported += 1

@@ -10,11 +10,106 @@ from pathlib import Path
 
 import pytest
 
-from src.prompt_builder import PromptBuilder, PromptTemplates, CharacterPrompt, build_negative_prompt
+from src.prompt_builder import (
+    PromptBuilder,
+    PromptTemplates,
+    CharacterPrompt,
+    EnvironmentPrompt,
+    build_negative_prompt,
+)
 from src.pipeline import GenerationJob, JobQueue, DiversityFilter
 from src.identity_engine.scorer import IdentityScorer, MockScorerPlugin
 from src.asset_repository.sqlite_repo import SQLiteAssetRepository, SQLiteCharacterRepository
 from tests.conftest import MockBackend
+
+
+# ---------------------------------------------------------------------------
+# Environment / world prompts (Phase 2)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def beach() -> EnvironmentPrompt:
+    """Canonical beach environment for prompt tests."""
+    return EnvironmentPrompt(
+        name="Sandy Beach Main Area",
+        description="A wide, gently sloping expanse of soft golden sand.",
+    )
+
+
+class TestEnvironmentPrompts:
+    """Environment template expansion and variant routing."""
+
+    def test_exterior_includes_location(self, builder, beach):
+        positive, negative = builder.build_environment(beach, asset_type="exterior")
+        assert "Little Learning Town" in positive
+        assert "Sandy Beach Main Area" in positive
+        assert "front view" in positive
+        assert positive.endswith(beach.style)
+        assert negative
+
+    def test_interior_uses_set_name(self, builder, beach):
+        positive, _ = builder.build_environment(
+            beach, asset_type="interior", variant="classroom"
+        )
+        assert "classroom interior" in positive
+
+    def test_season_variant_appended(self, builder, beach):
+        positive, _ = builder.build_environment(
+            beach, asset_type="season", variant="winter"
+        )
+        assert "winter" in positive
+
+    def test_weather_variant_appended(self, builder, beach):
+        positive, _ = builder.build_environment(
+            beach, asset_type="weather", variant="rain"
+        )
+        assert "rain" in positive.lower()
+
+    def test_camera_variant_appended(self, builder, beach):
+        positive, _ = builder.build_environment(
+            beach, asset_type="camera", variant="birds_eye"
+        )
+        assert "bird" in positive.lower()
+
+    def test_time_variant_appended(self, builder, beach):
+        positive, _ = builder.build_environment(
+            beach, asset_type="time_of_day", variant="golden_hour"
+        )
+        assert "golden" in positive.lower()
+
+    def test_environment_negative_is_child_safe(self, builder, beach):
+        _, negative = builder.build_environment(beach, asset_type="exterior")
+        for bad in ("dark", "abandoned", "graffiti", "violence"):
+            assert bad in negative
+
+    def test_vehicle_prompt(self, builder):
+        car = EnvironmentPrompt(name="Family Car", description="A red rounded car.")
+        positive, negative = builder.build_vehicle(car, variant="side")
+        assert "Family Car" in positive
+        assert "side view" in positive
+        assert negative
+
+    def test_background_prompt(self, builder):
+        sky = EnvironmentPrompt(name="Blue Sky Clear", description="A bright gradient.")
+        positive, negative = builder.build_background(sky, variant="sky")
+        assert "Blue Sky Clear" in positive
+        assert "sky background layer" in positive
+        assert negative
+
+
+class TestEnvironmentTemplates:
+    """Static PromptTemplates.environment expansion."""
+
+    def test_all_views_mapped(self):
+        env = EnvironmentPrompt(name="X", description="")
+        for view in ("front", "back", "garage", "garden", "mailbox", "driveway", "top"):
+            prompt = PromptTemplates.environment(env, view=view)
+            assert view in prompt or view.replace("_", " ") in prompt
+
+    def test_custom_tags_appended(self):
+        env = EnvironmentPrompt(name="X", description="", custom_tags="masterpiece, 8k")
+        prompt = PromptTemplates.environment(env)
+        assert prompt.endswith("masterpiece, 8k")
 
 
 # ---------------------------------------------------------------------------

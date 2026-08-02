@@ -8,9 +8,12 @@ with correct categories, identifiers, and prompt-building data.
 from src.universe.catalog import (
     ART_DIRECTION,
     CHARACTER_CATEGORIES,
+    discover_backgrounds,
     discover_characters,
     discover_environments,
     discover_props,
+    discover_vehicles,
+    discover_world_environments,
 )
 
 
@@ -81,6 +84,89 @@ class TestDiscoverEnvironments:
     def test_negative_prompt_present(self):
         seeds = discover_environments("World")
         assert all(s.negative_prompt for s in seeds)
+
+
+class TestDiscoverWorldLocations:
+    """Per-location environment parsing from the Phase 2 zone bibles."""
+
+    def test_parses_all_locations(self):
+        seeds = discover_world_environments("World")
+        assert len(seeds) == 130
+
+    def test_all_identifiers_unique(self):
+        seeds = discover_world_environments("World")
+        identifiers = [s.identifier for s in seeds]
+        assert len(identifiers) == len(set(identifiers))
+
+    def test_identifiers_use_zone_prefix(self):
+        seeds = discover_world_environments("World")
+        prefixes = {s.identifier.split("_")[1] for s in seeds}
+        for zone in ("Residential", "Downtown", "School", "Playground",
+                     "Farm", "Forest", "Beach", "Mountains", "Fantasy"):
+            assert zone in prefixes
+
+    def test_zone_assignment(self):
+        seeds = discover_world_environments("World")
+        assert all(s.zone for s in seeds)
+        assert any("Residential" in s.zone for s in seeds)
+        assert any("Fantasy" in s.zone for s in seeds)
+
+    def test_description_is_real_paragraph(self):
+        seeds = discover_world_environments("World")
+        assert all("**" not in s.description for s in seeds)
+        assert all(s.description for s in seeds)
+
+    def test_prompt_composed(self):
+        seeds = discover_world_environments("World")
+        first = seeds[0]
+        assert "Little Learning Town" in first.prompt
+        assert first.description[:60] in first.prompt
+
+    def test_zone_dir_tracked(self):
+        seeds = discover_world_environments("World")
+        assert all(s.bio_data.get("zone_dir") for s in seeds)
+
+
+class TestDiscoverVehicles:
+    """Vehicle library parsing from World/Vehicles/INDEX.md."""
+
+    def test_parses_vehicles(self):
+        seeds = discover_vehicles("World")
+        assert len(seeds) == 20
+
+    def test_all_vehicles_have_ids(self):
+        seeds = discover_vehicles("World")
+        assert all(s.asset_id.startswith("VEH_") for s in seeds)
+
+    def test_categories_set_to_vehicle(self):
+        seeds = discover_vehicles("World")
+        assert all(s.category == "vehicle" for s in seeds)
+
+    def test_vehicles_have_descriptions(self):
+        seeds = discover_vehicles("World")
+        assert all(s.description for s in seeds)
+
+
+class TestDiscoverBackgrounds:
+    """Background library parsing from World/Backgrounds/INDEX.md."""
+
+    def test_parses_backgrounds(self):
+        seeds = discover_backgrounds("World")
+        assert len(seeds) == 26
+
+    def test_all_backgrounds_have_ids(self):
+        seeds = discover_backgrounds("World")
+        assert all(s.asset_id.startswith("BG_") for s in seeds)
+
+    def test_layer_groups_present(self):
+        seeds = discover_backgrounds("World")
+        groups = {s.asset_id.split("_")[1] for s in seeds}
+        for expected in ("Sky", "Landscape", "Texture"):
+            assert expected in groups
+
+    def test_categories_set_to_background(self):
+        seeds = discover_backgrounds("World")
+        assert all(s.category == "background" for s in seeds)
 
 
 class TestDiscoverProps:

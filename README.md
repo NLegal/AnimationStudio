@@ -6,7 +6,7 @@ assets, and minimal manual work — from story to publishing.
 
 ## Status
 
-All 12 phases implemented and audited. **1291 tests passing.**
+All 12 phases implemented and audited. **1319 tests passing.**
 
 | Phase | System | Module |
 |-------|--------|--------|
@@ -68,7 +68,7 @@ python -m pytest tests/ -v --tb=short
 python -m pytest tests/ -x --quiet
 ```
 
-Expected: **1291 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
+Expected: **1319 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
 aesthetics predictor) are lazily loaded — the suite passes without them via
 mock/fallback values.
 
@@ -84,7 +84,7 @@ mock/fallback values.
 | `test_story_engine.py` | Story/theme/plot/dialogue/song/curriculum generation, validation, continuity |
 | `test_production.py` | Episodes, scenes, shots, manifests, continuity, render queue, QC |
 | `test_story_to_production_integration.py` | End-to-end story → production flow |
-| `test_prompt_builder.py` | Template expansion, age/rotation/lighting variants |
+| `test_prompt_builder.py` | Template expansion, age/rotation/lighting variants + environment/vehicle/background templates |
 | `test_generation_engine.py` | Backend ABC compliance, lazy loading, graceful errors |
 | `test_identity_engine.py` | IdentityScorer wiring, weighted composition, DiversityFilter |
 | `test_scoring_plugins.py` | All 7 plugins — protocol compliance, degradation without torch/cv2 |
@@ -93,7 +93,7 @@ mock/fallback values.
 | `test_lora_training.py` | Dataset builder, versioning, benchmark |
 | `test_review_ui.py` | Review app routes |
 | `test_review_ui_generation.py` | UI generation panel, seeding, per-category detail pages |
-| `test_universe_catalog.py` | Universe/World/Assets markdown parsing (39 chars, 9 zones, 824 props) |
+| `test_universe_catalog.py` | Universe/World/Assets markdown parsing (39 chars, 9 zones, 130 locations, 20 vehicles, 26 backgrounds, 824 props) |
 | `test_universe_seed.py` | Idempotent seeding into the character repository |
 | `test_batch_generator.py` | Prompt building + mock end-to-end batch generation |
 | `test_character_bio.py` | Lily Bunny bio schema validation |
@@ -309,6 +309,105 @@ FAL_API_KEY=<key> python3 scripts/generate_phase1_library.py --backend cloud --p
 ```
 
 Providers: `fal`, `replicate` (`REPLICATE_API_KEY`), `bfl` (`BFL_API_KEY`).
+
+## Phase 2 World Library
+
+`scripts/generate_phase2_world.py` builds the Phase 2 world library from the
+zone bibles in `World/` — every named location (130 `ENV_*` seeds from the 9
+zone docs), every vehicle (20), and every background layer (26) — with the
+variant asset types PHASE2.md requires:
+
+| Asset type | Variants | Count |
+|------------|----------|-------|
+| `exterior` | 7-view Home Library set for Residential homes; front view elsewhere | 280 |
+| `interior` | varied room per location (living room, kitchen, classroom, …) | 130 |
+| `season` | spring / summer / autumn / winter | 520 |
+| `time_of_day` | morning / noon / golden_hour / night | 520 |
+| `weather` | sunny / cloudy / rain / snow | 520 |
+| `camera` | 10 angles (hero locations only) | 90 |
+| `vehicle` | front + side | 40 |
+| `background` | 1 per layer | 26 |
+
+```bash
+# Generate the complete world library (mock backend)
+python scripts/generate_phase2_world.py --fast-scoring --jobs 12
+
+# Subset / filters
+python scripts/generate_phase2_world.py --zone Residential --asset-types seasons,weather
+python scripts/generate_phase2_world.py --asset-types camera --zone Beach --count 1
+
+# Preview prompts only
+python scripts/generate_phase2_world.py --prompt-only --limit 3
+
+# Real backends
+python scripts/generate_phase2_world.py --backend comfyui
+python scripts/generate_phase2_world.py --backend cloud --provider fal
+```
+
+Prompts are built with the zone-aware world style block and the shared
+`ENVIRONMENT_NEGATIVE` (plus per-zone negatives) — see
+`World/PromptTemplates/Environment/*.md`. Turn the database into the organized
+`World/` repository:
+
+```bash
+# Reproduce each world asset's PNG from its prompt+seed and record file_path
+python scripts/export_assets.py --db catalog.db --scope all
+
+# Composite labeled environment + vehicle reference sheets
+python scripts/build_world_sheets.py --db catalog.db
+
+# Promote the library to "approved"
+python scripts/finalize_phase1.py --db catalog.db --all
+```
+
+Assets land under `World/<Zone>/{exteriors,interiors,seasons,time_of_day,
+weather,camera}/`, `World/Vehicles/`, and `World/Backgrounds/`, plus 150
+reference sheets in `World/ReferenceSheets/`.
+
+### Run Phase 2 from scratch (both platforms)
+
+**Windows (PowerShell):**
+
+```powershell
+cd <project-root>
+
+# 1. Seed the catalog from the markdown docs (idempotent)
+python scripts\seed_universe.py --db catalog.db
+
+# 2. Generate the complete world library (all 130 locations + vehicles + backgrounds)
+python scripts\generate_phase2_world.py --fast-scoring --jobs 12
+
+# 3. Write PNGs to the world asset repository + record file_path
+python scripts\export_assets.py --db catalog.db --scope all
+
+# 4. Composite labeled reference sheets
+python scripts\build_world_sheets.py --db catalog.db
+
+# 5. Approve the library
+python scripts\finalize_phase1.py --db catalog.db --all
+
+# 6. Review everything in the web UI
+uvicorn src.review_ui:create_app --factory --reload --port 8000
+```
+
+**macOS / Linux (bash):**
+
+```bash
+cd <project-root>
+
+python3 scripts/seed_universe.py --db catalog.db
+python3 scripts/generate_phase2_world.py --fast-scoring --jobs 12
+python3 scripts/export_assets.py --db catalog.db --scope all
+python3 scripts/build_world_sheets.py --db catalog.db
+python3 scripts/finalize_phase1.py --db catalog.db --all
+uvicorn src.review_ui:create_app --factory --reload --port 8000
+```
+
+> `--fast-scoring` skips the torch-backed DINOv2/CLIP plugins (≈60× faster) —
+> fine for the mock pipeline. Drop it when scoring real generated images.
+
+For real images, use the same ComfyUI / cloud setup as Phase 1 above with
+`--backend comfyui` / `--backend cloud` on `generate_phase2_world.py`.
 
 
 ## Production Pipeline API

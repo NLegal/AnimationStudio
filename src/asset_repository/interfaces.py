@@ -25,6 +25,12 @@ class CharacterRepository(ABC):
         ...
 
     @abstractmethod
+    async def find_character_by_name_and_category(
+        self, name: str, category: str
+    ) -> Optional["CharacterModel"]:
+        ...
+
+    @abstractmethod
     async def list_characters(self) -> list["CharacterModel"]:
         ...
 

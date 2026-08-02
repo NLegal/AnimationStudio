@@ -341,6 +341,212 @@ def discover_environments(world_dir: str = "World") -> list[EnvironmentSeed]:
     return seeds
 
 
+# ---------------------------------------------------------------------------
+#  World locations (detailed Phase 2 environments)
+# ---------------------------------------------------------------------------
+
+# Zone docs in World/, keyed by the identifier prefix (ENV_<Zone>_NNN).
+_WORLD_ZONE_DOCS: dict[str, tuple[str, str]] = {
+    "Residential": ("RESIDENTIAL.md", "Sunny Meadow Residential Zone"),
+    "Downtown": ("DOWNTOWN.md", "Main Street Downtown Zone"),
+    "School": ("SCHOOL.md", "Little Learning Academy Education Zone"),
+    "Playground": ("PLAYGROUND.md", "Happy Hills Park Recreation Zone"),
+    "Farm": ("FARM.md", "Green Valley Farm Zone"),
+    "Forest": ("FOREST.md", "Whispering Woods Forest Zone"),
+    "Beach": ("BEACH.md", "Sandy Cove Beach Zone"),
+    "Mountains": ("MOUNTAINS.md", "Pine Mountain Zone"),
+    "Fantasy": ("FANTASY.md", "Dreamland Fantasy Zone"),
+}
+
+# Fallback zone names for docs that don't declare identifiers.
+_WORLD_DOC_ZONES: dict[str, str] = {
+    "RESIDENTIAL.md": "Sunny Meadow Residential Zone",
+    "DOWNTOWN.md": "Main Street Downtown Zone",
+    "SCHOOL.md": "Little Learning Academy Education Zone",
+    "PLAYGROUND.md": "Happy Hills Park Recreation Zone",
+    "FARM.md": "Green Valley Farm Zone",
+    "FOREST.md": "Whispering Woods Forest Zone",
+    "BEACH.md": "Sandy Cove Beach Zone",
+    "MOUNTAINS.md": "Pine Mountain Zone",
+    "FANTASY.md": "Dreamland Fantasy Zone",
+}
+
+_WORLD_DOC_NEGATIVES: dict[str, str] = {
+    "DOWNTOWN.md": "urban, realistic city, cars, traffic, skyscrapers",
+    "SCHOOL.md": "dark classroom, empty school, broken desks",
+    "PLAYGROUND.md": "rusty equipment, cracked pavement, litter",
+    "FARM.md": "industrial farm, factory, machinery noise",
+    "FOREST.md": "dark forest, scary woods, wild animals, thorns",
+    "BEACH.md": "deep water, waves, storm, marine litter",
+    "MOUNTAINS.md": "steep cliff, avalanche, snowy blizzard",
+    "FANTASY.md": "evil castle, dark magic, scary creatures",
+    "RESIDENTIAL.md": "empty house, broken home, dark alleys",
+}
+
+
+def discover_world_environments(world_dir: str = "World") -> list[EnvironmentSeed]:
+    """Parse every named environment from the Phase 2 zone bibles.
+
+    Two formats are supported:
+
+    * ``**Identifier:** ENV_X_###`` sections (Residential / Downtown /
+      School / Playground / Farm) — title from the preceding heading.
+    * ``### ENV_X_### — Name`` sections (Beach / Forest / Mountains /
+      Fantasy) — title embedded in the heading.
+
+    Returns one EnvironmentSeed per documented location (137+ across the
+    nine zones), carrying its identifier, zone, and a generation prompt.
+    """
+    seeds: list[EnvironmentSeed] = []
+    world_root = Path(world_dir)
+    zone_docs = _WORLD_ZONE_DOCS
+
+    for zone_key, (doc_name, zone_name) in zone_docs.items():
+        doc = world_root / zone_key / doc_name
+        if not doc.is_file():
+            continue
+        negative = _WORLD_DOC_NEGATIVES.get(doc_name, "")
+        seeds.extend(
+            _parse_world_doc(doc, zone_key, zone_name, negative)
+        )
+
+    return sorted(seeds, key=lambda s: s.identifier)
+
+
+def _parse_world_doc(doc: Path, zone_key: str, zone_name: str,
+                     negative: str) -> list[EnvironmentSeed]:
+    """Extract named locations from one zone bible document."""
+    text = doc.read_text(encoding="utf-8")
+    seeds: list[EnvironmentSeed] = []
+
+    # Format A: "## <Name>" followed by "**Identifier:** ENV_Zone_NNN".
+    for match in re.finditer(
+        r"^#{2,3}\s+(.+?)\s*$\s*\n\s*\*\*Identifier:\*\*\s*(ENV_[A-Za-z]+_\d+)",
+        text, re.MULTILINE,
+    ):
+        title = match.group(1).strip()
+        identifier = match.group(2).strip()
+        block = text[match.end():]
+        cut = re.search(r"^\s*#{2,3}\s+.+\s*$\s*\n\s*\*\*Identifier:\*\*", block, re.MULTILINE)
+        block = block[: cut.start()] if cut else block
+        seed = _world_seed_from_block(
+            title, identifier, zone_key, zone_name, negative, block, str(doc),
+        )
+        if seed is not None:
+            seeds.append(seed)
+
+    # Format B: "### ENV_Zone_NNN — Name".
+    for match in re.finditer(
+        r"^#{2,3}\s+(ENV_[A-Za-z]+_\d+)\s+[—\-–]\s+(.+?)\s*$",
+        text, re.MULTILINE,
+    ):
+        identifier = match.group(1).strip()
+        title = match.group(2).strip()
+        block = text[match.end():]
+        cut = re.search(r"^\s*#{2,3}\s+(ENV_|Prompt Template)", block, re.MULTILINE)
+        block = block[: cut.start()] if cut else block
+        seed = _world_seed_from_block(
+            title, identifier, zone_key, zone_name, negative, block, str(doc),
+        )
+        if seed is not None:
+            seeds.append(seed)
+
+    # De-duplicate by identifier (Format A/B overlap is unlikely but possible).
+    seen: set[str] = set()
+    unique: list[EnvironmentSeed] = []
+    for seed in seeds:
+        if seed.identifier in seen:
+            continue
+        seen.add(seed.identifier)
+        unique.append(seed)
+    return unique
+
+
+def _description_from_bold_label(line: str) -> str:
+    """Return the text after a descriptive ``**Label:**`` prefix, if any."""
+    for label in ("**Description:**", "**Exterior Architecture:**",
+                  "**Architecture:**", "**Address:**"):
+        if line.startswith(label):
+            return line.split(label, 1)[1].strip()
+    return ""
+
+
+def _world_seed_from_block(
+    title: str, identifier: str, zone_key: str, zone_name: str,
+    negative: str, block: str, source: str,
+) -> Optional[EnvironmentSeed]:
+    """Build an EnvironmentSeed from one location's section body."""
+    lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
+    if not lines:
+        return None
+
+    description = ""
+    plain = ""
+    for line in lines:
+        if line.startswith("**"):
+            if not description:
+                description = _description_from_bold_label(line)
+            continue
+        if line.startswith(("-", "|", "#")) or re.match(r"^\d+\.", line):
+            continue
+        if not plain:
+            plain = line
+    if not description and plain:
+        description = plain
+    description = description[:400]
+
+    prompt = _build_environment_prompt(title, description, "", "")
+    return EnvironmentSeed(
+        name=title,
+        zone=zone_name,
+        identifier=identifier,
+        description=description,
+        prompt=prompt,
+        negative_prompt=negative,
+        bio_data={
+            "zone_kind": zone_name,
+            "zone_dir": zone_key,
+            "identifier": identifier,
+            "source": source,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+#  Vehicles & background layers (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def discover_vehicles(world_dir: str = "World") -> list[PropSeed]:
+    """Parse every vehicle from ``World/Vehicles/INDEX.md``.
+
+    Entries use ``## VEH_*_NNN — Name`` headings with **Colors:/**
+    **Who Drives It:/**Typical Location:** fields.
+    """
+    index = Path(world_dir) / "Vehicles" / "INDEX.md"
+    if not index.is_file():
+        return []
+    seeds = _parse_prop_entries(index)
+    for seed in seeds:
+        seed.category = "vehicle"
+    return seeds
+
+
+def discover_backgrounds(world_dir: str = "World") -> list[PropSeed]:
+    """Parse every background layer from ``World/Backgrounds/INDEX.md``.
+
+    Entries use ``## BG_*_NNN — Name`` headings grouped under
+    ``# Skies / Landscapes / Textures``.
+    """
+    index = Path(world_dir) / "Backgrounds" / "INDEX.md"
+    if not index.is_file():
+        return []
+    seeds = _parse_prop_entries(index)
+    for seed in seeds:
+        seed.category = "background"
+    return seeds
+
+
 def _build_environment_prompt(name: str, description: str,
                               palette: str, base: str) -> str:
     """Compose a generation prompt for a world zone."""
@@ -382,7 +588,7 @@ def discover_props(world_dir: str = "World", assets_dir: str = "Assets") -> list
 
 
 def _parse_prop_entries(index_path: Path) -> list[PropSeed]:
-    """Parse ``World/Props/INDEX.md`` style prop entries."""
+    """Parse ``World/{Props,Vehicles,Backgrounds}/INDEX.md``-style entries."""
     text = index_path.read_text(encoding="utf-8")
     seeds: list[PropSeed] = []
     current_category = ""
@@ -392,18 +598,18 @@ def _parse_prop_entries(index_path: Path) -> list[PropSeed]:
             continue
         header = section.splitlines()[0].strip()
         # Section header: "Furniture (PROP_Furniture_001–020)"
-        cat_match = re.match(r"^([^(]+)\s*\(PROP_\w+_\d+", header)
+        cat_match = re.match(r"^([^(]+)\s*\([A-Z]+_\w+_\d+", header)
         if cat_match:
             current_category = cat_match.group(1).strip()
 
         for entry in re.finditer(
-            r"^##\s+(PROP_[A-Za-z]+_\d+)\s+[—\-–]\s+(.+)$",
+            r"^##\s+([A-Z]+_[A-Za-z]+_\d+)\s+[—\-–]\s+(.+)$",
             section, re.MULTILINE,
         ):
             asset_id = entry.group(1)
             name = entry.group(2).strip()
             body = section[entry.end():]
-            cut = re.search(r"^\s*##\s+PROP_", body, re.MULTILINE)
+            cut = re.search(r"^\s*##\s+[A-Z]+_[A-Za-z]+_\d+", body, re.MULTILINE)
             body = body[: cut.start()] if cut else body
 
             desc = ""

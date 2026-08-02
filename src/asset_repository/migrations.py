@@ -98,6 +98,8 @@ class SchemaManager:
 
         if current < 1:
             self._apply_version(1, self._create_schema)
+        if current < 2:
+            self._apply_version(2, self._add_lookup_indexes)
 
     def _apply_version(self, version: int, fn) -> None:
         """Apply a specific migration version."""
@@ -111,3 +113,13 @@ class SchemaManager:
     def _create_schema(self, conn: sqlite3.Connection) -> None:
         """Create the initial database schema (version 1)."""
         conn.executescript(_SCHEMA_SQL)
+
+    def _add_lookup_indexes(self, conn: sqlite3.Connection) -> None:
+        """Add lookup indexes on the assets table (version 2)."""
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_assets_character ON assets(character_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_assets_lookup "
+            "ON assets(character_id, asset_type, variant)"
+        )

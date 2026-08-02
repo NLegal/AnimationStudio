@@ -17,7 +17,8 @@ class CharacterModel(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     category: Literal[
-        "main", "family", "friend", "community", "fantasy", "environment", "asset"
+        "main", "family", "friend", "community", "fantasy",
+        "environment", "asset", "vehicle", "background",
     ]
     species: str
     bio_data: dict = Field(default_factory=dict)
@@ -37,6 +38,8 @@ class AssetModel(BaseModel):
     asset_type: Literal[
         "reference", "expression", "pose", "outfit",
         "lighting", "environment", "prop",
+        "exterior", "interior", "season", "time_of_day", "weather",
+        "camera", "vehicle", "background",
     ]
     variant: Optional[str] = None
     state: str = "draft"
@@ -61,6 +64,8 @@ class GenerationJobRequest(BaseModel):
     job_type: Literal[
         "reference", "expression", "pose", "outfit",
         "lighting", "environment", "prop",
+        "exterior", "interior", "season", "time_of_day", "weather",
+        "camera", "vehicle", "background",
     ]
     prompt: str
     negative_prompt: str = ""
