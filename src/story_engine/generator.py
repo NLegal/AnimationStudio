@@ -114,7 +114,7 @@ class EpisodeGenerator:
         except Exception:
             resolution_desc = f"The friends work together and solve the problem through {resolution_type}."
 
-        theme_assets = self.asset.get_assets_for_theme(theme.id.replace("-", "_"))
+        theme_assets = self.asset.get_assets_for_theme(theme.id)
         obj_id = objective.id if objective else ""
         obj_assets = self.asset.get_assets_for_objective(obj_id)
         assets = list(dict.fromkeys(theme_assets + obj_assets))

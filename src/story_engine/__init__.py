@@ -2,6 +2,7 @@ from src.story_engine.models import (
     CurriculumArea, LearningObjective, Theme, StoryGrammar,
     CharacterInfo, DialogueLine, InteractiveMoment, SongPlacement,
     EpisodeBlueprint, SeasonPlan, SeriesPlan, ContinuityRecord, DiversityTracker,
+    DocFact, DocConsistencyReport,
 )
 from src.story_engine.curriculum import CurriculumEngine
 from src.story_engine.theme import ThemeEngine
@@ -20,15 +21,18 @@ from src.story_engine.validation import StoryValidationEngine
 from src.story_engine.continuity import ContinuityTracker
 from src.story_engine.diversity import DiversityEngine
 from src.story_engine.planner import SeriesPlanner
+from src.story_engine.consistency import check_docs, quality_checklist
 
 __all__ = [
     "CurriculumArea", "LearningObjective", "Theme", "StoryGrammar",
     "CharacterInfo", "DialogueLine", "InteractiveMoment", "SongPlacement",
     "EpisodeBlueprint", "SeasonPlan", "SeriesPlan", "ContinuityRecord", "DiversityTracker",
+    "DocFact", "DocConsistencyReport",
     "CurriculumEngine", "ThemeEngine", "LearningObjectiveEngine",
     "CharacterEngine", "RelationshipEngine", "WorldEngine", "AssetEngine",
     "ConflictEngine", "ResolutionEngine", "NarrativeEngine", "StoryGrammarLibrary",
     "DialogueEngine", "SongEngine", "InteractionEngine", "EmotionEngine", "HumorEngine",
     "ReinforcementEngine", "VocabularyEngine", "EpisodeGenerator",
     "StoryValidationEngine", "ContinuityTracker", "DiversityEngine", "SeriesPlanner",
+    "check_docs", "quality_checklist",
 ]

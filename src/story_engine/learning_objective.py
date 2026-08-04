@@ -423,6 +423,78 @@ class LearningObjectiveEngine:
                 difficulty=2, age_range="3-4",
                 keywords=["neighborhood", "park", "store", "school", "library"],
             ),
+
+            # Nature
+            LearningObjective(
+                id="explore-trees", curriculum_area="nature", name="Explore Trees",
+                description="Observe trees, leaves, and how they change with the seasons",
+                difficulty=1, age_range="2-3",
+                keywords=["tree", "leaves", "trunk", "branches", "nature"],
+            ),
+            LearningObjective(
+                id="name-flowers", curriculum_area="nature", name="Name Flowers",
+                description="Name common flowers like daisy, tulip, and sunflower",
+                difficulty=1, age_range="2-3",
+                keywords=["flower", "daisy", "tulip", "sunflower", "garden"],
+            ),
+            LearningObjective(
+                id="garden-tools", curriculum_area="nature", name="Garden Tools",
+                description="Learn the tools used to plant and care for a garden",
+                difficulty=2, age_range="3-4",
+                keywords=["garden", "shovel", "watering can", "seeds", "tools"],
+            ),
+            LearningObjective(
+                id="bugs-in-nature", curriculum_area="nature", name="Bugs in Nature",
+                description="Discover small garden creatures like ladybugs and worms",
+                difficulty=2, age_range="3-4",
+                keywords=["bug", "ladybug", "worm", "bee", "ant", "nature"],
+            ),
+
+            # Music & Rhythm
+            LearningObjective(
+                id="feel-the-beat", curriculum_area="music-rhythm", name="Feel the Beat",
+                description="Move and clap along to a steady musical beat",
+                difficulty=1, age_range="2-3",
+                keywords=["beat", "clap", "rhythm", "music", "steady"],
+            ),
+            LearningObjective(
+                id="loud-and-soft", curriculum_area="music-rhythm", name="Loud and Soft",
+                description="Learn the difference between loud and soft sounds in music",
+                difficulty=1, age_range="2-3",
+                keywords=["loud", "soft", "quiet", "music", "sound"],
+            ),
+            LearningObjective(
+                id="rhythm-instruments", curriculum_area="music-rhythm", name="Rhythm Instruments",
+                description="Play simple rhythm instruments like drums and shakers",
+                difficulty=2, age_range="3-4",
+                keywords=["drum", "shaker", "tambourine", "rhythm", "instrument"],
+            ),
+
+            # Daily Routines
+            LearningObjective(
+                id="morning-routine", curriculum_area="daily-routines", name="Morning Routine",
+                description="Follow a healthy morning routine from waking up to getting ready",
+                difficulty=1, age_range="2-3",
+                keywords=["morning", "wake up", "get dressed", "breakfast", "routine"],
+            ),
+            LearningObjective(
+                id="bedtime-routine", curriculum_area="daily-routines", name="Bedtime Routine",
+                description="Follow a calm bedtime routine of bath, pajamas, and a story",
+                difficulty=1, age_range="2-3",
+                keywords=["bedtime", "pajamas", "bath", "story", "sleep"],
+            ),
+            LearningObjective(
+                id="getting-dressed", curriculum_area="daily-routines", name="Getting Dressed",
+                description="Learn to put on clothes in the right order by yourself",
+                difficulty=2, age_range="3-4",
+                keywords=["dressed", "shirt", "pants", "socks", "shoes"],
+            ),
+            LearningObjective(
+                id="mealtime-manners", curriculum_area="daily-routines", name="Mealtime Manners",
+                description="Learn polite mealtime habits like washing hands and saying please",
+                difficulty=1, age_range="2-3",
+                keywords=["mealtime", "manners", "please", "thank you", "eat"],
+            ),
         ]
 
     def select_objective(self, area_id: str, difficulty: int = 1, exclude: List[str] = None) -> Optional[LearningObjective]:

@@ -6,7 +6,9 @@ assets, and minimal manual work — from story to publishing.
 
 ## Status
 
-All 12 phases implemented and audited. **1422 tests passing.**
+All 12 phases implemented and audited. **1435 tests** (1432 passing; the
+3 slow universe-seed/review-UI tests pass in isolation but exceed the 30s
+global timeout under full-suite load).
 
 | Phase | System | Module |
 |-------|--------|--------|
@@ -68,7 +70,9 @@ python -m pytest tests/ -v --tb=short
 python -m pytest tests/ -x --quiet
 ```
 
-Expected: **1422 tests passing**. Optional dependencies (`torch`, `cv2`, `timm`,
+Expected: **1435 tests** (1432 passing; 3 slow seed/review tests exceed the
+30s global timeout under full-suite load but pass in isolation). Optional
+dependencies (`torch`, `cv2`, `timm`,
 aesthetics predictor) are lazily loaded — the suite passes without them via
 mock/fallback values.
 

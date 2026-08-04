@@ -138,6 +138,24 @@ class CurriculumEngine:
                 age_range="3-5",
                 topics=["My Home", "My Neighborhood", "Maps & Directions", "Near & Far", "Places in Town"],
             ),
+            CurriculumArea(
+                id="nature", name="Nature",
+                description="Exploring plants, trees, flowers, and the outdoors",
+                age_range="2-5",
+                topics=["Trees & Leaves", "Flowers & Pollinators", "Gardening & Planting", "Bugs & Minibeasts", "Outdoor Exploration"],
+            ),
+            CurriculumArea(
+                id="music-rhythm", name="Music & Rhythm",
+                description="Developing beat, tempo, and rhythm awareness through music",
+                age_range="2-5",
+                topics=["Beat & Tempo", "Rhythm Patterns", "Musical Instruments", "Loud & Soft", "Marching to a Beat"],
+            ),
+            CurriculumArea(
+                id="daily-routines", name="Daily Routines",
+                description="Learning healthy morning, bedtime, mealtime, and dressing routines",
+                age_range="2-5",
+                topics=["Morning Routine", "Bedtime Routine", "Mealtime Manners", "Getting Dressed", "Making a Routine"],
+            ),
         ]
 
     def select_area(self, exclude: List[str] = None) -> Optional[CurriculumArea]:

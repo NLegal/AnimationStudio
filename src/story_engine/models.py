@@ -211,3 +211,35 @@ class DiversityTracker:
 
     def get_least_used_character(self, characters: List[str]) -> str:
         return min(characters, key=lambda c: self.character_usage.get(c, 0))
+
+
+# ---------------------------------------------------------------------------
+# Doc consistency check
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DocFact:
+    file: str
+    token: str
+    expected: str
+    found: bool = False
+    detail: str = ""
+
+
+@dataclass
+class DocConsistencyReport:
+    facts: List[DocFact] = field(default_factory=list)
+    missing_files: List[str] = field(default_factory=list)
+
+    @property
+    def passed(self) -> bool:
+        return not self.missing_files and all(f.found for f in self.facts)
+
+    def to_dict(self) -> dict:
+        return {
+            "passed": self.passed,
+            "facts_checked": len(self.facts),
+            "facts_passed": sum(1 for f in self.facts if f.found),
+            "facts_failed": [f.file + " -> " + f.token for f in self.facts if not f.found],
+            "missing_files": self.missing_files,
+        }

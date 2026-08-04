@@ -32,6 +32,16 @@ THEME_ASSETS: Dict[str, List[str]] = {
     "music": ["drum", "tambourine", "maraca", "xylophone", "microphone", "kazoo"],
     "growing": ["plant pot", "watering can", "soil", "seed packet", "sunlight", "growth chart"],
     "visit": ["suitcase", "map", "camera", "ticket", "passport"],
+    "art_day": ["paint", "paintbrush", "crayons", "paper", "glue", "clay", "easel"],
+    "easter": ["easter basket", "painted eggs", "jellybeans", "bunny ears", "spring flowers"],
+    "library_day": ["story books", "library card", "book shelf", "puppet", "reading chair"],
+    "music_class": ["drum", "tambourine", "xylophone", "maracas", "sheet music", "microphone"],
+    "new_year": ["party hats", "noisemakers", "confetti", "clock", "sparkles"],
+    "park_visit": ["swing", "slide", "sandbox", "ball", "bubbles", "bench"],
+    "splash_pad": ["water sprinkler", "water balloons", "pool toys", "towel", "sun hat"],
+    "st_patricks_day": ["shamrock", "green hat", "pot of gold", "rainbow", "gold coins"],
+    "thanksgiving": ["pumpkin pie", "cornucopia", "fall leaves", "harvest basket", "dinner table"],
+    "valentines_day": ["valentine cards", "candy hearts", "heart balloons", "flowers", "teddy bear"],
 }
 
 OBJECTIVE_ASSETS: Dict[str, List[str]] = {
@@ -70,7 +80,10 @@ DEFAULT_ASSETS: List[str] = ["play mat", "cushion", "story book", "puppet", "mus
 
 class AssetEngine:
     def __init__(self):
-        self.theme_assets: Dict[str, List[str]] = {k: list(v) for k, v in THEME_ASSETS.items()}
+        self.theme_assets: Dict[str, List[str]] = {}
+        for k, v in THEME_ASSETS.items():
+            self.theme_assets[k] = list(v)
+            self.theme_assets[k.replace("_", "-")] = list(v)
         self.objective_assets: Dict[str, List[str]] = {k: list(v) for k, v in OBJECTIVE_ASSETS.items()}
 
     def select_assets(self, theme: Theme, objective: LearningObjective) -> List[str]:
@@ -95,6 +108,7 @@ class AssetEngine:
 
     def register_theme_assets(self, theme_id: str, assets: List[str]):
         self.theme_assets[theme_id] = assets
+        self.theme_assets[theme_id.replace("_", "-")] = assets
 
     def register_objective_assets(self, objective_id: str, assets: List[str]):
         self.objective_assets[objective_id] = assets

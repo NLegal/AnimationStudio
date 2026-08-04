@@ -54,6 +54,17 @@ CONFLICTS_BY_THEME: Dict[str, List[str]] = {
     "music": ["wrong_color", "cant_count", "forgot_backpack"],
     "growing": ["plant_needs_water", "cant_count", "cold_soup"],
     "visit": ["forgot_backpack", "cant_find_teddy", "lost_in_store"],
+    "zoo": ["cant_find_teddy", "forgot_backpack", "lost_in_store", "spilled_paint"],
+    "park_visit": ["lost_balloon", "cant_find_teddy", "forgot_backpack", "tower_fell_down"],
+    "library_day": ["forgot_backpack", "missing_puzzle_piece", "cant_find_teddy"],
+    "music_class": ["wrong_color", "cant_count", "stuck_zipper"],
+    "art_day": ["spilled_paint", "wrong_color", "cant_count"],
+    "splash_pad": ["cold_soup", "forgot_backpack", "cant_find_teddy"],
+    "valentines_day": ["dropped_cookie", "cant_find_teddy", "wrong_color"],
+    "easter": ["cant_find_teddy", "missing_puzzle_piece", "lost_balloon"],
+    "st_patricks_day": ["missing_puzzle_piece", "cant_find_teddy", "forgot_backpack"],
+    "thanksgiving": ["dropped_cookie", "cold_soup", "cant_count"],
+    "new_year": ["lost_balloon", "cant_count", "forgot_backpack"],
 }
 
 
@@ -104,9 +115,10 @@ RESOLUTIONS_BY_CONFLICT: Dict[str, List[str]] = {
 class ConflictEngine:
     def __init__(self):
         self.conflicts: Dict[str, str] = dict(CONFLICT_THEME_MAP)
-        self.conflicts_by_theme: Dict[str, List[str]] = {
-            k: list(v) for k, v in CONFLICTS_BY_THEME.items()
-        }
+        self.conflicts_by_theme: Dict[str, List[str]] = {}
+        for k, v in CONFLICTS_BY_THEME.items():
+            self.conflicts_by_theme[k] = list(v)
+            self.conflicts_by_theme[k.replace("_", "-")] = list(v)
 
     def select_conflict(self, exclude: Optional[List[str]] = None, theme: Optional[str] = None) -> str:
         pool = list(self.conflicts.keys())
@@ -129,6 +141,7 @@ class ConflictEngine:
 
     def register_theme_conflicts(self, theme_id: str, conflicts: List[str]):
         self.conflicts_by_theme[theme_id] = conflicts
+        self.conflicts_by_theme[theme_id.replace("_", "-")] = conflicts
 
 
 class ResolutionEngine:

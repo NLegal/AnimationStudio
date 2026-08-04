@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 from typing import List
 
 import pytest
@@ -20,11 +21,14 @@ from src.story_engine.validation import StoryValidationEngine
 from src.story_engine.continuity import ContinuityTracker
 from src.story_engine.diversity import DiversityEngine
 from src.story_engine.planner import SeriesPlanner
+from src.story_engine.consistency import check_docs, quality_checklist
 from src.story_engine.models import (
     CurriculumArea, LearningObjective, Theme, StoryGrammar,
     CharacterInfo, DialogueLine, InteractiveMoment, SongPlacement,
     EpisodeBlueprint, SeasonPlan, SeriesPlan, DiversityTracker,
 )
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ======================================================================
@@ -646,3 +650,111 @@ class TestEpisodeBlueprint:
         )
         issues = bp.validate()
         assert len(issues) == 0
+
+
+# ======================================================================
+# TestDocConsistency
+# ======================================================================
+
+class TestDocConsistency:
+    def test_check_docs_passes(self):
+        report = check_docs(os.path.join(ROOT, "StoryEngine"))
+        d = report.to_dict()
+        assert d["passed"], d["facts_failed"]
+        assert d["facts_checked"] == 21
+        assert d["facts_passed"] == 21
+        assert d["missing_files"] == []
+
+    def test_check_docs_prefix_stripping(self):
+        report = check_docs(os.path.join(ROOT, "StoryEngine"))
+        assert report.to_dict()["facts_passed"] == 21
+
+    def test_check_docs_missing_dir(self):
+        report = check_docs("/tmp/does_not_exist_story_engine")
+        assert not report.to_dict()["passed"]
+        assert report.to_dict()["missing_files"]
+
+    def test_quality_checklist(self):
+        checks = quality_checklist()
+        assert len(checks) == 14
+        assert "One clear educational objective" in checks
+        assert "Validation passed" in checks
+
+
+# ======================================================================
+# TestExtendedCurriculum
+# ======================================================================
+
+class TestExtendedCurriculum:
+    def test_all_curriculum_areas_present(self):
+        engine = CurriculumEngine()
+        ids = {a.id for a in engine.list_areas()}
+        assert len(ids) == 25
+        assert {"alphabet", "geography", "nature", "music-rhythm", "daily-routines"} <= ids
+
+    def test_new_area_objectives(self):
+        loe = LearningObjectiveEngine()
+        assert len(loe.get_objectives_for_area("nature")) >= 2
+        assert len(loe.get_objectives_for_area("music-rhythm")) >= 2
+        assert len(loe.get_objectives_for_area("daily-routines")) >= 2
+
+
+# ======================================================================
+# TestExtendedGrammarLibrary
+# ======================================================================
+
+class TestExtendedGrammarLibrary:
+    def test_fourteen_grammars(self):
+        library = StoryGrammarLibrary()
+        grammars = library.list_grammars()
+        assert len(grammars) == 14
+
+    def test_solve_a_puzzle_grammar(self):
+        library = StoryGrammarLibrary()
+        grammar = library.get_grammar("solve_a_puzzle")
+        assert grammar is not None
+        assert grammar.name == "Solve a Puzzle"
+        assert "clues" in " ".join(grammar.structure).lower()
+
+
+# ======================================================================
+# TestThemeAssetResolution
+# ======================================================================
+
+class TestThemeAssetResolution:
+    def test_all_themes_resolve_assets(self):
+        engine = AssetEngine()
+        themes = ThemeEngine()
+        for theme in themes._themes:
+            assert engine.get_assets_for_theme(theme.id), f"no assets for {theme.id}"
+
+    def test_hyphen_and_underscore_forms(self):
+        engine = AssetEngine()
+        assert engine.get_assets_for_theme("lost-toy")
+        assert engine.get_assets_for_theme("lost_toy")
+
+    def test_park_visit_assets(self):
+        engine = AssetEngine()
+        assets = engine.get_assets_for_theme("park-visit")
+        assert assets
+        assert any("swing" in a or "slide" in a for a in assets)
+
+    def test_all_themes_have_conflicts(self):
+        engine = ConflictEngine()
+        themes = ThemeEngine()
+        for theme in themes._themes:
+            assert theme.id in engine.conflicts_by_theme, f"no conflicts for {theme.id}"
+
+
+# ======================================================================
+# TestExtendedEpisodeGenerator
+# ======================================================================
+
+class TestExtendedEpisodeGenerator:
+    def test_generate_episode_validates(self):
+        generator = EpisodeGenerator()
+        blueprint = generator.generate_episode()
+        assert blueprint.learning_objective
+        assert blueprint.assets
+        assert blueprint.interactive_moments
+        assert blueprint.story_grammar

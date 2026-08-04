@@ -237,6 +237,24 @@ ADVENTURE_TOGETHER = StoryGrammar(
     resolution_types=["discovery", "friend_helps", "celebration"],
 )
 
+SOLVE_A_PUZZLE = StoryGrammar(
+    id="solve_a_puzzle",
+    name="Solve a Puzzle",
+    description="A mystery appears and characters solve it by looking for clues and reasoning",
+    structure=[
+        "Opening where a mystery appears",
+        "Looking for clues",
+        "Thinking about what the clues mean",
+        "Putting the clues together",
+        "Discovering the answer",
+        "Aha moment",
+        "Celebration of the solve",
+        "Goodbye",
+    ],
+    conflict_types=["missing_puzzle_piece", "cant_find_teddy", "forgot_backpack"],
+    resolution_types=["discovery", "character_learns", "friend_helps"],
+)
+
 ALL_GRAMMARS: List[StoryGrammar] = [
     FIND_SOMETHING,
     LEARN_SOMETHING,
@@ -251,4 +269,5 @@ ALL_GRAMMARS: List[StoryGrammar] = [
     SING_TOGETHER,
     DANCE_TOGETHER,
     ADVENTURE_TOGETHER,
+    SOLVE_A_PUZZLE,
 ]
