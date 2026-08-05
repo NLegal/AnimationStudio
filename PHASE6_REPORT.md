@@ -15,7 +15,7 @@
 - Curriculum areas: 25
 - Themes: 28
 - Learning objectives: 72
-- Characters: 31
+- Characters: 39
 - Locations: 94 across 9 zones
 - Conflicts: 20
 - Story grammars: 14
@@ -24,11 +24,11 @@
 
 | ID | Title | Area | Objective | Theme | Location | Grammar |
 |----|-------|------|-----------|-------|----------|---------|
-| S01E01 | Lily Bunny Letter A | alphabet | Letter A | lost-toy | Post Office | dance_together |
-| S01E02 | Lily Bunny Count To 10 | numbers | Count to 10 | birthday | Main Family Home | count_something |
-| S01E03 | Lily Bunny Identify Triangle | shapes | Identify Triangle | rainy-day | Lighthouse | celebrate_something |
-| S01E04 | Lily Bunny Recognize Red | colors | Recognize Red | camping | Music Store | adventure_together |
-| S01E05 | Lily Bunny Name Farm Animals | animals | Name Farm Animals | beach | Waterfall Pool | sing_together |
+| S01E01 | Lily Bunny Letter A | alphabet | Letter A | lost-toy | Cloud Village | sort_something |
+| S01E02 | Lily Bunny Count To 10 | numbers | Count to 10 | birthday | Treehouse Village | sing_together |
+| S01E03 | Lily Bunny Identify Triangle | shapes | Identify Triangle | rainy-day | Main Beach | sort_something |
+| S01E04 | Lily Bunny Recognize Red | colors | Recognize Red | camping | Mountain Base Trailhead | visit_somewhere |
+| S01E05 | Lily Bunny Name Farm Animals | animals | Name Farm Animals | beach | Bee Garden | solve_a_puzzle |
 
 ## Episode Validation
 
@@ -63,7 +63,7 @@
 
 ## Summary
 
-- **Libraries encoded:** 25 curriculum areas, 72 objectives, 28 themes, 31 characters, 94 locations, 20 conflicts, 14 grammars.
+- **Libraries encoded:** 25 curriculum areas, 72 objectives, 28 themes, 39 characters, 94 locations, 20 conflicts, 14 grammars.
 - **Doc consistency:** 21/21 facts verified against the StoryEngine/ markdown guides.
 - **Generation:** 5 sample episodes generated; all pass StoryValidationEngine validation.
 - **Series planner:** Season 1 'Meet the Characters' planned with 5 episodes.

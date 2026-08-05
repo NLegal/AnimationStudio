@@ -247,6 +247,31 @@ outfits,turnarounds,lighting}` plus `Universe/ModelSheets/<Name>_model_sheet.png
 Only the mock backend is reproducible offline — real-backend assets should have
 a real `file_path` already recorded by the generation run.
 
+### Windows command wrappers
+
+Every `scripts/*.py` entry point ships a thin PowerShell + batch wrapper
+(`scripts\<name>.ps1` / `scripts\<name>.bat`) that delegates to the generic
+runner (`scripts\py.ps1` / `scripts\py.bat`). The runner resolves Python in
+this order and runs the script from the project root:
+
+1. `$env:PYTHON` (or `%PYTHON%`) — explicit override,
+2. the Python 3.14 install in the user AppData layout
+   (`C:\Users\<you>\AppData\Local\Programs\Python\Python314\python3.exe`,
+   then `python.exe`), i.e. no PATH setup needed,
+3. `python` / `python3` on PATH.
+
+So the Windows command for any script is either the wrapper or the runner:
+
+```powershell
+# wrapper (PowerShell) / batch (cmd)
+.\scripts\generate_phase1_library.ps1 --fast-scoring --jobs 12
+scripts\generate_phase1_library.bat --fast-scoring --jobs 12
+
+# generic runner — same thing, script name first
+.\scripts\py.ps1 seed_universe --db catalog.db
+scripts\py.bat export_assets --db catalog.db --scope all
+```
+
 ### Run Phase 1 from scratch (both platforms)
 
 The full Phase 1 pipeline, in order. These are the only commands you need.
@@ -257,27 +282,30 @@ The full Phase 1 pipeline, in order. These are the only commands you need.
 cd <project-root>
 
 # 0. Install (one-time)
-python -m pip install -e ".[dev]"
+.\scripts\py.ps1 -m pip install -e ".[dev]"
 
 # 1. Seed the catalog from the markdown docs (idempotent)
-python scripts\seed_universe.py --db catalog.db
+.\scripts\seed_universe.ps1 --db catalog.db
 
 # 2. Generate the complete Phase 1 library for all 39 characters
-python scripts\generate_phase1_library.py --fast-scoring --jobs 12
+.\scripts\generate_phase1_library.ps1 --fast-scoring --jobs 12
 
 # 3. Write PNGs to the asset repository + record file_path
-python scripts\export_assets.py --db catalog.db --scope characters
+.\scripts\export_assets.ps1 --db catalog.db --scope characters
 
 # 4. Composite turnarounds into model sheets
-python scripts\build_model_sheets.py --db catalog.db
+.\scripts\build_model_sheets.ps1 --db catalog.db
 
 # 5. Approve the library (--all = full library; default = best reference)
-python scripts\finalize_phase1.py --db catalog.db --all
+.\scripts\finalize_phase1.ps1 --db catalog.db --all
 
 # 6. Review everything in the web UI
 uvicorn src.review_ui:create_app --factory --reload --port 8000
 #    → open http://localhost:8000
 ```
+
+> `.\scripts\py.ps1 -m pip …` forwards `-m`/`pip` to the resolved Python;
+> `py.bat` supports the same (`scripts\py.bat -m pip install -e ".[dev]"`).
 
 **macOS / Linux (bash):**
 
@@ -299,14 +327,15 @@ uvicorn src.review_ui:create_app --factory --reload --port 8000
 ### Local generation (ComfyUI + Flux)
 
 ComfyUI is the optional R&D backend for real (non-placeholder) images. Install
-it plus a quantized Flux checkpoint with the platform setup script:
+it plus the fp8 Flux checkpoint with the platform setup script:
 
 **Windows (PowerShell):**
 
 ```powershell
-.\scripts\setup_comfyui_flux.ps1                  # install + download (~9GB)
-.\scripts\setup_comfyui_flux.ps1 -Serve           # start the server on :8188
-python scripts\generate_phase1_library.py --backend comfyui --comfyui-url http://localhost:8188
+.\scripts\setup_comfyui_flux.ps1                  # install + download (~12GB)
+.\scripts\setup_comfyui_flux.ps1 -Serve           # start the server on :8188 (CUDA)
+.\scripts\setup_comfyui_flux.ps1 -Serve -Cpu      # CPU-only machines only
+.\scripts\generate_phase1_library.ps1 --backend comfyui --comfyui-url http://localhost:8188
 ```
 
 If PowerShell blocks the script, bypass for this session first:
@@ -315,16 +344,18 @@ If PowerShell blocks the script, bypass for this session first:
 **macOS / Linux (bash):**
 
 ```bash
-bash scripts/setup_comfyui_flux.sh                # install + download (~9GB)
+bash scripts/setup_comfyui_flux.sh                # install + download (~12GB)
 bash scripts/setup_comfyui_flux.sh --serve        # start the server on :8188
 python3 scripts/generate_phase1_library.py --backend comfyui
 ```
 
-The script clones ComfyUI into `tools/comfyui/`, installs the ComfyUI-GGUF
-custom node, downloads the quantized Flux (dev) checkpoint, and places it at
-the exact path the workflow templates reference (`models/checkpoints/
-flux1-dev.safetensors`). The server runs with `--cpu` — expect minutes per
-image; for fast real generation prefer the cloud backends instead.
+The script clones ComfyUI into `tools/comfyui/`, downloads the fp8 Flux (dev)
+checkpoint, and places it at the exact path the workflow templates reference
+(`models/checkpoints/flux1-dev.safetensors`) so the stock
+`CheckpointLoaderSimple` node loads it unchanged. On a GPU box the server
+starts with CUDA by default (seconds per image); pass `-Cpu` (Windows) /
+`--cpu` (Linux) only on CPU-only machines, where you should expect minutes per
+image and prefer the cloud backends instead.
 
 ### Cloud generation (optional)
 
@@ -333,7 +364,7 @@ Set keys in `.env` (copy from `.env.example`), then use `--backend cloud`:
 ```powershell
 # Windows (PowerShell)
 $env:FAL_API_KEY = "<key>"          # or set in .env
-python scripts\generate_phase1_library.py --backend cloud --provider fal
+.\scripts\generate_phase1_library.ps1 --backend cloud --provider fal
 ```
 
 ```bash
@@ -405,19 +436,19 @@ reference sheets in `World/ReferenceSheets/`.
 cd <project-root>
 
 # 1. Seed the catalog from the markdown docs (idempotent)
-python scripts\seed_universe.py --db catalog.db
+.\scripts\seed_universe.ps1 --db catalog.db
 
 # 2. Generate the complete world library (all 130 locations + vehicles + backgrounds)
-python scripts\generate_phase2_world.py --fast-scoring --jobs 12
+.\scripts\generate_phase2_world.ps1 --fast-scoring --jobs 12
 
 # 3. Write PNGs to the world asset repository + record file_path
-python scripts\export_assets.py --db catalog.db --scope all
+.\scripts\export_assets.ps1 --db catalog.db --scope all
 
 # 4. Composite labeled reference sheets
-python scripts\build_world_sheets.py --db catalog.db
+.\scripts\build_world_sheets.ps1 --db catalog.db
 
 # 5. Approve the library
-python scripts\finalize_phase1.py --db catalog.db --all
+.\scripts\finalize_phase1.ps1 --db catalog.db --all
 
 # 6. Review everything in the web UI
 uvicorn src.review_ui:create_app --factory --reload --port 8000

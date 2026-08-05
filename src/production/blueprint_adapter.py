@@ -197,7 +197,7 @@ def blueprint_to_episode(
                 camera=camera,
                 characters=_make_shot_characters(all_chars, beat, sdata, blueprint.main_character),
                 assets=list(blueprint.assets),
-                environment=blueprint.location,
+                environment=blueprint.location_id or blueprint.location,
                 animation=sdata.get("animation", "idle"),
                 lighting="natural",
                 weather=blueprint.weather,

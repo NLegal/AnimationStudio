@@ -21,17 +21,20 @@ from src.story_engine.reinforcement import ReinforcementEngine, VocabularyEngine
 from src.story_engine.validation import StoryValidationEngine
 from src.story_engine.diversity import DiversityEngine
 from src.story_engine.continuity import ContinuityTracker
+from src.story_engine.catalog import StoryCatalog
 
 
 class EpisodeGenerator:
-    def __init__(self):
+    def __init__(self, catalog_path: Optional[str] = "catalog.db"):
+        catalog = StoryCatalog(catalog_path)
+        self.catalog = catalog
         self.curriculum = CurriculumEngine()
         self.theme_engine = ThemeEngine()
         self.learning_objective = LearningObjectiveEngine()
-        self.character = CharacterEngine()
+        self.character = CharacterEngine(catalog=catalog)
         self.relationship = RelationshipEngine(self.character)
-        self.world = WorldEngine()
-        self.asset = AssetEngine()
+        self.world = WorldEngine(catalog=catalog)
+        self.asset = AssetEngine(catalog=catalog)
         self.conflict = ConflictEngine()
         self.resolution = ResolutionEngine()
         self.narrative = NarrativeEngine()
@@ -203,7 +206,28 @@ class EpisodeGenerator:
             language="en",
         )
 
+        self._enrich_blueprint(blueprint, all_chars)
+
         return blueprint
+
+    def _enrich_blueprint(
+        self, blueprint: EpisodeBlueprint, all_chars: List[str]
+    ) -> None:
+        """Attach production catalog records to the blueprint, when available."""
+        if self.catalog is None or not self.catalog.available:
+            return
+        blueprint.location_id = self.world.location_id(blueprint.location)
+        zone = self.world.location_zone(blueprint.location)
+        if zone:
+            blueprint.location_zone = zone
+        blueprint.asset_file_paths = self.asset.resolve_file_paths(blueprint.assets)
+        blueprint.asset_ids = self.asset.resolve_asset_ids(blueprint.assets)
+        blueprint.character_catalog = {
+            char_id: record
+            for char_id in all_chars
+            for record in [self.character.catalog_info(char_id)]
+            if record is not None
+        }
 
     @staticmethod
     def _normalize_beat(beat: str) -> str:

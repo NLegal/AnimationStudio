@@ -22,6 +22,8 @@ from src.story_engine.continuity import ContinuityTracker
 from src.story_engine.diversity import DiversityEngine
 from src.story_engine.planner import SeriesPlanner
 from src.story_engine.consistency import check_docs, quality_checklist
+from src.story_engine.catalog import StoryCatalog
+from src.story_engine.world import LOCATION_ID_MAP
 from src.story_engine.models import (
     CurriculumArea, LearningObjective, Theme, StoryGrammar,
     CharacterInfo, DialogueLine, InteractiveMoment, SongPlacement,
@@ -758,3 +760,170 @@ class TestExtendedEpisodeGenerator:
         assert blueprint.assets
         assert blueprint.interactive_moments
         assert blueprint.story_grammar
+
+
+# ======================================================================
+# TestExpandedCharacterRoster
+# ======================================================================
+
+class TestExpandedCharacterRoster:
+    """Phase-1 characters approved in the universe but missing from casting.
+
+    The story engine must be able to cast every approved character.
+    """
+
+    MISSING_IDS = [
+        "alien",
+        "cloud",
+        "construction-worker-beaver",
+        "friendly-dinosaur-brontosaurus",
+        "moon",
+        "rainbow",
+        "stars",
+        "sun",
+    ]
+
+    FOLDER_TO_ID = {
+        "Alien": "alien",
+        "Cloud": "cloud",
+        "Construction Worker Beaver": "construction-worker-beaver",
+        "Friendly Dinosaur (Brontosaurus)": "friendly-dinosaur-brontosaurus",
+        "Moon": "moon",
+        "Rainbow": "rainbow",
+        "Stars": "stars",
+        "Sun": "sun",
+    }
+
+    def setup_method(self):
+        self.engine = CharacterEngine()
+
+    def test_all_phase1_characters_are_castable(self):
+        ids = {c.character_id for c in self.engine.list_all()}
+        for char_id in self.MISSING_IDS:
+            assert char_id in ids, f"{char_id} not in casting roster"
+
+    def test_every_character_has_full_profile(self):
+        for char in self.engine.list_all():
+            assert char.name, char.character_id
+            assert char.home, char.character_id
+            assert char.personality, char.character_id
+            assert char.preferred_locations, char.character_id
+
+    def test_roster_matches_universe_directories(self):
+        universe_dir = os.path.join(ROOT, "Universe", "Characters")
+        if not os.path.isdir(universe_dir):
+            pytest.skip("Universe/Characters directory not present")
+        roster_ids = {c.character_id for c in self.engine.list_all()}
+        for folder in os.listdir(universe_dir):
+            if os.path.isdir(os.path.join(universe_dir, folder)):
+                char_id = self.FOLDER_TO_ID.get(folder, folder.lower().replace(" ", "-"))
+                assert char_id in roster_ids, (
+                    f"'{folder}' approved in Universe but missing from casting"
+                )
+
+    def test_expanded_characters_reachable_as_supporting(self):
+        main_info = self.engine.select_main_character()
+        related = self.engine.get_character(main_info.character_id)
+        reachable = set(related.relationships) if related else set()
+        for char_id in self.MISSING_IDS:
+            assert char_id in reachable, (
+                f"{char_id} not reachable from main character's relationships"
+            )
+
+    def test_catalog_info_resolves_lily(self):
+        engine = CharacterEngine(catalog=StoryCatalog(os.path.join(ROOT, "catalog.db")))
+        record = engine.catalog_info("lily-bunny")
+        assert record is not None
+        assert record["name"] == "Lily Bunny"
+        assert record["species"]
+
+
+# ======================================================================
+# TestLocationIdMapping
+# ======================================================================
+
+class TestLocationIdMapping:
+    def setup_method(self):
+        self.engine = WorldEngine()
+
+    def test_known_locations_resolve_to_env_ids(self):
+        for location in ["Main Family Home", "Bakery", "Fire Station", "School Library"]:
+            assert self.engine.location_id(location), f"no ENV id for {location}"
+
+    def test_every_location_in_map(self):
+        from src.story_engine.world import ALL_LOCATIONS
+        for location in ALL_LOCATIONS:
+            assert location in LOCATION_ID_MAP, f"{location} missing from LOCATION_ID_MAP"
+
+    def test_bible_identifier_format(self):
+        for location, env_id in LOCATION_ID_MAP.items():
+            if env_id is not None:
+                assert env_id.startswith("ENV_"), f"{location} -> {env_id}"
+
+    def test_only_bible_undefined_locations_are_null(self):
+        assert LOCATION_ID_MAP["Beachside Pavilion"] is None
+        assert LOCATION_ID_MAP["Winter Sledding Hill"] is None
+        assert LOCATION_ID_MAP["Rainbow Bridge"] is None
+
+
+# ======================================================================
+# TestStoryCatalogIntegration
+# ======================================================================
+
+class TestStoryCatalogIntegration:
+    """Story Engine resolving against the production catalog.db."""
+
+    def setup_method(self):
+        self.db = os.path.join(ROOT, "catalog.db")
+        self.catalog = StoryCatalog(self.db)
+
+    def test_offline_catalog_degrades_gracefully(self):
+        offline = StoryCatalog(db_path=None)
+        assert offline.available is False
+        assert offline.resolve_character("lily-bunny") is None
+        assert offline.resolve_location("Main Family Home") is None
+        assert offline.resolve_assets(["cake"]) == {}
+        assert offline.list_universe_characters() == []
+
+    def test_resolve_location_from_catalog(self):
+        if not self.catalog.available:
+            pytest.skip("catalog.db not present")
+        record = self.catalog.resolve_location("Main Family Home")
+        assert record is not None
+        assert record["name"] == "Bunny Family Home"
+        assert record["zone"]
+
+    def test_resolve_prop_to_approved_file(self):
+        if not self.catalog.available:
+            pytest.skip("catalog.db not present")
+        resolved = self.catalog.resolve_assets(["cake", "books"])
+        assert resolved
+        for name, record in resolved.items():
+            assert record["asset_id"]
+            assert record["file_path"]
+
+    def test_universe_characters_from_catalog(self):
+        if not self.catalog.available:
+            pytest.skip("catalog.db not present")
+        chars = self.catalog.list_universe_characters()
+        names = {c["name"] for c in chars}
+        assert "Lily Bunny" in names
+        assert len(chars) >= 39
+
+    def test_generator_enriches_blueprint(self):
+        if not os.path.isfile(self.db):
+            pytest.skip("catalog.db not present")
+        generator = EpisodeGenerator(catalog_path=self.db)
+        blueprint = generator.generate_episode(season=1, episode_number=1)
+        assert blueprint.location_id is not None
+        assert blueprint.location_zone
+        assert blueprint.character_catalog
+        assert "lily-bunny" in blueprint.character_catalog
+
+    def test_generator_offline_keeps_blueprint_valid(self):
+        generator = EpisodeGenerator(catalog_path=None)
+        blueprint = generator.generate_episode(season=1, episode_number=1)
+        assert blueprint.validate() == []
+        assert blueprint.location_id is None
+        assert blueprint.location_zone is None
+        assert blueprint.character_catalog == {}

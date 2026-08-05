@@ -94,6 +94,18 @@ class SQLiteCharacterRepository(CharacterRepository):
                     locked_at TEXT
                 )
             """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_characters_name "
+                "ON characters(name)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_characters_name_category "
+                "ON characters(name, category)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_characters_asset_id "
+                "ON characters(json_extract(bio_data, '$.asset_id'))"
+            )
 
     async def save_character(self, char: CharacterModel) -> str:
         with self._get_conn() as conn:

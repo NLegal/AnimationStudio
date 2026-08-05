@@ -1,9 +1,11 @@
 from typing import List, Optional
 from src.story_engine.models import CharacterInfo
+from src.story_engine.catalog import StoryCatalog
 
 
 class CharacterEngine:
-    def __init__(self):
+    def __init__(self, catalog: Optional[StoryCatalog] = None):
+        self.catalog = catalog
         self._characters: List[CharacterInfo] = [
             CharacterInfo(
                 character_id="lily-bunny", name="Lily Bunny", role="student", age_group="child",
@@ -16,6 +18,10 @@ class CharacterEngine:
                     "grandma-bunny": "grandmother", "grandpa-bunny": "grandfather", "baby-bunny": "sibling",
                     "doctor-panda": "family doctor", "librarian-hedgehog": "story time friend",
                     "dog": "neighbor's pet", "cat": "neighbor's pet",
+                    "alien": "curious new friend", "cloud": "sky friend", "moon": "bedtime friend",
+                    "rainbow": "rainbow-day friend", "stars": "night friends", "sun": "morning friend",
+                    "construction-worker-beaver": "built the playhouse",
+                    "friendly-dinosaur-brontosaurus": "gentle giant friend",
                 },
                 home="The Bunny Burrow",
                 preferred_locations=["Sunny Meadows", "Butterfly Garden", "Playground", "Kitchen", "Classroom"],
@@ -29,7 +35,8 @@ class CharacterEngine:
                     "lily-bunny": "best friend", "daisy-duck": "friend", "charlie-fox": "friend",
                     "teacher-owl": "teacher", "doctor-panda": "family doctor",
                     "firefighter-dalmatian": "role model", "chef-pig": "makes honey treats",
-                    "dog": "friend",
+                    "dog": "friend", "construction-worker-beaver": "building buddy",
+                    "friendly-dinosaur-brontosaurus": "adventure buddy",
                 },
                 home="The Bear Cave",
                 preferred_locations=["Forest", "Playground", "River", "Home", "Gym"],
@@ -406,6 +413,104 @@ class CharacterEngine:
                 home="The Cozy Cave",
                 preferred_locations=["Cave", "Mountain", "Sky", "Campfire"],
             ),
+            CharacterInfo(
+                character_id="alien", name="Alien", role="fantasy", age_group="fantasy",
+                personality=["curious", "friendly", "playful", "enthusiastic", "eager to learn"],
+                catchphrases=["Beep-bop!", "Earth is amazing!", "Zee says hi!"],
+                favorite_things=["space snacks", "star counting", "floating", "Earth objects", "glowing antenna"],
+                relationships={
+                    "rainbow": "celestial friend", "stars": "friend", "moon": "night friend",
+                    "lily-bunny": "curious friend", "sun": "new-day friend",
+                },
+                home="The Spaceship",
+                preferred_locations=["Sky", "Moon Garden", "Rainbow Bridge", "Playground", "Classroom"],
+            ),
+            CharacterInfo(
+                character_id="cloud", name="Cloud", role="fantasy", age_group="fantasy",
+                personality=["dreamy", "creative", "gentle", "playful", "wise"],
+                catchphrases=["Fluffy puffs!", "Watch my shape!", "Drift along!"],
+                favorite_things=["shape-shifting", "sunbeams", "storytelling", "soft rain", "wind rides"],
+                relationships={
+                    "moon": "peekaboo friend", "rainbow": "rainy-day friend",
+                    "sun": "morning buddy", "stars": "night friends", "lily-bunny": "story time friend",
+                },
+                home="Cloud Village",
+                preferred_locations=["Cloud Village", "Sky", "Rainbow Bridge", "Moon Garden", "Magic Forest"],
+            ),
+            CharacterInfo(
+                character_id="construction-worker-beaver", name="Construction Worker Beaver", role="adult", age_group="adult",
+                personality=["hardworking", "helpful", "sturdy", "friendly", "careful"],
+                catchphrases=["Buildy-buildy!", "Time to build!", "Hard hat on!"],
+                favorite_things=["building", "his hammer Thor", "blueprints", "hard hats", "measuring tape"],
+                relationships={
+                    "police-officer-beaver": "brother", "firefighter-dalmatian": "coworker",
+                    "farmer-goat": "builds barns together", "ben-bear": "building buddy",
+                    "lily-bunny": "built her playhouse",
+                },
+                home="The Construction Site",
+                preferred_locations=["Construction Site", "Town Square", "Playground", "Community Center"],
+            ),
+            CharacterInfo(
+                character_id="friendly-dinosaur-brontosaurus", name="Friendly Dinosaur", role="fantasy", age_group="fantasy",
+                personality=["gentle", "patient", "kind", "shy", "warm-hearted"],
+                catchphrases=["Dino hug!", "Slow and steady!", "Leafy snack time!"],
+                favorite_things=["leaves", "flowers", "reaching high branches", "long walks", "flower crowns"],
+                relationships={
+                    "unicorn": "meadow friend", "friendly-dragon": "fellow gentle giant",
+                    "lily-bunny": "friend", "ben-bear": "adventure buddy",
+                },
+                home="The Meadow",
+                preferred_locations=["Flower Meadow", "Forest", "Rainbow Bridge", "Magic Forest", "Apple Orchard"],
+            ),
+            CharacterInfo(
+                character_id="moon", name="Moon", role="fantasy", age_group="fantasy",
+                personality=["calm", "soothing", "gentle", "sleepy", "wise"],
+                catchphrases=["Goodnight, little one!", "Moonlight hugs!", "Twinkle with me!"],
+                favorite_things=["stardust", "bedtime stories", "night skies", "lullabies", "guiding lights"],
+                relationships={
+                    "sun": "day-night friends", "stars": "companions", "cloud": "peekaboo friend",
+                    "lily-bunny": "bedtime friend",
+                },
+                home="Moon Garden",
+                preferred_locations=["Moon Garden", "Sky", "Cloud Village", "Rainbow Bridge", "Bedroom Window"],
+            ),
+            CharacterInfo(
+                character_id="rainbow", name="Rainbow", role="fantasy", age_group="fantasy",
+                personality=["cheerful", "hopeful", "bright", "warm", "united"],
+                catchphrases=["Colorful day!", "After the rain, a rainbow!", "All colors together!"],
+                favorite_things=["all colors", "sunshine droplets", "appearing after rain", "hide-and-seek", "spring skies"],
+                relationships={
+                    "sun": "rainbow partner", "cloud": "rainy-day friend",
+                    "unicorn": "colorful friend", "lily-bunny": "paint-day friend",
+                },
+                home="Rainbow Bridge",
+                preferred_locations=["Rainbow Bridge", "Rainbow Castle", "Sky", "Moon Garden", "Magic Forest"],
+            ),
+            CharacterInfo(
+                character_id="stars", name="Stars", role="fantasy", age_group="fantasy",
+                personality=["cheerful", "sparkly", "gentle", "brave", "loyal"],
+                catchphrases=["Twinkle twinkle!", "Sparkle time!", "We shine together!"],
+                favorite_things=["moon dust", "constellations", "twinkling patterns", "night skies", "guiding"],
+                relationships={
+                    "moon": "companion", "sun": "warm friend", "cloud": "hide-and-seek friend",
+                    "lily-bunny": "wish friend",
+                },
+                home="The Night Sky",
+                preferred_locations=["Sky", "Moon Garden", "Cloud Village", "Starry Meadow", "Bedroom Window"],
+            ),
+            CharacterInfo(
+                character_id="sun", name="Sun", role="fantasy", age_group="fantasy",
+                personality=["warm", "energetic", "cheerful", "encouraging", "punctual"],
+                catchphrases=["Rise and shine!", "Sunny day ahead!", "Let's grow!"],
+                favorite_things=["morning dew", "sunflowers", "waking everyone up", "growing plants", "golden light"],
+                relationships={
+                    "moon": "day-night friends", "cloud": "peekaboo friend",
+                    "rainbow": "rainbow partner", "farmer-goat": "grows the crops",
+                    "lily-bunny": "morning friend",
+                },
+                home="The Morning Sky",
+                preferred_locations=["Sky", "Farm", "Flower Meadow", "Rainbow Bridge", "Garden"],
+            ),
         ]
 
     def select_main_character(self, exclude=None):
@@ -434,6 +539,25 @@ class CharacterEngine:
 
     def list_by_role(self, role):
         return [c for c in self._characters if c.role == role]
+
+    def list_all(self):
+        return list(self._characters)
+
+    def catalog_info(self, character_id):
+        """Catalog record (id, name, category, species) for a character, if available.
+
+        Resolves by id first (catalog UUIDs), then by the character's display
+        name (story-engine slugs such as ``lily-bunny``).
+        """
+        if self.catalog is None or not self.catalog.available:
+            return None
+        record = self.catalog.resolve_character(character_id)
+        if record is not None:
+            return record
+        char = self.get_character(character_id)
+        if char is None:
+            return None
+        return self.catalog.resolve_character_by_name(char.name)
 
 
 class RelationshipEngine:

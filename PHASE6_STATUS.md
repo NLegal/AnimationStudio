@@ -48,7 +48,7 @@
 - **`src/story_engine/`** — machine-readable encoding of the Phase 6 story engine:
   - `models.py` — 16 dataclasses (CurriculumArea, LearningObjective, Theme, StoryGrammar, CharacterInfo, DialogueLine, InteractiveMoment, SongPlacement, EpisodeBlueprint, SeasonPlan, SeriesPlan, ContinuityRecord, DiversityTracker, DocFact, DocConsistencyReport).
   - `curriculum.py`, `theme.py`, `learning_objective.py` — planning libraries (25 areas, 28 themes, 72 objectives).
-  - `casting.py`, `world.py`, `asset.py`, `plot.py` — characters (31), locations (94/9 zones), assets, conflicts (20) + resolutions.
+  - `casting.py`, `world.py`, `asset.py`, `plot.py` — characters (39), locations (94/9 zones + ENV id map), assets, conflicts (20) + resolutions.
   - `narrative.py`, `grammar_data.py`, `dialogue.py`, `song.py`, `interaction.py`, `reinforcement.py` — story/dialogue/song/interaction/emotion/humor/vocabulary generation.
   - `generator.py` — `EpisodeGenerator` orchestrating 18 sub-engines into an `EpisodeBlueprint`.
   - `validation.py`, `continuity.py`, `diversity.py`, `planner.py` — quality gate, continuity, diversity, series/season planning.

@@ -36,6 +36,19 @@ class TestBlueprintToEpisodeAdapter:
         for scene in ep.scenes:
             assert scene.location == bp.location
 
+    def test_adapter_uses_env_id_for_shots_when_available(self):
+        import os
+        if not os.path.isfile("catalog.db"):
+            pytest.skip("catalog.db not present")
+        gen = EpisodeGenerator(catalog_path="catalog.db")
+        bp = gen.generate_episode()
+        ep = blueprint_to_episode(bp)
+        for scene in ep.scenes:
+            for shot in scene.shots:
+                assert shot.environment
+                if bp.location_id:
+                    assert shot.environment == bp.location_id
+
     def test_adapter_maps_assets(self):
         gen = EpisodeGenerator()
         bp = gen.generate_episode()

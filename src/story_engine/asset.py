@@ -3,6 +3,7 @@ import random
 from typing import List, Dict, Optional
 
 from src.story_engine.models import Theme, LearningObjective
+from src.story_engine.catalog import StoryCatalog
 
 
 THEME_ASSETS: Dict[str, List[str]] = {
@@ -79,7 +80,8 @@ DEFAULT_ASSETS: List[str] = ["play mat", "cushion", "story book", "puppet", "mus
 
 
 class AssetEngine:
-    def __init__(self):
+    def __init__(self, catalog: Optional[StoryCatalog] = None):
+        self.catalog = catalog
         self.theme_assets: Dict[str, List[str]] = {}
         for k, v in THEME_ASSETS.items():
             self.theme_assets[k] = list(v)
@@ -112,3 +114,29 @@ class AssetEngine:
 
     def register_objective_assets(self, objective_id: str, assets: List[str]):
         self.objective_assets[objective_id] = assets
+
+    def resolve_file_paths(self, asset_names: List[str]) -> Dict[str, str]:
+        """Resolve approved production file paths for prop names via the catalog.
+
+        Returns ``{prop_name: file_path}``; names without an approved asset are
+        omitted so callers fall back to the offline asset names.
+        """
+        if self.catalog is None or not self.catalog.available or not asset_names:
+            return {}
+        resolved = self.catalog.resolve_assets(asset_names)
+        return {
+            name: record["file_path"]
+            for name, record in resolved.items()
+            if record.get("file_path")
+        }
+
+    def resolve_asset_ids(self, asset_names: List[str]) -> List[str]:
+        """Resolve permanent catalog asset ids (ANM_/FOOD_/PRP_...) for prop names."""
+        if self.catalog is None or not self.catalog.available or not asset_names:
+            return []
+        resolved = self.catalog.resolve_assets(asset_names)
+        return [
+            record["asset_id"]
+            for record in resolved.values()
+            if record.get("asset_id")
+        ]

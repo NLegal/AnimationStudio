@@ -24,3 +24,6 @@ Thumbs.db
 
 # Environment
 .env
+
+# Local tool installs (ComfyUI and friends land here via the setup scripts)
+tools/

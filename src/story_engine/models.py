@@ -120,6 +120,11 @@ class EpisodeBlueprint:
     keywords: List[str] = field(default_factory=list)
     curriculum_tags: List[str] = field(default_factory=list)
     language: str = "en"
+    location_id: Optional[str] = None
+    location_zone: Optional[str] = None
+    asset_ids: List[str] = field(default_factory=list)
+    asset_file_paths: Dict[str, str] = field(default_factory=dict)
+    character_catalog: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     def validate(self) -> List[str]:
         issues = []
