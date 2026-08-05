@@ -111,20 +111,34 @@ fi
 # --------------------------------------------------------------------------- #
 # 3. Start the server (CUDA by default, --cpu only with --cpu)
 # --------------------------------------------------------------------------- #
-SERVE=0; CPU=0
+SERVE=0; CPU=0; LOWVRAM=0
 for arg in "$@"; do
     case "${arg}" in
         --serve)        SERVE=1 ;;
         --cpu)          CPU=1 ;;
+        --lowvram)      LOWVRAM=1 ;;
     esac
 done
 if [ "${SERVE}" = "1" ]; then
+    # oneDNN/MKL ISA workaround - prevents access-violation crashes in
+    # torch.nn.Linear on AMD/older CPUs when the model builds on CPU.
+    export ONEDNN_MAX_CPU_ISA="AVX2"
+    export MKL_ENABLE_INSTRUCTIONS="AVX2"
+
     if [ "${CPU}" = "1" ]; then
-        log "Starting ComfyUI on :${PORT} (--cpu) …"
+        log "Starting ComfyUI on :${PORT} (--cpu, forced) ..."
         exec python3 "${COMFYUI_DIR}/main.py" --cpu --port "${PORT}" --listen 127.0.0.1
     fi
-    log "Starting ComfyUI on :${PORT} (CUDA) …"
-    exec python3 "${COMFYUI_DIR}/main.py" --port "${PORT}" --listen 127.0.0.1
+    if [ "${LOWVRAM}" = "1" ]; then
+        log "Starting ComfyUI on :${PORT} (CUDA, --lowvram) ..."
+        exec python3 "${COMFYUI_DIR}/main.py" --lowvram --port "${PORT}" --listen 127.0.0.1
+    fi
+    if python3 -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+        log "Starting ComfyUI on :${PORT} (CUDA) ..."
+        exec python3 "${COMFYUI_DIR}/main.py" --port "${PORT}" --listen 127.0.0.1
+    fi
+    log "torch reports no CUDA device - starting with --cpu to avoid an access-violation crash while loading the checkpoint."
+    exec python3 "${COMFYUI_DIR}/main.py" --cpu --port "${PORT}" --listen 127.0.0.1
 fi
 
 log "Done. Start it with:"

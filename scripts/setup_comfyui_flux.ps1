@@ -19,8 +19,9 @@
 
     Usage (PowerShell):
       .\scripts\setup_comfyui_flux.ps1                 # install + download
-      .\scripts\setup_comfyui_flux.ps1 -Serve          # just start the server (GPU)
-      .\scripts\setup_comfyui_flux.ps1 -Serve -Cpu     # start the server on CPU
+      .\scripts\setup_comfyui_flux.ps1 -Serve          # start the server (auto: CUDA or --cpu)
+      .\scripts\setup_comfyui_flux.ps1 -Serve -Cpu     # force --cpu (no GPU box)
+      .\scripts\setup_comfyui_flux.ps1 -Serve -LowVram # small-GPU box (--lowvram)
       .\scripts\setup_comfyui_flux.ps1 -SkipDownload   # skip the model download
 
     Env vars:  $env:PYTHON       (python executable override)
@@ -38,7 +39,8 @@
 param(
     [switch]$Serve,
     [switch]$SkipDownload,
-    [switch]$Cpu
+    [switch]$Cpu,
+    [switch]$LowVram
 )
 
 $ErrorActionPreference = "Stop"
@@ -157,18 +159,33 @@ if ($SkipDownload) {
 if (-not (Test-Path $CkptDest)) { Die "checkpoint not found at $CkptDest" }
 
 # --------------------------------------------------------------------------- #
-# 3. Start the server (GPU by default, --cpu only with -Cpu)
+# 3. Start the server (CUDA when available, --cpu otherwise or with -Cpu)
 # --------------------------------------------------------------------------- #
 if ($Serve) {
-    $args = @(".\main.py", "--port", $Port, "--listen", "127.0.0.1")
+    # oneDNN/MKL ISA workaround - prevents access-violation crashes in
+    # torch.nn.Linear on AMD/older CPUs when the model builds on CPU.
+    $env:ONEDNN_MAX_CPU_ISA = "AVX2"
+    $env:MKL_ENABLE_INSTRUCTIONS = "AVX2"
+
+    $launchArgs = @(".\main.py", "--port", $Port, "--listen", "127.0.0.1")
     if ($Cpu) {
-        Log "Starting ComfyUI on :$Port (--cpu) ..."
-        $args = @(".\main.py", "--cpu", "--port", $Port, "--listen", "127.0.0.1")
+        Log "Starting ComfyUI on :$Port (--cpu, forced by -Cpu) ..."
+        $launchArgs += "--cpu"
+    } elseif ($LowVram) {
+        Log "Starting ComfyUI on :$Port (CUDA, --lowvram) ..."
+        $launchArgs += "--lowvram"
     } else {
-        Log "Starting ComfyUI on :$Port (CUDA) ..."
+        # Ask the resolved Python whether torch sees a CUDA device.
+        $cuda = & $Py -c "import torch; print(int(torch.cuda.is_available()))" 2>$null
+        if ($cuda -eq "1") {
+            Log "Starting ComfyUI on :$Port (CUDA) ..."
+        } else {
+            Log "torch reports no CUDA device - starting with --cpu to avoid an access-violation crash while loading the checkpoint."
+            $launchArgs += "--cpu"
+        }
     }
     Push-Location $ComfyDir
-    & $Py @args
+    & $Py @launchArgs
     Pop-Location
     exit 0
 }
