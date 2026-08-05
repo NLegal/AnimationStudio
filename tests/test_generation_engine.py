@@ -406,6 +406,38 @@ class TestComfyUIWorkflowLoading:
         assert workflow["3"]["inputs"]["cfg"] == 7.0
         assert workflow["3"]["class_type"] == "KSampler"
 
+    def test_default_template_has_valid_ckpt_name(self):
+        """Fallback template must carry the installed checkpoint name."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+
+        backend = ComfyUIBackend()
+        workflow = backend._load_workflow_template("nonexistent_type")
+
+        assert workflow["4"]["class_type"] == "CheckpointLoaderSimple"
+        assert workflow["4"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
+
+    def test_build_workflow_fills_empty_ckpt_name(self):
+        """Every submitted workflow names a checkpoint, never an empty string."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+        from src.generation_engine.base import GenerationInput
+
+        backend = ComfyUIBackend()
+        workflow = backend._build_workflow(GenerationInput(prompt="hi"), asset_type="nope")
+
+        assert workflow["4"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
+
+    def test_reference_aliases_to_reference_sheet(self):
+        """'reference'/'lighting' reuse the reference_sheet graph (cfg 3.5)."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+
+        backend = ComfyUIBackend()
+        workflow = backend._load_workflow_template("reference")
+        assert workflow["3"]["inputs"]["cfg"] == 3.5
+        assert workflow["4"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
+
+        lighting = backend._load_workflow_template("lighting")
+        assert lighting["3"]["inputs"]["cfg"] == 3.5
+
     def test_prompt_injection_into_loaded_workflow(self):
         """Build workflow with prompt, verify node 6 has injected text."""
         from src.generation_engine.comfy_backend import ComfyUIBackend

@@ -22,6 +22,19 @@ logger = logging.getLogger(__name__)
 # Path to the workflows directory containing type-specific JSON templates.
 _WORKFLOW_DIR = Path(__file__).parent / "workflows"
 
+# Checkpoint the ComfyUI setup scripts install (setup_comfyui_flux.ps1/.sh
+# place the fp8 Flux dev safetensors under exactly this name).  Used to fill
+# in any loader node that would otherwise submit an empty ckpt_name, which
+# ComfyUI rejects with "Value not in list".
+_DEFAULT_CKPT_NAME = "flux1-dev.safetensors"
+
+# Generation asset types that do not have a dedicated graph reuse the closest
+# single-image template instead of falling through to the bare default.
+_WORKFLOW_ALIASES: dict[str, str] = {
+    "reference": "reference_sheet",
+    "lighting": "reference_sheet",
+}
+
 # Default minimal workflow JSON template for single-image generation.
 # In practice, users should export their own workflow from ComfyUI
 # and place it in the configured template path.
@@ -41,7 +54,7 @@ _DEFAULT_WORKFLOW_TEMPLATE: dict = {
             "latent_image": ["5", 0],
         },
     },
-    "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ""}},
+    "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": _DEFAULT_CKPT_NAME}},
     "5": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
     "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
     "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
@@ -254,6 +267,17 @@ class ComfyUIBackend(GenerationBackend):
         """
         workflow = self._load_workflow_template(asset_type)
 
+        # Ensure every model loader names a checkpoint on the server.  ComfyUI
+        # rejects an empty ckpt_name ("Value not in list") — templates that
+        # fall back to the default graph must not submit a blank loader.
+        for node in workflow.values():
+            cls = node.get("class_type", "")
+            inputs = node.get("inputs", {})
+            if cls == "CheckpointLoaderSimple" and not inputs.get("ckpt_name"):
+                inputs["ckpt_name"] = _DEFAULT_CKPT_NAME
+            elif cls == "UnetLoaderGGUF" and not inputs.get("unet_name"):
+                inputs["unet_name"] = _DEFAULT_CKPT_NAME
+
         # Inject positive prompt into CLIPTextEncode node (node 6)
         if "6" in workflow and workflow["6"].get("class_type") == "CLIPTextEncode":
             workflow["6"]["inputs"]["text"] = input.prompt
@@ -289,6 +313,9 @@ class ComfyUIBackend(GenerationBackend):
             A dict representing the ComfyUI workflow graph.
         """
         import copy
+
+        # Asset types without a dedicated graph reuse the closest template.
+        asset_type = _WORKFLOW_ALIASES.get(asset_type or "", asset_type or "")
 
         # 1. Try type-specific template from workflows/ directory
         if asset_type:
