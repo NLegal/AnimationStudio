@@ -60,13 +60,28 @@ python3 -m pip install -r "${COMFYUI_DIR}/requirements.txt"
 # --------------------------------------------------------------------------- #
 # 2. Download the fp8 Flux checkpoint
 # --------------------------------------------------------------------------- #
-if [ "${1:-}" = "--no-download" ] || [ "${2:-}" = "--no-download" ]; then
-    log "Skipping model download (--no-download)."
-elif [ -f "${CKPT_DEST}" ]; then
-    log "Checkpoint already present: ${CKPT_DEST}"
-else
-    log "Downloading fp8 Flux (dev) ≈ 12GB — this may take a while …"
-    python3 - "$CKPT_URL" "$CKPT_DEST" <<'PY'
+NO_DOWNLOAD=0
+for arg in "$@"; do
+    [ "${arg}" = "--no-download" ] && NO_DOWNLOAD=1
+done
+
+download_checkpoint() {
+    local url="$1" dest="$2"
+    mkdir -p "$(dirname "${dest}")"
+
+    # 1) curl - follows HuggingFace's 302 -> CDN redirect, retries, resumes.
+    if command -v curl >/dev/null 2>&1; then
+        log "Downloading with curl (follows redirects, resumable) ..."
+        if curl -L --fail --retry 3 --retry-delay 2 -C - --progress-bar -o "${dest}" "${url}"; then
+            [ -s "${dest}" ] && return 0
+        fi
+        log "curl download failed. Falling back to Python urllib ..."
+        rm -f "${dest}"
+    fi
+
+    # 2) Python urllib fallback.
+    log "Downloading with Python urllib ..."
+    python3 - "${url}" "${dest}" <<'PY'
 import sys
 import urllib.request
 import pathlib
@@ -77,6 +92,18 @@ urllib.request.urlretrieve(url, tmp)
 pathlib.Path(tmp).rename(dest)
 print(f"saved {dest}")
 PY
+    [ -s "${dest}" ]
+}
+
+if [ "${NO_DOWNLOAD}" = "1" ]; then
+    log "Skipping model download (--no-download)."
+elif [ -f "${CKPT_DEST}" ]; then
+    log "Checkpoint already present: ${CKPT_DEST}"
+else
+    log "Downloading fp8 Flux (dev) ≈ 12GB — this may take a while …"
+    if ! download_checkpoint "${CKPT_URL}" "${CKPT_DEST}"; then
+        die "Model download failed. Check the URL / network and re-run the script."
+    fi
 fi
 
 [ -f "${CKPT_DEST}" ] || die "checkpoint not found at ${CKPT_DEST}"
