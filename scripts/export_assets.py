@@ -10,14 +10,15 @@ image bytes.  This script reproduces each asset's image from its stored
 prompt+seed and writes a PNG into the right folder, then records the
 ``file_path`` on the asset row.
 
-Only the mock backend is reproducible offline (deterministic from
-prompt + seed).  Assets produced by a real backend should have a real
-``file_path`` already set by the pipeline / generation run.
+The mock backend is reproducible offline (deterministic from prompt + seed).
+With ``--backend comfyui`` (or ``cloud``) the image is re-generated on the
+live backend, so a Colab/GPU run can persist real images into the file tree.
 
 Usage:
     python scripts/export_assets.py --db catalog.db
     python scripts/export_assets.py --states shortlisted approved
     python scripts/export_assets.py --scope characters --asset-types expressions poses
+    python scripts/export_assets.py --backend comfyui --comfyui-url http://localhost:8188 --size 1024
 """
 
 import argparse
@@ -31,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.asset_repository.sqlite_repo import SQLiteAssetRepository, SQLiteCharacterRepository
 from src.generation_engine.base import GenerationInput
-from src.generation_engine.mock_backend import MockBackend
+from src.universe.batch_generator import resolve_backend
 
 # Turnaround angles (front is the reference library's own view).
 TURNAROUND_ANGLES = {"45", "left", "right", "back", "top", "bottom"}
@@ -123,8 +124,14 @@ async def main() -> int:
     parser.add_argument("--universe", default="Universe", help="Universe/ directory")
     parser.add_argument("--world", default="World", help="World/ directory")
     parser.add_argument("--assets", default="Assets", help="Assets/ directory")
+    parser.add_argument("--backend", default="mock",
+                        help="mock | comfyui | cloud (default: mock)")
+    parser.add_argument("--comfyui-url", default="http://localhost:8188",
+                        help="ComfyUI server URL (default: http://localhost:8188)")
+    parser.add_argument("--provider", default="fal",
+                        help="Cloud provider for --backend cloud: fal | replicate | bfl")
     parser.add_argument("--size", type=int, default=512,
-                        help="Image size for regenerated mock images (default: 512)")
+                        help="Image size for regenerated images (default: 512)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print destinations without writing files")
     args = parser.parse_args()
@@ -137,7 +144,8 @@ async def main() -> int:
 
     asset_repo = SQLiteAssetRepository(db_path=args.db)
     char_repo = SQLiteCharacterRepository(db_path=args.db)
-    backend = MockBackend(base_size=args.size)
+    backend = resolve_backend(args.backend, comfyui_url=args.comfyui_url,
+                              provider=args.provider)
 
     conn = asset_repo._get_conn()
     rows = conn.execute(

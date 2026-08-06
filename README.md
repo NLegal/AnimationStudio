@@ -357,6 +357,32 @@ starts with CUDA by default (seconds per image); pass `-Cpu` (Windows) /
 `--cpu` (Linux) only on CPU-only machines, where you should expect minutes per
 image and prefer the cloud backends instead.
 
+### Google Colab (GPU, optional)
+
+Prefer real GPU hardware? Run the same ComfyUI pipeline on a Colab T4
+(16 GB VRAM, free tier) with the included notebook:
+
+```bash
+# in the colab/ directory of this repo
+colab/AnimationStudio_Colab.ipynb
+```
+
+The notebook clones the repo, installs ComfyUI, downloads the model into a
+Drive-side cache, starts the server, runs Phase-1 generation, exports real
+PNGs into your Drive, and launches the Review UI behind a LocalTunnel link.
+Open it from GitHub via `colab.research.google.com -> File -> Open notebook ->
+GitHub`, set `REPO_URL` in Cell 1, pick a GPU runtime, then `Runtime -> Run all`.
+
+Branches pin the model flavor (the notebook selects it via its `BRANCH` cell):
+
+| Branch | Model | Where it runs |
+| --- | --- | --- |
+| `master` | Q4 GGUF (`flux1-dev-Q4_K_S.gguf` + encoders/VAE, ~14 GB) | CPU box (Iris Xe), also T4 |
+| `colab-gpu` | fp8 Flux bundle (`flux1-dev.safetensors`, ~12 GB) | Colab T4/L4/A100 |
+
+Keep the free-tier scope small (`--count 2 --shortlist 1`, a couple of asset
+types) — a T4 takes ~2 min per 1024×1024 image.
+
 ### Cloud generation (optional)
 
 Set keys in `.env` (copy from `.env.example`), then use `--backend cloud`:
