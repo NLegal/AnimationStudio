@@ -22,11 +22,19 @@ logger = logging.getLogger(__name__)
 # Path to the workflows directory containing type-specific JSON templates.
 _WORKFLOW_DIR = Path(__file__).parent / "workflows"
 
-# Checkpoint the ComfyUI setup scripts install (setup_comfyui_flux.ps1/.sh
-# place the fp8 Flux dev safetensors under exactly this name).  Used to fill
-# in any loader node that would otherwise submit an empty ckpt_name, which
-# ComfyUI rejects with "Value not in list".
-_DEFAULT_CKPT_NAME = "flux1-dev.safetensors"
+# Model files the ComfyUI setup scripts install (setup_comfyui_flux.ps1/.sh
+# download the Q4 GGUF Flux unet plus its text encoders and VAE under exactly
+# these names).  Used to fill in any loader node that would otherwise submit
+# an empty file name, which ComfyUI rejects with "Value not in list".
+#
+# The unet is the city96 GGUF quantization (flux1-dev-Q4_K_S.gguf): it loads
+# through the ComfyUI-GGUF node as an int4/bf16 model instead of fp8.  fp8
+# weights have no CPU kernel in torch and crash with a Windows access
+# violation on CPU-only installs, which is why the fp8 checkpoint is avoided.
+_DEFAULT_UNET_NAME = "flux1-dev-Q4_K_S.gguf"
+_DEFAULT_CLIP_L_NAME = "clip_l.safetensors"
+_DEFAULT_T5_NAME = "t5xxl_fp16.safetensors"
+_DEFAULT_VAE_NAME = "ae.safetensors"
 
 # Generation asset types that do not have a dedicated graph reuse the closest
 # single-image template instead of falling through to the bare default.
@@ -44,7 +52,7 @@ _DEFAULT_WORKFLOW_TEMPLATE: dict = {
         "inputs": {
             "seed": 42,
             "steps": 25,
-            "cfg": 7.0,
+            "cfg": 3.5,
             "sampler_name": "euler",
             "scheduler": "normal",
             "denoise": 1.0,
@@ -54,12 +62,21 @@ _DEFAULT_WORKFLOW_TEMPLATE: dict = {
             "latent_image": ["5", 0],
         },
     },
-    "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": _DEFAULT_CKPT_NAME}},
+    "4": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": _DEFAULT_UNET_NAME, "weight_dtype": "default"}},
     "5": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
-    "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
-    "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
-    "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+    "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["10", 0]}},
+    "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["10", 0]}},
+    "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["11", 0]}},
     "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "comfy", "images": ["8", 0]}},
+    "10": {
+        "class_type": "DualCLIPLoader",
+        "inputs": {
+            "clip_name1": _DEFAULT_CLIP_L_NAME,
+            "clip_name2": _DEFAULT_T5_NAME,
+            "type": "flux",
+        },
+    },
+    "11": {"class_type": "VAELoader", "inputs": {"vae_name": _DEFAULT_VAE_NAME}},
 }
 
 
@@ -267,16 +284,23 @@ class ComfyUIBackend(GenerationBackend):
         """
         workflow = self._load_workflow_template(asset_type)
 
-        # Ensure every model loader names a checkpoint on the server.  ComfyUI
-        # rejects an empty ckpt_name ("Value not in list") — templates that
-        # fall back to the default graph must not submit a blank loader.
+        # Ensure every model loader names a file that exists on the server.
+        # ComfyUI rejects an empty name ("Value not in list") — templates that
+        # fall back to the default graph must not submit blank loaders.
         for node in workflow.values():
             cls = node.get("class_type", "")
             inputs = node.get("inputs", {})
             if cls == "CheckpointLoaderSimple" and not inputs.get("ckpt_name"):
-                inputs["ckpt_name"] = _DEFAULT_CKPT_NAME
+                inputs["ckpt_name"] = _DEFAULT_UNET_NAME
             elif cls == "UnetLoaderGGUF" and not inputs.get("unet_name"):
-                inputs["unet_name"] = _DEFAULT_CKPT_NAME
+                inputs["unet_name"] = _DEFAULT_UNET_NAME
+            elif cls == "DualCLIPLoader":
+                if not inputs.get("clip_name1"):
+                    inputs["clip_name1"] = _DEFAULT_CLIP_L_NAME
+                if not inputs.get("clip_name2"):
+                    inputs["clip_name2"] = _DEFAULT_T5_NAME
+            elif cls == "VAELoader" and not inputs.get("vae_name"):
+                inputs["vae_name"] = _DEFAULT_VAE_NAME
 
         # Inject positive prompt into CLIPTextEncode node (node 6)
         if "6" in workflow and workflow["6"].get("class_type") == "CLIPTextEncode":

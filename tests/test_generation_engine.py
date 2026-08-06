@@ -396,35 +396,76 @@ class TestComfyUIWorkflowLoading:
         assert workflow["3"]["inputs"]["cfg"] == 3.5
 
     def test_load_fallback_on_unknown_type(self):
-        """Load nonexistent type, verify returns default template with cfg=7.0."""
+        """Load nonexistent type, verify returns default template with cfg=3.5."""
         from src.generation_engine.comfy_backend import ComfyUIBackend
 
         backend = ComfyUIBackend()
         workflow = backend._load_workflow_template("nonexistent_type")
 
-        # Default template has cfg=7.0 (SDXL default), confirming fallback
-        assert workflow["3"]["inputs"]["cfg"] == 7.0
+        # Default template has cfg=3.5 (Flux), confirming fallback
+        assert workflow["3"]["inputs"]["cfg"] == 3.5
         assert workflow["3"]["class_type"] == "KSampler"
 
-    def test_default_template_has_valid_ckpt_name(self):
-        """Fallback template must carry the installed checkpoint name."""
+    def test_default_template_has_valid_gguf_loaders(self):
+        """Fallback template must carry the installed GGUF model file names."""
         from src.generation_engine.comfy_backend import ComfyUIBackend
 
         backend = ComfyUIBackend()
         workflow = backend._load_workflow_template("nonexistent_type")
 
-        assert workflow["4"]["class_type"] == "CheckpointLoaderSimple"
-        assert workflow["4"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
+        assert workflow["4"]["class_type"] == "UnetLoaderGGUF"
+        assert workflow["4"]["inputs"]["unet_name"] == "flux1-dev-Q4_K_S.gguf"
+        assert workflow["10"]["class_type"] == "DualCLIPLoader"
+        assert workflow["10"]["inputs"]["clip_name1"] == "clip_l.safetensors"
+        assert workflow["10"]["inputs"]["clip_name2"] == "t5xxl_fp16.safetensors"
+        assert workflow["10"]["inputs"]["type"] == "flux"
+        assert workflow["11"]["class_type"] == "VAELoader"
+        assert workflow["11"]["inputs"]["vae_name"] == "ae.safetensors"
 
-    def test_build_workflow_fills_empty_ckpt_name(self):
-        """Every submitted workflow names a checkpoint, never an empty string."""
+    def test_default_template_wiring(self):
+        """Fallback template wires model/clip/vae to the GGUF loader nodes."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+
+        backend = ComfyUIBackend()
+        workflow = backend._load_workflow_template("nonexistent_type")
+
+        assert workflow["3"]["inputs"]["model"] == ["4", 0]
+        assert workflow["6"]["inputs"]["clip"] == ["10", 0]
+        assert workflow["7"]["inputs"]["clip"] == ["10", 0]
+        assert workflow["8"]["inputs"]["vae"] == ["11", 0]
+
+    def test_build_workflow_fills_empty_loader_names(self):
+        """Every submitted workflow names every model file, never an empty string."""
         from src.generation_engine.comfy_backend import ComfyUIBackend
         from src.generation_engine.base import GenerationInput
 
         backend = ComfyUIBackend()
         workflow = backend._build_workflow(GenerationInput(prompt="hi"), asset_type="nope")
 
-        assert workflow["4"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
+        assert workflow["4"]["inputs"]["unet_name"] == "flux1-dev-Q4_K_S.gguf"
+        assert workflow["10"]["inputs"]["clip_name1"] == "clip_l.safetensors"
+        assert workflow["10"]["inputs"]["clip_name2"] == "t5xxl_fp16.safetensors"
+        assert workflow["11"]["inputs"]["vae_name"] == "ae.safetensors"
+
+    def test_workflow_templates_all_use_gguf_loaders(self):
+        """Every shipped workflow template uses GGUF loaders with valid wiring."""
+        import json
+        from pathlib import Path
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+
+        wf_dir = Path(__file__).parent.parent / "src/generation_engine/workflows"
+        for wf_file in sorted(wf_dir.glob("*.json")):
+            workflow = json.loads(wf_file.read_text())
+
+            assert workflow["4"]["class_type"] == "UnetLoaderGGUF", wf_file
+            assert workflow["4"]["inputs"]["unet_name"] == "flux1-dev-Q4_K_S.gguf", wf_file
+            assert workflow["10"]["class_type"] == "DualCLIPLoader", wf_file
+            assert workflow["11"]["class_type"] == "VAELoader", wf_file
+            assert workflow["3"]["inputs"]["model"] == ["4", 0], wf_file
+            assert workflow["6"]["inputs"]["clip"] == ["10", 0], wf_file
+            assert workflow["7"]["inputs"]["clip"] == ["10", 0], wf_file
+            assert workflow["8"]["inputs"]["vae"] == ["11", 0], wf_file
+            assert "CheckpointLoaderSimple" not in json.dumps(workflow), wf_file
 
     def test_reference_aliases_to_reference_sheet(self):
         """'reference'/'lighting' reuse the reference_sheet graph (cfg 3.5)."""
@@ -433,7 +474,7 @@ class TestComfyUIWorkflowLoading:
         backend = ComfyUIBackend()
         workflow = backend._load_workflow_template("reference")
         assert workflow["3"]["inputs"]["cfg"] == 3.5
-        assert workflow["4"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
+        assert workflow["4"]["inputs"]["unet_name"] == "flux1-dev-Q4_K_S.gguf"
 
         lighting = backend._load_workflow_template("lighting")
         assert lighting["3"]["inputs"]["cfg"] == 3.5

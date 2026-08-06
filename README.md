@@ -327,12 +327,12 @@ uvicorn src.review_ui:create_app --factory --reload --port 8000
 ### Local generation (ComfyUI + Flux)
 
 ComfyUI is the optional R&D backend for real (non-placeholder) images. Install
-it plus the fp8 Flux checkpoint with the platform setup script:
+it plus the Q4 GGUF Flux model set with the platform setup script:
 
 **Windows (PowerShell):**
 
 ```powershell
-.\scripts\setup_comfyui_flux.ps1                  # install + download (~12GB)
+.\scripts\setup_comfyui_flux.ps1                  # install + download (~14GB)
 .\scripts\setup_comfyui_flux.ps1 -Serve           # start the server on :8188 (CUDA)
 .\scripts\setup_comfyui_flux.ps1 -Serve -Cpu      # CPU-only machines only
 .\scripts\generate_phase1_library.ps1 --backend comfyui --comfyui-url http://localhost:8188
@@ -344,18 +344,54 @@ If PowerShell blocks the script, bypass for this session first:
 **macOS / Linux (bash):**
 
 ```bash
-bash scripts/setup_comfyui_flux.sh                # install + download (~12GB)
+bash scripts/setup_comfyui_flux.sh                # install + download (~14GB)
 bash scripts/setup_comfyui_flux.sh --serve        # start the server on :8188
 python3 scripts/generate_phase1_library.py --backend comfyui
 ```
 
-The script clones ComfyUI into `tools/comfyui/`, downloads the fp8 Flux (dev)
-checkpoint, and places it at the exact path the workflow templates reference
-(`models/checkpoints/flux1-dev.safetensors`) so the stock
-`CheckpointLoaderSimple` node loads it unchanged. On a GPU box the server
-starts with CUDA by default (seconds per image); pass `-Cpu` (Windows) /
-`--cpu` (Linux) only on CPU-only machines, where you should expect minutes per
-image and prefer the cloud backends instead.
+The script clones ComfyUI into `tools/comfyui/` and downloads the GGUF model
+set at the exact paths the workflow templates reference: the Flux unet
+(`models/checkpoints/flux1-dev-Q4_K_S.gguf`), the text encoders
+(`models/clip/clip_l.safetensors`, `models/clip/t5xxl_fp16.safetensors`), and
+the VAE (`models/vae/ae.safetensors`). Workflows load them through the
+`UnetLoaderGGUF` / `DualCLIPLoader` / `VAELoader` nodes (this requires the
+`ComfyUI-GGUF` custom node, which the script does not install — add it to
+`tools/comfyui/custom_nodes/` if missing).
+
+We use the GGUF-quantized unet instead of the fp8 safetensors because fp8
+weights have no CPU kernel in torch: on CPU-only installs (Intel/AMD iGPU
+boxes ship a CPU-only torch build) ComfyUI crashes with a Windows access
+violation while loading the checkpoint. GGUF loads as int4/bf16 and runs on
+plain CPU. The server starts with CUDA by default when torch reports a GPU
+(seconds per image); pass `-Cpu` (Windows) / `--cpu` (Linux) only on CPU-only
+machines, where you should expect minutes per image and prefer the cloud
+backends instead.
+
+### Google Colab (GPU, optional)
+
+Prefer real GPU hardware? Run the same ComfyUI pipeline on a Colab T4
+(16 GB VRAM, free tier) with the included notebook:
+
+```bash
+# in the colab/ directory of this repo
+colab/AnimationStudio_Colab.ipynb
+```
+
+The notebook clones the repo, installs ComfyUI, downloads the model into a
+Drive-side cache, starts the server, runs Phase-1 generation, exports real
+PNGs into your Drive, and launches the Review UI behind a LocalTunnel link.
+Open it from GitHub via `colab.research.google.com -> File -> Open notebook ->
+GitHub`, set `REPO_URL` in Cell 1, pick a GPU runtime, then `Runtime -> Run all`.
+
+Branches pin the model flavor (the notebook selects it via its `BRANCH` cell):
+
+| Branch | Model | Where it runs |
+| --- | --- | --- |
+| `master` | Q4 GGUF (`flux1-dev-Q4_K_S.gguf` + encoders/VAE, ~14 GB) | CPU box (Iris Xe), also T4 |
+| `colab-gpu` | fp8 Flux bundle (`flux1-dev.safetensors`, ~12 GB) | Colab T4/L4/A100 |
+
+Keep the free-tier scope small (`--count 2 --shortlist 1`, a couple of asset
+types) — a T4 takes ~2 min per 1024×1024 image.
 
 ### Cloud generation (optional)
 

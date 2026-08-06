@@ -1,5 +1,5 @@
 <#
-    setup_comfyui_flux.ps1 - Install ComfyUI + the fp8 Flux checkpoint (Windows).
+    setup_comfyui_flux.ps1 - Install ComfyUI + the Q4 GGUF Flux model set (Windows).
 
     Windows alternative to scripts/setup_comfyui_flux.sh.
 
@@ -8,14 +8,14 @@
     the local backend (`--backend comfyui`) usable on Windows.
 
     Environment notes
-      * This box has a GPU, so the server starts with CUDA by default
-        (add -Cpu only for CPU-only machines).  Flux on GPU is fast
-        (seconds per image); cloud backends (`FAL_API_KEY` /
-        `REPLICATE_API_KEY` / `BFL_API_KEY`) remain an alternative when
-        keys are available.
-      * We download the fp8 Flux (dev) safetensors (~ 12GB) because the
-        workflow templates reference it via CheckpointLoaderSimple.  Needs
-        roughly 12-16GB RAM/VRAM.
+      * We use the GGUF-quantized Flux unet (city96 flux1-dev-Q4_K_S.gguf,
+        ~ 9GB) plus its text encoders and VAE instead of the fp8 safetensors.
+        fp8 weights have no CPU kernel in torch and crash with a Windows
+        access violation on CPU-only installs (Intel/AMD iGPU boxes ship a
+        CPU-only torch build - torch.cuda.is_available() is False).  GGUF
+        loads as an int4/bf16 model and runs on plain CPU.
+      * Total download is ~ 14GB (9GB unet + ~ 0.3GB clip_l + ~ 9.8GB
+        t5xxl_fp16 + ~ 0.3GB ae).  Needs roughly 20-24GB RAM for inference.
 
     Usage (PowerShell):
       .\scripts\setup_comfyui_flux.ps1                 # install + download
@@ -50,13 +50,14 @@ $ProjectRoot   = Split-Path -Parent $ScriptDir
 $ComfyDir      = if ($env:COMFYUI_DIR) { $env:COMFYUI_DIR } else { Join-Path $ProjectRoot "tools\comfyui" }
 $Port          = if ($env:COMFYUI_PORT) { $env:COMFYUI_PORT } else { 8188 }
 
-# Checkpoint filename the workflow templates reference
-# (src\generation_engine\workflows\*.json -> "flux1-dev.safetensors").
-$CkptName = "flux1-dev.safetensors"
-
-# fp8 Flux (dev) safetensors - loads via CheckpointLoaderSimple, ~ 12GB.
-$CkptUrl  = "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors"
-$CkptDest = Join-Path $ComfyDir "models\checkpoints\$CkptName"
+# Model files the workflow templates reference
+# (src\generation_engine\workflows\*.json -> "flux1-dev-Q4_K_S.gguf").
+$ModelSet = @(
+    @{ Sub = "checkpoints"; Name = "flux1-dev-Q4_K_S.gguf";  Url = "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q4_K_S.gguf"  },
+    @{ Sub = "clip";        Name = "clip_l.safetensors";     Url = "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/clip_l.safetensors"     },
+    @{ Sub = "clip";        Name = "t5xxl_fp16.safetensors"; Url = "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/t5xxl_fp16.safetensors" },
+    @{ Sub = "vae";         Name = "ae.safetensors";         Url = "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/ae.safetensors"         }
+)
 
 function Log($msg)  { Write-Host "`n[setup] $msg" -ForegroundColor Cyan }
 function Die($msg)  { Write-Host "[setup] ERROR: $msg" -ForegroundColor Red; exit 1 }
@@ -85,7 +86,7 @@ function Download-Checkpoint {
     try {
         Import-Module BitsTransfer -ErrorAction Stop
         Log "Downloading with Start-BitsTransfer ..."
-        Start-BitsTransfer -Source $Url -Destination $Dest -DisplayName "Flux fp8 checkpoint"
+        Start-BitsTransfer -Source $Url -Destination $Dest -DisplayName "Flux GGUF model"
         if ((Test-Path $Dest) -and (Get-Item $Dest).Length -gt 0) {
             return $true
         }
@@ -143,20 +144,28 @@ Log "Installing Python requirements (ComfyUI) ..."
 if (-not $?) { Die "ComfyUI requirements install failed." }
 
 # --------------------------------------------------------------------------- #
-# 2. Download the fp8 Flux checkpoint
+# 2. Download the GGUF Flux model set
 # --------------------------------------------------------------------------- #
 if ($SkipDownload) {
     Log "Skipping model download (-SkipDownload)."
-} elseif (Test-Path $CkptDest) {
-    Log "Checkpoint already present: $CkptDest"
 } else {
-    Log "Downloading fp8 Flux (dev) ~ 12GB - this may take a while ..."
-    if (-not (Download-Checkpoint -Url $CkptUrl -Dest $CkptDest)) {
-        Die "Model download failed. Check the URL / network and re-run the script - a partial file is removed and the download restarts."
+    foreach ($m in $ModelSet) {
+        $Dest = Join-Path $ComfyDir "models\$($m.Sub)\$($m.Name)"
+        if (Test-Path $Dest) {
+            Log "Already present: $Dest"
+            continue
+        }
+        Log "Downloading $($m.Name) - this may take a while ..."
+        if (-not (Download-Checkpoint -Url $m.Url -Dest $Dest)) {
+            Die "Model download failed. Check the URL / network and re-run the script - a partial file is removed and the download restarts."
+        }
     }
 }
 
-if (-not (Test-Path $CkptDest)) { Die "checkpoint not found at $CkptDest" }
+foreach ($m in $ModelSet) {
+    $Dest = Join-Path $ComfyDir "models\$($m.Sub)\$($m.Name)"
+    if (-not (Test-Path $Dest)) { Die "model file not found at $Dest" }
+}
 
 # --------------------------------------------------------------------------- #
 # 3. Start the server (CUDA when available, --cpu otherwise or with -Cpu)

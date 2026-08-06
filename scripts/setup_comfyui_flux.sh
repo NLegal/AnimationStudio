@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
-# setup_comfyui_flux.sh — Install ComfyUI + the fp8 Flux checkpoint.
+# setup_comfyui_flux.sh — Install ComfyUI + the Q4 GGUF Flux model set.
 #
 # ComfyUI is an R&D-only generation backend in this studio (D-08); it is
 # never used in the production pipeline.  This script installs it and makes
 # the local backend (`--backend comfyui`) usable.
 #
 # Environment notes
-#   * On a GPU box the server starts with CUDA by default (--cpu only via
-#     the --cpu flag).  Flux on GPU is fast (seconds per image); on CPU it
-#     is minutes per image — prefer the cloud backends (`FAL_API_KEY` /
+#   * We use the GGUF-quantized Flux unet (city96 flux1-dev-Q4_K_S.gguf,
+#     ≈9GB) plus its text encoders and VAE instead of the fp8 safetensors.
+#     fp8 weights have no CPU kernel in torch and crash with a Windows
+#     access violation on CPU-only installs (Intel/AMD iGPU boxes ship a
+#     CPU-only torch build — torch.cuda.is_available() is False).  GGUF
+#     loads as an int4/bf16 model and runs on plain CPU.
+#   * Total download is ≈14GB (9GB unet + ~0.3GB clip_l + ~9.8GB t5xxl_fp16
+#     + ~0.3GB ae).  Needs roughly 20–24GB RAM for inference.  On CPU expect
+#     minutes per image — prefer the cloud backends (`FAL_API_KEY` /
 #     `REPLICATE_API_KEY` / `BFL_API_KEY`) in that case.
-#   * We download the fp8 Flux (dev) safetensors (≈12GB) because the
-#     workflow templates reference it via CheckpointLoaderSimple.  Needs
-#     roughly 12–16GB RAM/VRAM.
 #
 # Usage:
 #   bash scripts/setup_comfyui_flux.sh                # install + download
@@ -29,13 +32,14 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COMFYUI_DIR="${COMFYUI_DIR:-${PROJECT_ROOT}/tools/comfyui}"
 PORT="${COMFYUI_PORT:-8188}"
 
-# Checkpoint filename the workflow templates reference
-# (src/generation_engine/workflows/*.json → "flux1-dev.safetensors").
-CKPT_NAME="flux1-dev.safetensors"
-
-# fp8 Flux (dev) safetensors — loads via CheckpointLoaderSimple, ≈12GB.
-CKPT_URL="${FLUX_CKPT_URL:-https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors}"
-CKPT_DEST="${COMFYUI_DIR}/models/checkpoints/${CKPT_NAME}"
+# Model files the workflow templates reference
+# (src/generation_engine/workflows/*.json → "flux1-dev-Q4_K_S.gguf").
+MODEL_SET=(
+    "checkpoints/flux1-dev-Q4_K_S.gguf|https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q4_K_S.gguf"
+    "clip/clip_l.safetensors|https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/clip_l.safetensors"
+    "clip/t5xxl_fp16.safetensors|https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/t5xxl_fp16.safetensors"
+    "vae/ae.safetensors|https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/ae.safetensors"
+)
 
 log()  { printf '\n[setup] %s\n' "$*"; }
 die()  { printf '[setup] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -58,7 +62,7 @@ log "Installing Python requirements (ComfyUI) …"
 python3 -m pip install -r "${COMFYUI_DIR}/requirements.txt"
 
 # --------------------------------------------------------------------------- #
-# 2. Download the fp8 Flux checkpoint
+# 2. Download the GGUF Flux model set
 # --------------------------------------------------------------------------- #
 NO_DOWNLOAD=0
 for arg in "$@"; do
@@ -97,16 +101,26 @@ PY
 
 if [ "${NO_DOWNLOAD}" = "1" ]; then
     log "Skipping model download (--no-download)."
-elif [ -f "${CKPT_DEST}" ]; then
-    log "Checkpoint already present: ${CKPT_DEST}"
 else
-    log "Downloading fp8 Flux (dev) ≈ 12GB — this may take a while …"
-    if ! download_checkpoint "${CKPT_URL}" "${CKPT_DEST}"; then
-        die "Model download failed. Check the URL / network and re-run the script."
-    fi
+    for entry in "${MODEL_SET[@]}"; do
+        rel="${entry%%|*}"
+        url="${entry##*|}"
+        dest="${COMFYUI_DIR}/models/${rel}"
+        if [ -f "${dest}" ]; then
+            log "Already present: ${dest}"
+            continue
+        fi
+        log "Downloading ${rel} — this may take a while …"
+        if ! download_checkpoint "${url}" "${dest}"; then
+            die "Model download failed. Check the URL / network and re-run the script."
+        fi
+    done
 fi
 
-[ -f "${CKPT_DEST}" ] || die "checkpoint not found at ${CKPT_DEST}"
+for entry in "${MODEL_SET[@]}"; do
+    dest="${COMFYUI_DIR}/models/${entry%%|*}"
+    [ -f "${dest}" ] || die "model file not found at ${dest}"
+done
 
 # --------------------------------------------------------------------------- #
 # 3. Start the server (CUDA by default, --cpu only with --cpu)
