@@ -20,7 +20,7 @@ offline default and produces deterministic placeholder images.
 Usage:
     python scripts/generate_phase1_library.py --backend mock --count 2
     python scripts/generate_phase1_library.py --characters "Lily Bunny" --asset-types expressions --prompt-only
-    python scripts/generate_phase1_library.py --asset-types turnarounds lighting
+    python scripts/generate_phase1_library.py --asset-types turnarounds,lighting
 """
 
 import argparse
@@ -139,6 +139,17 @@ async def main() -> int:
                         help="SQLite database path (default: catalog.db)")
     parser.add_argument("--universe", default="Universe",
                         help="Path to the Universe/ directory")
+    parser.add_argument("--world", default="World",
+                        help="Path to the World/ directory")
+    parser.add_argument("--assets", default="Assets",
+                        help="Path to the Assets/ directory")
+    parser.add_argument("--persist-images", dest="persist_images",
+                        action="store_true", default=True,
+                        help="Write each generated image into the catalog tree "
+                             "(default: on)")
+    parser.add_argument("--no-persist-images", dest="persist_images",
+                        action="store_false",
+                        help="Record assets without writing image files")
     parser.add_argument("--prompt-only", action="store_true",
                         help="Print prompts without generating images")
     parser.add_argument("--verbose", action="store_true",
@@ -183,7 +194,10 @@ async def main() -> int:
                               provider=args.provider)
     scorer = IdentityScorer(light=args.fast_scoring)
     runner = BatchRunner(asset_repo=asset_repo, char_repo=char_repo,
-                         backend=backend, scorer=scorer)
+                         backend=backend, scorer=scorer,
+                         persist_images=args.persist_images,
+                         universe_dir=args.universe, world_dir=args.world,
+                         assets_dir=args.assets)
 
     batch_id = f"phase1_{int(time.time())}"
     overall = {"tasks": 0, "generated": 0, "shortlisted": 0, "failed": 0}

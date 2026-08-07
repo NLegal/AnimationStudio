@@ -18,7 +18,7 @@ from typing import Optional
 
 import jinja2
 from fastapi import BackgroundTasks, FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -66,6 +66,14 @@ def _ensure_log_buffer_attached() -> None:
         root.addHandler(_LOG_HANDLER)
     logging.getLogger("src").setLevel(logging.INFO)
 
+
+def _template_field(obj, key: str, default=""):
+    """Read a record field whether it is a dict or a pydantic model."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -82,6 +90,7 @@ _env = jinja2.Environment(
     autoescape=jinja2.select_autoescape(),
     cache_size=0,
 )
+_env.globals["field"] = _template_field
 templates = Jinja2Templates(env=_env)
 
 
@@ -132,6 +141,7 @@ def create_app(
     universe_dir: str = str(_PROJECT_ROOT / "Universe"),
     world_dir: str = str(_PROJECT_ROOT / "World"),
     assets_dir: str = str(_PROJECT_ROOT / "Assets"),
+    persist_generated_images: bool = False,
 ) -> FastAPI:
     """Application factory with optional dependency injection.
 
@@ -154,7 +164,10 @@ def create_app(
         seed_catalog: Optional async callable ``(char_repo) -> summary`` used
             to auto-seed the universe catalog when the repo is empty.
         db_path: SQLite database path used when ``asset_repo`` is not injected.
-        universe_dir/world_dir/assets_dir: Catalog paths for the generate panel.
+        universe_dir/world_dir/assets_dir: Catalog paths for the generate panel
+            and image serving.
+        persist_generated_images: Write images to disk when the generate panel
+            runs (default: off).
 
     Returns:
         Configured FastAPI application.
@@ -283,8 +296,27 @@ def create_app(
             asset_repo=repo,
             char_repo=char_repo,
             backend=generation_backend,
+            persist_images=persist_generated_images,
+            universe_dir=universe_dir,
+            world_dir=world_dir,
+            assets_dir=assets_dir,
         )
         return runner
+
+    def _resolve_image_path(file_path: str) -> Optional[Path]:
+        """Map a stored asset ``file_path`` to an existing file on disk.
+
+        Paths are stored repository-root-relative (``Universe/Characters/...``)
+        so the same DB works across checkouts.  Absolute paths are used as-is.
+        """
+        if not file_path:
+            return None
+        p = Path(file_path)
+        if p.is_absolute():
+            return p if p.exists() else None
+        catalog_root = Path(universe_dir).parent
+        candidate = catalog_root / p
+        return candidate if candidate.exists() else None
 
     def _find_seeds(scope: str, item: str) -> list:
         """Resolve catalog seeds for a scope + optional item filter."""
@@ -494,6 +526,28 @@ def create_app(
     # ------------------------------------------------------------------ #
     #  Generation & seeding  (POST /generate, POST /seed)
     # ------------------------------------------------------------------ #
+
+    @app.get("/asset-image/{asset_id}")
+    async def asset_image(asset_id: str):
+        """Serve a generated asset image from disk.
+
+        Serves the persisted file for an asset (written at generation time or
+        by the export script).  Returns 404 when no image exists yet so the UI
+        can show a placeholder instead of failing the whole page.
+        """
+        getter = getattr(repo, "get", None)
+        if getter is None:
+            return HTMLResponse("Not found", status_code=404)
+        try:
+            asset = await getter(asset_id)
+        except Exception:
+            asset = None
+        if asset is None:
+            return HTMLResponse("Not found", status_code=404)
+        path = _resolve_image_path(_field(asset, "file_path", "") or "")
+        if path is None:
+            return HTMLResponse("Not found", status_code=404)
+        return FileResponse(str(path), media_type="image/png")
 
     def _repo_can_generate() -> bool:
         """A stub repo cannot persist generated assets; only real repos can."""

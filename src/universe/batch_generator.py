@@ -145,6 +145,10 @@ class BatchRunner:
         prompt_builder: Optional[PromptBuilder] = None,
         scorer: Optional[IdentityScorer] = None,
         diversity_filter: Optional[DiversityFilter] = None,
+        persist_images: bool = False,
+        universe_dir: str = "Universe",
+        world_dir: str = "World",
+        assets_dir: str = "Assets",
     ):
         self.asset_repo = asset_repo
         self.char_repo = char_repo or asset_repo
@@ -153,6 +157,10 @@ class BatchRunner:
         self.scorer = scorer or IdentityScorer()
         self.diversity_filter = diversity_filter or DiversityFilter(n_clusters=5)
         self.job_queue = JobQueue()
+        self.persist_images = persist_images
+        self.universe_dir = universe_dir
+        self.world_dir = world_dir
+        self.assets_dir = assets_dir
 
     # ------------------------------------------------------------------ #
     #  Character record management
@@ -309,6 +317,11 @@ class BatchRunner:
             identity_scorer=self.scorer,
             asset_repo=self.asset_repo,
             diversity_filter=self.diversity_filter,
+            char_repo=self.char_repo,
+            persist_images=self.persist_images,
+            universe_dir=self.universe_dir,
+            world_dir=self.world_dir,
+            assets_dir=self.assets_dir,
         )
         result = await generation.execute(job)
 

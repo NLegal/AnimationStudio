@@ -317,7 +317,11 @@
           {% for asset in assets %}
             <div class="asset-card">
               <span class="asset-state {{ asset.state }}">{{ asset.state }}</span>
-              <p class="asset-prompt">{{ asset.prompt | truncate(60) }}</p>
+              <div class="asset-thumb">
+                <img src="/asset-image/{{ asset.id }}" alt="asset"
+                     onerror="this.style.display='none'">
+              </div>
+              <p class="asset-prompt">{{ field(asset, "prompt", "") | truncate(60) }}</p>
             </div>
           {% endfor %}
         </div>
@@ -378,8 +382,9 @@
     <div class="batch-grid grid-{{ current_grid }}">
       {% for card in candidates[:grid_capacity] %}
         <div class="batch-card">
-          <div class="candidate-image placeholder-img">
-            <span class="placeholder-text">[{{ card.asset.get("id", "candidate") }}]</span>
+          <div class="candidate-image">
+            <img src="/asset-image/{{ card.asset.id }}" alt="candidate"
+                 onerror="this.style.display='none'">
           </div>
           <div class="score-summary">
             <span class="brand-score">{{ "%.2f" | format(card.scores.total) }}</span>
@@ -408,10 +413,11 @@
       <div class="reference-panel">
         <h2>Reference</h2>
         {% if approved %}
-          <div class="reference-image placeholder-img">
-            <span class="placeholder-text">[Approved {{ asset_type }}]</span>
+          <div class="reference-image">
+            <img src="/asset-image/{{ approved[0].id }}" alt="reference"
+                 onerror="this.style.display='none'">
           </div>
-          <p class="reference-label">{{ approved[0].get("prompt", "") | truncate(80) }}</p>
+          <p class="reference-label">{{ field(approved[0], "prompt", "") | truncate(80) }}</p>
         {% else %}
           <div class="reference-image placeholder-img placeholder-empty">
             <span class="placeholder-text">No approved reference</span>
@@ -425,8 +431,9 @@
 
         {% for card in candidates %}
           <div class="candidate-card">
-            <div class="candidate-image placeholder-img">
-              <span class="placeholder-text">[{{ card.asset.get("id", "candidate") }}]</span>
+            <div class="candidate-image">
+              <img src="/asset-image/{{ card.asset.id }}" alt="candidate"
+                   onerror="this.style.display='none'">
             </div>
 
             <!-- Score breakdown -->

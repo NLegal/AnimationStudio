@@ -7,15 +7,18 @@ are handled per-variant so one failing variant does not block others.
 """
 
 import logging
+import os
 import random
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from src.generation_engine.base import GenerationBackend, GenerationInput
 from src.identity_engine.scorer import IdentityScorer
+from src.asset_repository.asset_paths import asset_destination, repo_relative_path
 from src.asset_repository.interfaces import AssetRepository
-from src.models.schemas import AssetModel
+from src.models.schemas import AssetModel, CharacterModel
 from src.prompt_builder.builder import PromptBuilder
 from src.prompt_builder.templates import CharacterPrompt
 from src.pipeline.job_queue import Job, JobError
@@ -50,6 +53,11 @@ class GenerationJob:
         identity_scorer: IdentityScorer,
         asset_repo: AssetRepository,
         diversity_filter: Optional[DiversityFilter] = None,
+        char_repo: Optional[object] = None,
+        persist_images: bool = False,
+        universe_dir: str = "Universe",
+        world_dir: str = "World",
+        assets_dir: str = "Assets",
     ):
         self.backend = backend
         self.prompt_builder = prompt_builder
@@ -58,6 +66,11 @@ class GenerationJob:
         self.diversity_filter = diversity_filter or DiversityFilter(
             n_clusters=5
         )
+        self.char_repo = char_repo
+        self.persist_images = persist_images
+        self.universe_dir = universe_dir
+        self.world_dir = world_dir
+        self.assets_dir = assets_dir
         self._rng = random.SystemRandom()
 
     async def execute(self, job: Job) -> dict:
@@ -164,6 +177,57 @@ class GenerationJob:
             logger.debug("Could not resolve character '%s': %s", character_id, exc)
             return None
 
+    async def _resolve_character_model(self, character_id: str) -> Optional[CharacterModel]:
+        """Resolve the full character record (for image persistence paths)."""
+        for repo in (self.char_repo, self.asset_repo):
+            getter = getattr(repo, "get_character", None)
+            if getter is None:
+                continue
+            try:
+                model = await getter(character_id)
+                if model is not None:
+                    return model
+            except Exception:
+                continue
+        return None
+
+    def _persist_image(
+        self,
+        img,
+        char: CharacterModel,
+        asset_type: str,
+        variant: str,
+        seed: int,
+    ) -> str:
+        """Write a generated image into the catalog tree; return the stored path.
+
+        Returns a repository-root-relative ``file_path`` (e.g.
+        ``Universe/Characters/Lily Bunny/expressions/angry_s123.png``) or an
+        empty string when persistence fails so the pipeline continues.
+        """
+        try:
+            destination = asset_destination(
+                char.name,
+                char.category,
+                asset_type,
+                variant or "",
+                char.bio_data or {},
+                self.universe_dir,
+                self.world_dir,
+                self.assets_dir,
+                seed=seed,
+            )
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            img.save(destination, format="PNG")
+            catalog_root = Path(self.universe_dir).parent
+            return repo_relative_path(destination, catalog_root)
+        except Exception as exc:
+            logger.warning(
+                "Could not persist image for %s/%s/%s: %s",
+                getattr(char, "name", "?"), asset_type, variant, exc,
+            )
+            return ""
+
     async def _process_variant(
         self,
         job: Job,
@@ -186,6 +250,12 @@ class GenerationJob:
         """
         variant_name = variant.get("name", "front")
         asset_type = job.job_type
+
+        # Resolve the character record once when image persistence is enabled
+        # so candidates can be written into the organized catalog tree.
+        char = None
+        if self.persist_images:
+            char = await self._resolve_character_model(job.character_id)
 
         # 1. Build prompt
         if character is not None:
@@ -232,14 +302,21 @@ class GenerationJob:
             brand = self.scorer.brand_score(img)
             brand_total = brand.get("total", 0.0)
 
+            seed_value = all_seeds[idx] if idx < len(all_seeds) else 0
+            file_path = ""
+            if self.persist_images and char is not None:
+                file_path = self._persist_image(
+                    img, char, asset_type, variant_name, seed_value
+                )
+
             asset = AssetModel(
                 character_id=job.character_id,
                 asset_type=asset_type,
                 variant=variant_name,
                 state="scored",
-                file_path="",
+                file_path=file_path,
                 prompt=positive,
-                seed=all_seeds[idx] if idx < len(all_seeds) else 0,
+                seed=seed_value,
                 model_id="",
                 scores=scores,
                 brand_score=brand_total,

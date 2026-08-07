@@ -456,6 +456,34 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
     min-height: 100px;
 }
 
+/* Generated-image containers (persisted PNGs from the pipeline/export) */
+.candidate-image,
+.reference-image,
+.asset-thumb {
+    width: 100%;
+    min-height: 120px;
+    background: var(--bg-nav);
+    border-radius: var(--radius);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.candidate-image img,
+.reference-image img,
+.asset-thumb img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.asset-thumb {
+    min-height: 80px;
+    margin: 0.5rem 0;
+}
+
 /* -------------------------------------------------------------------
    Score panel
    ------------------------------------------------------------------- */

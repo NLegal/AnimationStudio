@@ -367,11 +367,14 @@ Prefer real GPU hardware? Run the same ComfyUI pipeline on a Colab T4
 colab/AnimationStudio_Colab.ipynb
 ```
 
-The notebook clones the repo, installs ComfyUI, downloads the model into a
-Drive-side cache, starts the server, runs Phase-1 generation, exports real
-PNGs into your Drive, and launches the Review UI behind a LocalTunnel link.
-Open it from GitHub via `colab.research.google.com -> File -> Open notebook ->
-GitHub`, set `REPO_URL` in Cell 1, pick a GPU runtime, then `Runtime -> Run all`.
+The notebook clones the repo, installs ComfyUI, downloads the model onto the
+Colab disk (12-14 GB models do **not** fit a free 5 GB Drive), starts the
+server, runs Phase-1 generation, exports real PNGs into the repo checkout,
+launches the Review UI behind a LocalTunnel link, and syncs approved output
+back to GitHub (or downloads a zip). Only `catalog.db` (the shortlisted/
+approved asset state) is kept on Drive. Open it from GitHub via
+`colab.research.google.com -> File -> Open notebook -> GitHub`, set `REPO_URL`
+in Cell 1, pick a GPU runtime, then `Runtime -> Run all`.
 
 Branches pin the model flavor (the notebook selects it via its `BRANCH` cell):
 
