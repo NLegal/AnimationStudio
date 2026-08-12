@@ -36,17 +36,19 @@ _WORKFLOW_ALIASES: dict[str, str] = {
 }
 
 # Default minimal workflow JSON template for single-image generation.
-# In practice, users should export their own workflow from ComfyUI
-# and place it in the configured template path.
+# Flux-family models are guidance-based: CFG must stay 1.0 and the "simple"
+# scheduler is the recommended one (SD-style CFG values over-saturate/blur
+# Flux output).  In practice, users should export their own workflow from
+# ComfyUI and place it in the configured template path.
 _DEFAULT_WORKFLOW_TEMPLATE: dict = {
     "3": {
         "class_type": "KSampler",
         "inputs": {
             "seed": 42,
-            "steps": 25,
-            "cfg": 7.0,
+            "steps": 30,
+            "cfg": 1.0,
             "sampler_name": "euler",
-            "scheduler": "normal",
+            "scheduler": "simple",
             "denoise": 1.0,
             "model": ["4", 0],
             "positive": ["6", 0],
@@ -55,7 +57,7 @@ _DEFAULT_WORKFLOW_TEMPLATE: dict = {
         },
     },
     "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": _DEFAULT_CKPT_NAME}},
-    "5": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
+    "5": {"class_type": "EmptySD3LatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
     "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
     "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["4", 1]}},
     "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
@@ -290,12 +292,60 @@ class ComfyUIBackend(GenerationBackend):
         if "3" in workflow and workflow["3"].get("class_type") == "KSampler":
             workflow["3"]["inputs"]["seed"] = input.seed
 
-        # Inject dimensions into EmptyLatentImage node (node 5)
-        if "5" in workflow and workflow["5"].get("class_type") == "EmptyLatentImage":
+        # Inject dimensions into the empty-latent node (node 5).  Flux-family
+        # models use EmptySD3LatentImage; SD-family use EmptyLatentImage.
+        if "5" in workflow and workflow["5"].get("class_type") in (
+            "EmptyLatentImage",
+            "EmptySD3LatentImage",
+        ):
             workflow["5"]["inputs"]["width"] = input.width
             workflow["5"]["inputs"]["height"] = input.height
 
+        # GGUF checkpoints (master branch: flux1-dev-Q4_K_S.gguf) cannot be
+        # loaded by CheckpointLoaderSimple.  Rewire the graph onto the GGUF
+        # custom nodes: UnetLoaderGGUF + DualCLIPLoader + VAELoader.
+        self._upgrade_to_gguf_if_needed(workflow)
+
         return workflow
+
+    def _upgrade_to_gguf_if_needed(self, workflow: dict) -> None:
+        """Swap a CheckpointLoaderSimple graph to GGUF nodes when the
+        checkpoint is a GGUF file (ComfyUI-GGUF custom node installed)."""
+        loader_id = next(
+            (nid for nid, node in workflow.items()
+             if node.get("class_type") == "CheckpointLoaderSimple"),
+            None,
+        )
+        if loader_id is None:
+            return
+        ckpt = workflow[loader_id]["inputs"].get("ckpt_name", "")
+        if not str(ckpt).lower().endswith(".gguf"):
+            return
+
+        clip_id = f"{loader_id}-gguf-clip"
+        vae_id = f"{loader_id}-gguf-vae"
+        workflow[loader_id]["class_type"] = "UnetLoaderGGUF"
+        workflow[loader_id]["inputs"] = {"unet_name": ckpt}
+        workflow[clip_id] = {
+            "class_type": "DualCLIPLoader",
+            "inputs": {
+                "clip_name1": "clip_l.safetensors",
+                "clip_name2": "t5xxl_fp16.safetensors",
+                "type": "flux",
+            },
+        }
+        workflow[vae_id] = {
+            "class_type": "VAELoader",
+            "inputs": {"vae_name": "ae.safetensors"},
+        }
+        # model link: loader[0] unchanged; clip: loader[1] -> DualCLIPLoader
+        for node in workflow.values():
+            inputs = node.get("inputs", {})
+            for key, val in inputs.items():
+                if isinstance(val, list) and val[:2] == [loader_id, 1]:
+                    val[0], val[1] = clip_id, 0
+                elif isinstance(val, list) and val[:2] == [loader_id, 2]:
+                    val[0], val[1] = vae_id, 0
 
     def _load_workflow_template(self, asset_type: str = "") -> dict:
         """Load the workflow template JSON for the given asset type.

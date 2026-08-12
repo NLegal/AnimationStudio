@@ -361,15 +361,17 @@ class TestComfyUIWorkflowLoading:
     """Verify type-specific workflow template loading and prompt injection."""
 
     def test_load_expression_workflow(self):
-        """Load expression template, verify node 3 has cfg=3.5, node 7 empty text."""
+        """Load expression template, verify Flux-correct KSampler, empty text."""
         from src.generation_engine.comfy_backend import ComfyUIBackend
 
         backend = ComfyUIBackend()
         workflow = backend._load_workflow_template("expression")
 
         assert workflow["3"]["class_type"] == "KSampler"
-        assert workflow["3"]["inputs"]["cfg"] == 3.5
-        assert workflow["3"]["inputs"]["steps"] == 25
+        assert workflow["3"]["inputs"]["cfg"] == 1.0
+        assert workflow["3"]["inputs"]["steps"] == 30
+        assert workflow["3"]["inputs"]["scheduler"] == "simple"
+        assert workflow["5"]["class_type"] == "EmptySD3LatentImage"
         assert workflow["7"]["inputs"]["text"] == ""
         assert workflow["7"]["class_type"] == "CLIPTextEncode"
 
@@ -382,7 +384,7 @@ class TestComfyUIWorkflowLoading:
 
         assert workflow["5"]["inputs"]["width"] == 1024
         assert workflow["5"]["inputs"]["height"] == 1024
-        assert workflow["3"]["inputs"]["cfg"] == 3.5
+        assert workflow["3"]["inputs"]["cfg"] == 1.0
 
     def test_load_pose_workflow(self):
         """Load pose template, verify 768x1344 dimensions."""
@@ -393,17 +395,17 @@ class TestComfyUIWorkflowLoading:
 
         assert workflow["5"]["inputs"]["width"] == 768
         assert workflow["5"]["inputs"]["height"] == 1344
-        assert workflow["3"]["inputs"]["cfg"] == 3.5
+        assert workflow["3"]["inputs"]["cfg"] == 1.0
 
     def test_load_fallback_on_unknown_type(self):
-        """Load nonexistent type, verify returns default template with cfg=7.0."""
+        """Load nonexistent type, verify returns default template with cfg=1.0."""
         from src.generation_engine.comfy_backend import ComfyUIBackend
 
         backend = ComfyUIBackend()
         workflow = backend._load_workflow_template("nonexistent_type")
 
-        # Default template has cfg=7.0 (SDXL default), confirming fallback
-        assert workflow["3"]["inputs"]["cfg"] == 7.0
+        # Default template uses Flux guidance (cfg=1.0), not SD-style CFG
+        assert workflow["3"]["inputs"]["cfg"] == 1.0
         assert workflow["3"]["class_type"] == "KSampler"
 
     def test_default_template_has_valid_ckpt_name(self):
@@ -427,16 +429,54 @@ class TestComfyUIWorkflowLoading:
         assert workflow["4"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
 
     def test_reference_aliases_to_reference_sheet(self):
-        """'reference'/'lighting' reuse the reference_sheet graph (cfg 3.5)."""
+        """'reference'/'lighting' reuse the reference_sheet graph (cfg 1.0)."""
         from src.generation_engine.comfy_backend import ComfyUIBackend
 
         backend = ComfyUIBackend()
         workflow = backend._load_workflow_template("reference")
-        assert workflow["3"]["inputs"]["cfg"] == 3.5
+        assert workflow["3"]["inputs"]["cfg"] == 1.0
         assert workflow["4"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
 
         lighting = backend._load_workflow_template("lighting")
-        assert lighting["3"]["inputs"]["cfg"] == 3.5
+        assert lighting["3"]["inputs"]["cfg"] == 1.0
+
+    def test_build_workflow_injects_into_sd3_latent_node(self):
+        """Dimension injection must handle the Flux EmptySD3LatentImage node."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+        from src.generation_engine.base import GenerationInput
+
+        backend = ComfyUIBackend()
+        workflow = backend._build_workflow(
+            GenerationInput(prompt="hi", width=832, height=1216),
+            asset_type="expression",
+        )
+        assert workflow["5"]["class_type"] == "EmptySD3LatentImage"
+        assert workflow["5"]["inputs"]["width"] == 832
+        assert workflow["5"]["inputs"]["height"] == 1216
+
+    def test_build_workflow_upgrades_gguf_checkpoint(self):
+        """A .gguf checkpoint must be rewired to UnetLoaderGGUF + clips + VAE."""
+        from src.generation_engine.comfy_backend import ComfyUIBackend
+        from src.generation_engine.base import GenerationInput
+
+        backend = ComfyUIBackend()
+        workflow = backend._build_workflow(
+            GenerationInput(prompt="hi"), asset_type="expression"
+        )
+        workflow["4"]["inputs"]["ckpt_name"] = "flux1-dev-Q4_K_S.gguf"
+        backend._upgrade_to_gguf_if_needed(workflow)
+
+        assert workflow["4"]["class_type"] == "UnetLoaderGGUF"
+        assert workflow["4"]["inputs"]["unet_name"] == "flux1-dev-Q4_K_S.gguf"
+        clip_id = next(nid for nid, n in workflow.items()
+                       if n.get("class_type") == "DualCLIPLoader")
+        assert workflow[clip_id]["inputs"]["type"] == "flux"
+        vae_id = next(nid for nid, n in workflow.items()
+                      if n.get("class_type") == "VAELoader")
+        assert workflow[vae_id]["inputs"]["vae_name"] == "ae.safetensors"
+        # positive/negative CLIP nodes must now read from DualCLIPLoader
+        assert workflow["6"]["inputs"]["clip"] == [clip_id, 0]
+        assert workflow["8"]["inputs"]["vae"] == [vae_id, 0]
 
     def test_prompt_injection_into_loaded_workflow(self):
         """Build workflow with prompt, verify node 6 has injected text."""
@@ -449,7 +489,7 @@ class TestComfyUIWorkflowLoading:
 
         assert workflow["6"]["inputs"]["text"] == "test prompt"
         assert workflow["6"]["class_type"] == "CLIPTextEncode"
-        assert workflow["3"]["inputs"]["cfg"] == 3.5  # Flux params preserved
+        assert workflow["3"]["inputs"]["cfg"] == 1.0  # Flux params preserved
 
 
 # ── Helper to import sqlite repo for tests ─────────────────────────
