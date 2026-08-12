@@ -241,3 +241,69 @@ class TestDefaultFactory:
         entries = data.get("entries", [])
         assert any("Generate queued" in e["message"] for e in entries)
         assert any("UI batch complete" in e["message"] for e in entries)
+
+
+class TestLifecycleRoutes:
+    """Approve/Promote/Reject on assets that are still in 'scored' state.
+
+    D-15 must allow approve from scored (shortlisting is implicit on approval)
+    and reject must reset scored/shortlisted assets back to draft.
+    """
+
+    def _make_scored_asset(self, asset_repo, char_id, asset_type="expression"):
+        from src.models.schemas import AssetModel
+        asset = AssetModel(
+            character_id=char_id,
+            asset_type=asset_type,
+            file_path=f"/tmp/ui_{asset_type}.png",
+        )
+        import asyncio
+        asyncio.run(asset_repo.save(asset))
+        asyncio.run(asset_repo.update_state(asset.id, "generated"))
+        asyncio.run(asset_repo.update_state(asset.id, "scored"))
+        return asset
+
+    def _state(self, asset_repo, asset_id) -> str:
+        import asyncio
+        asset = asyncio.run(asset_repo.get(asset_id))
+        return asset.state
+
+    def test_approve_from_scored(self, client, sqlite_app):
+        _, char_repo, asset_repo = sqlite_app
+        char = asyncio.run(char_repo.find_character_by_name("Lily Bunny"))
+        asset = self._make_scored_asset(asset_repo, char.id)
+        response = client.post(f"/approve/{asset.id}")
+        assert response.status_code in (200, 303)
+        assert self._state(asset_repo, asset.id) == "approved"
+
+    def test_promote_from_scored(self, client, sqlite_app):
+        _, char_repo, asset_repo = sqlite_app
+        char = asyncio.run(char_repo.find_character_by_name("Lily Bunny"))
+        asset = self._make_scored_asset(asset_repo, char.id)
+        response = client.post(f"/promote/{asset.id}")
+        assert response.status_code in (200, 303)
+        assert self._state(asset_repo, asset.id) == "production"
+
+    def test_reject_from_scored_resets_to_draft(self, client, sqlite_app):
+        _, char_repo, asset_repo = sqlite_app
+        char = asyncio.run(char_repo.find_character_by_name("Lily Bunny"))
+        asset = self._make_scored_asset(asset_repo, char.id)
+        response = client.post(f"/reject/{asset.id}")
+        assert response.status_code in (200, 303)
+        assert self._state(asset_repo, asset.id) == "draft"
+
+    def test_approve_from_shortlisted(self, client, sqlite_app):
+        import asyncio
+        from src.models.schemas import AssetModel
+        _, char_repo, asset_repo = sqlite_app
+        char = asyncio.run(char_repo.find_character_by_name("Lily Bunny"))
+        asset = AssetModel(
+            character_id=char.id, asset_type="expression",
+            file_path="/tmp/ui_shortlisted.png",
+        )
+        asyncio.run(asset_repo.save(asset))
+        for s in ("generated", "scored", "shortlisted"):
+            asyncio.run(asset_repo.update_state(asset.id, s))
+        response = client.post(f"/approve/{asset.id}")
+        assert response.status_code in (200, 303)
+        assert self._state(asset_repo, asset.id) == "approved"

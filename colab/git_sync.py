@@ -14,10 +14,22 @@ Usage (from a notebook cell):
               token=GITHUB_TOKEN, git_name=GIT_NAME, git_email=GIT_EMAIL)
 """
 
+import base64
 import os
 import shutil
 import subprocess
 from datetime import datetime
+
+
+def _basic_auth_header(token: str) -> str:
+    """Build the GitHub ``Authorization`` header value for a PAT.
+
+    GitHub's git smart-HTTP does NOT accept ``Authorization: Bearer`` — it
+    needs basic auth with the token as the password.  The canonical form used
+    by GitHub Actions is ``x-access-token:<token>`` base64-encoded.
+    """
+    raw = f"x-access-token:{token}".encode()
+    return "basic " + base64.b64encode(raw).decode()
 
 
 def _run(cmd, cwd=None, check=True):
@@ -41,6 +53,7 @@ def auto_sync(
     token: str = "",
     git_name: str = "Colab Studio",
     git_email: str = "colab@animationstudio.local",
+    remote_url: str = "",
     dirs: tuple[str, ...] = ("Universe", "World", "Assets"),
     message: str | None = None,
 ) -> bool:
@@ -55,10 +68,18 @@ def auto_sync(
         db_path: The catalog DB that was just written (usually on Drive).
         token: GitHub PAT.  Colab has no credential helper, so the token is
             passed per-command via ``http.extraheader`` and never stored.
+        remote_url: The GitHub clone URL (``REPO_URL`` in the notebook).  When
+            given, the ``origin`` remote is repointed to it before pushing, so
+            pushes always land in the right repository even if the checkout
+            was cloned from a stale/different URL.
         dirs: Repository subdirectories that hold generated images.
         message: Optional commit message; defaults to a timestamped one.
     """
     try:
+        if remote_url:
+            _run(["git", "remote", "set-url", "origin", remote_url],
+                 cwd=repo, check=False)
+
         if os.path.exists(db_path):
             repo_db = os.path.join(repo, "catalog.db")
             try:
@@ -89,7 +110,7 @@ def auto_sync(
         pushed = dirty.stdout.strip().count("\n") + 1
         if token:
             _run(
-                ["git", "-c", f"http.extraheader=Authorization: Bearer {token}",
+                ["git", "-c", f"http.extraheader=Authorization: {_basic_auth_header(token)}",
                  "push", "origin", branch],
                 cwd=repo,
             )

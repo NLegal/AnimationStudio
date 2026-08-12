@@ -32,11 +32,13 @@ class ValidationError(Exception):
 
 
 # D-15 lifecycle state machine
+# Forward: draft → generated → scored → shortlisted → approved → production → archived
+# Reversible: pre-production states reset to draft on reject/regeneration (D-15 reversible).
 _VALID_TRANSITIONS: dict[str, list[str]] = {
     "draft": ["generated"],
-    "generated": ["scored"],
-    "scored": ["shortlisted"],
-    "shortlisted": ["approved"],
+    "generated": ["scored", "draft"],
+    "scored": ["shortlisted", "approved", "draft"],
+    "shortlisted": ["approved", "draft"],
     "approved": ["production", "archived"],
     "production": ["archived"],
     "archived": [],

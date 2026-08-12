@@ -126,6 +126,16 @@ class _StubAssetRepo:
             and a.get("state") in ("approved", "production")
         ]
 
+    async def get(self, asset_id: str):
+        return next((a for a in self._assets if a["id"] == asset_id), None)
+
+    async def update_state(self, asset_id: str, new_state: str) -> None:
+        for a in self._assets:
+            if a["id"] == asset_id:
+                a["state"] = new_state
+                return
+        raise NotFoundError("Asset", asset_id)
+
 
 # ---------------------------------------------------------------------------
 # Factory
@@ -230,6 +240,39 @@ def create_app(
         if isinstance(item, dict):
             return item.get("state", "")
         return getattr(item, "state", "")
+
+    # D-15 forward lifecycle order (used to advance approve/promote through
+    # any intermediate states, e.g. scored → approved without a manual
+    # shortlist click).
+    _D15_CHAIN = [
+        "draft", "generated", "scored", "shortlisted",
+        "approved", "production", "archived",
+    ]
+
+    async def _advance_to(repo, asset_id: str, target: str) -> None:
+        """Advance an asset forward along the D-15 chain to ``target``.
+
+        Steps through each intermediate state so the Review UI can approve or
+        promote a candidate that is still ``generated``/``scored`` without a
+        separate shortlist action.  Raises the usual repo errors for missing
+        assets or backward/no-op transitions.
+        """
+        asset = await repo.get(asset_id)
+        if asset is None:
+            raise NotFoundError("Asset", asset_id)
+        current = _get_state(asset)
+        if current not in _D15_CHAIN or target not in _D15_CHAIN:
+            raise ValueError(
+                f"Invalid state transition: '{current}' -> '{target}'"
+            )
+        start, end = _D15_CHAIN.index(current), _D15_CHAIN.index(target)
+        if end <= start:
+            raise ValueError(
+                f"Invalid state transition: '{current}' -> '{target}'. "
+                f"Already at or past '{target}'."
+            )
+        for state in _D15_CHAIN[start + 1 : end + 1]:
+            await repo.update_state(asset_id, state)
 
     def _field(item, key: str, default=None):
         """Read a record field whether it is a dict or a pydantic model."""
@@ -659,9 +702,9 @@ def create_app(
 
     @app.post("/approve/{asset_id}")
     async def approve_asset(asset_id: str, request: Request):
-        """Approve: shortlisted → approved (D-15)."""
+        """Approve: any candidate state → approved (D-15, shortlist implied)."""
         try:
-            await repo.update_state(asset_id, "approved")
+            await _advance_to(repo, asset_id, "approved")
             logger.info("Asset %s approved", asset_id)
         except (NotFoundError, ValueError) as exc:
             logger.warning("Approve failed for %s: %s", asset_id, exc)
@@ -673,7 +716,7 @@ def create_app(
         request: Request,
         reason: str = Form(""),
     ):
-        """Reject with optional reason: scored/shortlisted → draft (regeneration)."""
+        """Reject with optional reason: candidate → draft (regeneration)."""
         try:
             await repo.update_state(asset_id, "draft")
             if reason:
@@ -709,10 +752,9 @@ def create_app(
 
     @app.post("/promote/{asset_id}")
     async def promote_asset(asset_id: str, request: Request):
-        """Approve & Promote: shortlisted → approved → production (two-step)."""
+        """Approve & Promote: any candidate state → production (two-step)."""
         try:
-            await repo.update_state(asset_id, "approved")
-            await repo.update_state(asset_id, "production")
+            await _advance_to(repo, asset_id, "production")
             logger.info("Asset %s promoted to production", asset_id)
         except (NotFoundError, ValueError) as exc:
             logger.warning("Promote failed for %s: %s", asset_id, exc)

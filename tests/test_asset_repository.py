@@ -255,6 +255,65 @@ async def test_state_transition_validity(asset_repo, char_repo):
 
 
 @pytest.mark.asyncio
+async def test_approve_directly_from_scored(asset_repo, char_repo):
+    """D-15: scored assets may be approved without an explicit shortlist step.
+
+    The Review UI shows Approve on scored candidates; the lifecycle must allow
+    scored → approved directly (shortlisting is implicit on approval).
+    """
+    char = CharacterModel(name="Approve Bunny", category="main", species="rabbit")
+    await char_repo.save_character(char)
+    asset = AssetModel(
+        character_id=char.id,
+        asset_type="expression",
+        file_path="/tmp/approve.png",
+    )
+    await asset_repo.save(asset)
+    await asset_repo.update_state(asset.id, "generated")
+    await asset_repo.update_state(asset.id, "scored")
+    await asset_repo.update_state(asset.id, "approved")
+    assert (await asset_repo.get(asset.id)).state == "approved"
+
+
+@pytest.mark.asyncio
+async def test_reject_resets_to_draft_from_review_states(asset_repo, char_repo):
+    """D-15 reversible: scored/shortlisted assets reset to draft on reject."""
+    char = CharacterModel(name="Reject Bunny", category="main", species="rabbit")
+    await char_repo.save_character(char)
+    for target in ("scored", "shortlisted"):
+        asset = AssetModel(
+            character_id=char.id,
+            asset_type="expression",
+            file_path=f"/tmp/reject_{target}.png",
+        )
+        await asset_repo.save(asset)
+        await asset_repo.update_state(asset.id, "generated")
+        if target == "shortlisted":
+            await asset_repo.update_state(asset.id, "scored")
+        await asset_repo.update_state(asset.id, target)
+        await asset_repo.update_state(asset.id, "draft")
+        assert (await asset_repo.get(asset.id)).state == "draft"
+
+
+@pytest.mark.asyncio
+async def test_archived_cannot_reject(asset_repo, char_repo):
+    """archived → draft remains invalid even with the reject edges."""
+    char = CharacterModel(name="Archived Bunny", category="main", species="rabbit")
+    await char_repo.save_character(char)
+    asset = AssetModel(
+        character_id=char.id,
+        asset_type="expression",
+        file_path="/tmp/archived.png",
+    )
+    await asset_repo.save(asset)
+    for state in ("generated", "scored", "shortlisted", "approved"):
+        await asset_repo.update_state(asset.id, state)
+    await asset_repo.update_state(asset.id, "archived")
+    with pytest.raises(ValueError, match="Invalid state transition"):
+        await asset_repo.update_state(asset.id, "draft")
+
+
+@pytest.mark.asyncio
 async def test_lineage_metadata_roundtrip(asset_repo, char_repo):
     """Lineage dict round-trips through save() and _row_to_asset() with JSON intact.
 
