@@ -813,3 +813,491 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
         grid-template-columns: 1fr 1fr;
     }
 }
+
+/* ==================================================================
+   Studio shell additions — overview, phases, queue, chips, toasts
+   ================================================================== */
+
+.nav-active {
+    color: var(--text-primary) !important;
+    font-weight: 700;
+    text-decoration: underline;
+}
+
+.nav-badge {
+    margin-left: 1rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    background: var(--blue);
+    color: #3a5a7a;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+/* -------------------------------------------------------------------
+   Overview cards
+   ------------------------------------------------------------------- */
+.overview-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.ov-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    box-shadow: var(--shadow);
+}
+
+.ov-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+}
+
+.ov-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.ov-pending .ov-value {
+    color: var(--orange-dark);
+}
+
+/* -------------------------------------------------------------------
+   Phase cards
+   ------------------------------------------------------------------- */
+.phase-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.phase-card {
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    box-shadow: var(--shadow);
+}
+
+.phase-card h3 {
+    margin: 0 0 0.15rem;
+    font-size: 1rem;
+}
+
+.phase-name {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.phase-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.phase-pending {
+    color: var(--orange-dark);
+    font-weight: 600;
+}
+
+.phase-card-1 { border-top: 3px solid var(--pink-dark); }
+.phase-card-2 { border-top: 3px solid var(--blue-dark); }
+.phase-card-3 { border-top: 3px solid var(--green-dark); }
+
+/* -------------------------------------------------------------------
+   Generic panel + queue
+   ------------------------------------------------------------------- */
+.panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.panel h2 {
+    margin-top: 0;
+}
+
+.panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.queue-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
+}
+
+.queue-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-body);
+    color: var(--text-primary);
+}
+
+.queue-card:hover {
+    box-shadow: var(--shadow-hover);
+    text-decoration: none;
+}
+
+.queue-entity {
+    font-weight: 700;
+}
+
+.queue-type,
+.queue-score {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* -------------------------------------------------------------------
+   State chips (D-15 lifecycle)
+   ------------------------------------------------------------------- */
+.state-draft {
+    background: var(--yellow);
+    color: #7a6a30;
+}
+
+.state-generated {
+    background: #e0e0f0;
+    color: #4a4a7a;
+}
+
+.state-scored {
+    background: var(--blue);
+    color: #3a5a7a;
+}
+
+.state-shortlisted {
+    background: var(--orange);
+    color: #7a5a2a;
+}
+
+.state-approved,
+.state-production {
+    background: var(--green);
+    color: #3a6a3a;
+}
+
+.state-archived {
+    background: var(--bg-nav);
+    color: var(--text-muted);
+}
+
+/* -------------------------------------------------------------------
+   Entity detail header + asset section heads
+   ------------------------------------------------------------------- */
+.entity-header {
+    margin-bottom: 1rem;
+}
+
+.entity-header .btn {
+    margin-bottom: 0.5rem;
+}
+
+.entity-header h1 {
+    margin: 0.25rem 0 0.25rem;
+}
+
+.entity-actions {
+    margin-bottom: 1rem;
+}
+
+.asset-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.asset-section-head h2 {
+    margin: 0;
+}
+
+.asset-section-head .action-row {
+    align-items: center;
+}
+
+.asset-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-width: 220px;
+}
+
+.asset-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.asset-score {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.asset-variant {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.asset-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.asset-reviewed {
+    opacity: 0.55;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.card-head-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.reject-group {
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+/* -------------------------------------------------------------------
+   Toasts
+   ------------------------------------------------------------------- */
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 1000;
+}
+
+.toast {
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: var(--shadow-hover);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    animation: toast-in 0.2s ease;
+    max-width: 320px;
+}
+
+.toast-success {
+    background: var(--green);
+    color: #3a6a3a;
+    border-color: var(--green-dark);
+}
+
+.toast-error {
+    background: var(--pink);
+    color: #7a4a4a;
+    border-color: var(--pink-dark);
+}
+
+.toast-out {
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+@keyframes toast-in {
+    from { transform: translateY(-8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* -------------------------------------------------------------------
+   Phase 4 — motion page
+   ------------------------------------------------------------------- */
+.standards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.75rem;
+}
+
+.standards-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    background: var(--bg-body);
+}
+
+.standards-card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+}
+
+.tag-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.tag {
+    background: var(--blue);
+    color: #3a5a7a;
+    border-radius: 12px;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.tag-forbidden {
+    background: var(--pink);
+    color: #7a4a4a;
+}
+
+.check-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.85rem;
+}
+
+.check-list li {
+    padding: 0.15rem 0;
+}
+
+.badge-difficulty {
+    background: var(--orange);
+    color: #7a5a2a;
+}
+
+.badge-loop {
+    background: var(--green);
+    color: #3a6a3a;
+}
+
+.expr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.75rem;
+}
+
+.expr-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    background: var(--bg-body);
+}
+
+.expr-card h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+}
+
+.expr-desc {
+    margin: 0 0 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.level-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.level-list li {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+    font-size: 0.8rem;
+    border-top: 1px dashed var(--border);
+}
+
+.level-list li:first-child {
+    border-top: none;
+}
+
+.level-int {
+    font-weight: 700;
+    color: var(--blue-dark);
+    flex: 0 0 1.2rem;
+}
+
+.level-name {
+    font-weight: 600;
+    flex: 0 0 6.5rem;
+    text-transform: capitalize;
+}
+
+.level-face {
+    color: var(--text-secondary);
+    flex: 1;
+}
+
+.interaction-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.75rem;
+}
+
+.interaction-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    background: var(--bg-body);
+}
+
+.interaction-card h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+    text-transform: capitalize;
+}
+
+.interaction-frames {
+    margin: 0 0 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.interaction-desc {
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.motion-framerate {
+    font-weight: 700;
+}

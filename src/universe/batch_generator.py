@@ -12,7 +12,7 @@ Usage (from scripts):
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 from src.generation_engine.base import GenerationBackend
 from src.identity_engine.scorer import IdentityScorer
@@ -149,6 +149,7 @@ class BatchRunner:
         universe_dir: str = "Universe",
         world_dir: str = "World",
         assets_dir: str = "Assets",
+        on_asset: Optional[Callable[[dict], Awaitable]] = None,
     ):
         self.asset_repo = asset_repo
         self.char_repo = char_repo or asset_repo
@@ -161,6 +162,7 @@ class BatchRunner:
         self.universe_dir = universe_dir
         self.world_dir = world_dir
         self.assets_dir = assets_dir
+        self.on_asset = on_asset
 
     # ------------------------------------------------------------------ #
     #  Character record management
@@ -233,18 +235,32 @@ class BatchRunner:
                 return None
 
     async def _has_variant(
-        self, character_id: str, asset_type: str, variant: str
+        self,
+        character_id: str,
+        asset_type: str,
+        variant: str,
+        skip_scored: bool = False,
     ) -> bool:
-        """True when this record already owns a usable asset for the variant."""
+        """True when this record already owns a usable asset for the variant.
+
+        By default only shortlisted/approved/production assets count, so a
+        user can re-run the batch to produce better candidates for a variant
+        that was scored but never shortlisted.  Pass ``skip_scored=True`` for
+        crash-resume runs (Colab): everything that was generated and synced is
+        kept, and nothing is regenerated.
+        """
         try:
             existing = await self.asset_repo.find_by_character(
                 character_id, asset_type
             )
         except (NotImplementedError, AttributeError):
             return False
+        usable = ("shortlisted", "approved", "production")
+        if skip_scored:
+            usable += ("scored",)
         return any(
             getattr(a, "variant", "") == variant
-            and getattr(a, "state", "") in ("shortlisted", "approved", "production")
+            and getattr(a, "state", "") in usable
             for a in existing
         )
 
@@ -262,6 +278,7 @@ class BatchRunner:
         variant: str = "front",
         batch_id: str = "",
         backend: Optional[GenerationBackend] = None,
+        skip_scored: bool = False,
     ) -> dict:
         """Generate candidates for a single seed and return its summary."""
         backend = backend or self.backend
@@ -283,10 +300,13 @@ class BatchRunner:
                 "shortlisted": 0,
             }
 
-        # Idempotency: skip variants that already have a shortlisted/approved
-        # asset for this record so reruns never duplicate the library
-        # (PHASE3.md — "Never create the same object twice").
-        if await self._has_variant(character_id, asset_type, variant):
+        # Idempotency: skip variants that already have a usable asset for this
+        # record so reruns never duplicate the library (PHASE3.md — "Never
+        # create the same object twice").  With skip_scored=True even a scored
+        # (but unshortlisted) asset counts, so crash-resume runs keep every
+        # image that was generated and synced.
+        if await self._has_variant(character_id, asset_type, variant,
+                                   skip_scored=skip_scored):
             return {
                 "name": getattr(seed, "name", ""),
                 "kind": kind,
@@ -322,6 +342,7 @@ class BatchRunner:
             universe_dir=self.universe_dir,
             world_dir=self.world_dir,
             assets_dir=self.assets_dir,
+            on_asset=self.on_asset,
         )
         result = await generation.execute(job)
 
@@ -347,6 +368,7 @@ class BatchRunner:
         variant: str = "front",
         batch_id: str = "",
         backend: Optional[GenerationBackend] = None,
+        skip_scored: bool = False,
     ) -> dict:
         """Generate for many seeds concurrently (semaphore-limited)."""
         selected = seeds[:limit] if limit else seeds
@@ -357,7 +379,7 @@ class BatchRunner:
                 return await self.generate_one(
                     seed, kind, count=count, shortlist=shortlist,
                     asset_type=asset_type, variant=variant, batch_id=batch_id,
-                    backend=backend,
+                    backend=backend, skip_scored=skip_scored,
                 )
 
         results = await asyncio.gather(*(_guarded(s) for s in selected))

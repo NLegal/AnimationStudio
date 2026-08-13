@@ -17,6 +17,7 @@ Usage (from a notebook cell):
 import base64
 import os
 import shutil
+import sqlite3
 import subprocess
 from datetime import datetime
 
@@ -30,6 +31,24 @@ def _basic_auth_header(token: str) -> str:
     """
     raw = f"x-access-token:{token}".encode()
     return "basic " + base64.b64encode(raw).decode()
+
+
+def _checkpoint_db(db_path: str) -> None:
+    """Flush SQLite WAL contents into the main ``catalog.db`` file.
+
+    The asset repository runs with ``PRAGMA journal_mode=WAL``, so its latest
+    writes live in ``catalog.db-wal`` and are invisible to a plain file copy.
+    Running ``wal_checkpoint(TRUNCATE)`` forces those writes into the main DB
+    file so every per-image sync captures the freshest catalog state.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        print("Auto-sync: WAL checkpoint failed (copying DB as-is):", exc)
 
 
 def _run(cmd, cwd=None, check=True):
@@ -81,6 +100,7 @@ def auto_sync(
                  cwd=repo, check=False)
 
         if os.path.exists(db_path):
+            _checkpoint_db(db_path)
             repo_db = os.path.join(repo, "catalog.db")
             try:
                 same = os.path.samefile(db_path, repo_db)

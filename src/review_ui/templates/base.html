@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Character Review Studio{% endblock %}</title>
+    <title>{% block title %}Animation Studio{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <!-- Navigation -->
     <header class="navbar">
         <div class="navbar-brand">
-            <a href="/">🎬 Character Review Studio</a>
+            <a href="/">Animation Studio</a>
         </div>
         <nav class="navbar-links">
-            <a href="/">Dashboard</a>
-            <span class="nav-separator">|</span>
-            <span class="nav-dropdown-label">Characters ▼</span>
+            <a href="/" class="{% if page == 'dashboard' %}nav-active{% endif %}">Dashboard</a>
+            <a href="/motion" class="{% if page == 'motion' %}nav-active{% endif %}">Motion</a>
+            <span class="nav-badge">PHASE 1-4</span>
         </nav>
     </header>
 
@@ -26,8 +26,13 @@
         {% endblock %}
     </main>
 
+    <!-- Toast notifications (studio.js) -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
     <footer class="footer">
-        <p>Character Review Studio &mdash; Phase 1 &bull; Internal Tool</p>
+        <p>Animation Studio — PHASE 1-4 Production Tools</p>
     </footer>
+
+    <script src="/static/studio.js"></script>
 </body>
 </html>

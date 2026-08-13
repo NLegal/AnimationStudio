@@ -110,6 +110,20 @@ def _tasks(seeds: list, asset_types: list[str]):
                 yield seed, key, asset_type, variant
 
 
+def _checkpoint_sync(args, message: str) -> None:
+    """Push generated images + the DB to git; never block generation on it."""
+    try:
+        from colab.git_sync import auto_sync
+    except Exception as exc:  # pragma: no cover - environment dependent
+        logger.warning("Periodic sync unavailable (generation continues): %s", exc)
+        return
+    repo = args.sync_repo or str(Path(__file__).resolve().parents[1])
+    auto_sync(repo=repo, branch=args.sync_branch, db_path=args.db,
+              token=args.sync_token, remote_url=args.sync_remote_url,
+              git_name=args.sync_git_name, git_email=args.sync_git_email,
+              message=message)
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -154,6 +168,26 @@ async def main() -> int:
                         help="Print prompts without generating images")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable debug logging")
+    parser.add_argument("--sync-every", type=int, default=0,
+                        help="After every N variant groups, push generated "
+                             "images + the DB to git (default: 0 = only a "
+                             "final sync at the end, driven by the notebook)")
+    parser.add_argument("--sync-every-image", action="store_true",
+                        help="Push each individual image + the DB to git the "
+                             "moment it is generated, so a Colab termination "
+                             "never loses more than the in-flight image")
+    parser.add_argument("--sync-repo", default="",
+                        help="Git checkout to push from (default: repo root)")
+    parser.add_argument("--sync-branch", default="main",
+                        help="Git branch to push to (default: main)")
+    parser.add_argument("--sync-token", default="",
+                        help="GitHub PAT for the push")
+    parser.add_argument("--sync-remote-url", default="",
+                        help="GitHub clone URL; origin is repointed to it")
+    parser.add_argument("--sync-git-name", default="Colab Studio",
+                        help="Git identity name for checkpoint commits")
+    parser.add_argument("--sync-git-email", default="colab@animationstudio.local",
+                        help="Git identity email for checkpoint commits")
     args = parser.parse_args()
 
     if args.verbose:
@@ -178,6 +212,12 @@ async def main() -> int:
     print(f"  asset-types: {', '.join(asset_types)}")
     print(f"  tasks: {len(tasks)} (character × variant)")
     print(f"  backend: {args.backend}  db: {args.db}")
+    if args.sync_every_image:
+        print("  git sync: PER IMAGE (each image is pushed before the next starts)")
+    elif args.sync_every > 0:
+        print(f"  git sync: every {args.sync_every} variant group(s)")
+    else:
+        print("  git sync: off (notebook drives final push)")
     print("=" * 70)
 
     if args.prompt_only:
@@ -193,11 +233,21 @@ async def main() -> int:
     backend = resolve_backend(args.backend, comfyui_url=args.comfyui_url,
                               provider=args.provider)
     scorer = IdentityScorer(light=args.fast_scoring)
+
+    # Per-image checkpoint sync: push the moment each image is generated, so
+    # a Colab termination loses at most the single in-flight image.  The hook
+    # runs inside the generation loop (blocking until the push completes —
+    # exactly the "generate one, upload, generate next" pattern requested).
+    async def _on_asset(info: dict) -> None:
+        label = info.get("file_path") or info.get("asset_id") or "asset"
+        _checkpoint_sync(args, f"image {label} (per-image checkpoint)")
+
     runner = BatchRunner(asset_repo=asset_repo, char_repo=char_repo,
                          backend=backend, scorer=scorer,
                          persist_images=args.persist_images,
                          universe_dir=args.universe, world_dir=args.world,
-                         assets_dir=args.assets)
+                         assets_dir=args.assets,
+                         on_asset=_on_asset if args.sync_every_image else None)
 
     batch_id = f"phase1_{int(time.time())}"
     overall = {"tasks": 0, "generated": 0, "shortlisted": 0, "failed": 0}
@@ -209,7 +259,8 @@ async def main() -> int:
         by_variant.setdefault((asset_type, variant), []).append((seed, key))
 
     print(f"\nRunning {len(by_variant)} variant groups…")
-    for (asset_type, variant), group in by_variant.items():
+    for group_index, ((asset_type, variant), group) in enumerate(
+            by_variant.items(), start=1):
         group_seeds = [seed for seed, _key in group]
         print(f"\n▶ {asset_type} / {variant}  ({len(group_seeds)} characters)")
         try:
@@ -222,6 +273,7 @@ async def main() -> int:
                 asset_type=asset_type,
                 variant=variant,
                 batch_id=batch_id,
+                skip_scored=True,
             )
         except Exception as exc:
             logger.exception("Group %s/%s failed: %s", asset_type, variant, exc)
@@ -233,6 +285,20 @@ async def main() -> int:
         overall["failed"] += result["items_failed"]
         for fail in result["failures"]:
             print(f"    ✗ {fail.get('name')}: {fail.get('error')}")
+
+        # Checkpoint: ship everything generated so far to git after every N
+        # groups, so a Colab termination loses at most the in-flight group.
+        # Re-running this script skips the synced groups (skip_scored=True).
+        if args.sync_every > 0 and group_index % args.sync_every == 0:
+            _checkpoint_sync(
+                args,
+                f"checkpoint {group_index}/{len(by_variant)} groups "
+                f"({asset_type}/{variant})",
+            )
+
+    # Final flush so nothing waits on the notebook-side auto_sync.
+    if args.sync_every > 0:
+        _checkpoint_sync(args, "final checkpoint after full batch")
 
     print("\n" + "=" * 70)
     print("  SUMMARY")

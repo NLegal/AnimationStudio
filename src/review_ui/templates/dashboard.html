@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Animation Studio{% endblock %}
+
+{% block content %}
+
+<h1>Universe Dashboard</h1>
+
+<!-- ============================================================ -->
+<!--  OVERVIEW CARDS  (realtime via /api/overview)               -->
+<!-- ============================================================ -->
+<section class="overview-cards">
+  <div class="ov-card">
+    <span class="ov-label">Entities</span>
+    <span class="ov-value" id="ov-entities">{{ overview.total_entities }}</span>
+  </div>
+  <div class="ov-card">
+    <span class="ov-label">Assets</span>
+    <span class="ov-value" id="ov-assets">{{ overview.total_assets }}</span>
+  </div>
+  <div class="ov-card ov-pending">
+    <span class="ov-label">Pending Review</span>
+    <span class="ov-value" id="ov-pending">{{ overview.pending }}</span>
+  </div>
+  <div class="ov-card">
+    <span class="ov-label">Approved</span>
+    <span class="ov-value" id="ov-approved">{{ overview.approved }}</span>
+  </div>
+  <div class="ov-card">
+    <span class="ov-label">In Production</span>
+    <span class="ov-value" id="ov-production">{{ overview.production }}</span>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!--  PHASE CARDS                                                 -->
+<!-- ============================================================ -->
+<section class="phase-cards">
+  {% for num in [1, 2, 3] %}
+    {% set ph = overview.by_phase.get(num, {"count": 0, "pending": 0}) %}
+    <div class="phase-card phase-card-{{ num }}">
+      <h3>Phase {{ num }}</h3>
+      <span class="phase-name">
+        {% if num == 1 %}Characters{% elif num == 2 %}World{% else %}Assets{% endif %}
+      </span>
+      <div class="phase-stats">
+        <span class="phase-count">{{ ph.count }} entities</span>
+        <span class="phase-pending">{{ ph.pending }} pending</span>
+      </div>
+    </div>
+  {% endfor %}
+</section>
+
+<!-- ============================================================ -->
+<!--  REVIEW QUEUE  (top pending candidates studio-wide)          -->
+<!-- ============================================================ -->
+<section class="panel">
+  <div class="panel-head">
+    <h2>Review Queue</h2>
+    <a href="/api/review/next" class="btn btn-sm btn-secondary" target="_blank" rel="noopener">API</a>
+  </div>
+  {% if overview.review_queue %}
+    <div class="queue-grid">
+      {% for c in overview.review_queue %}
+      <a class="queue-card" href="/review/{{ c.entity_id }}?asset_type={{ c.asset_type }}&batch=true">
+        <span class="queue-state state-{{ c.state }}">{{ c.state }}</span>
+        <span class="queue-entity">{{ c.entity }}</span>
+        <span class="queue-type">{{ c.asset_type }}</span>
+        <span class="queue-score">
+          {{ "%.2f" | format(c.brand_score) if c.brand_score is not none else "—" }}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty-state">No candidates awaiting review.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  GENERATION PANEL                                            -->
+<!-- ============================================================ -->
+<section class="gen-panel">
+  <h2>Generate Assets</h2>
+  <form action="/generate" method="post" class="gen-form">
+    <div class="gen-field">
+      <label for="gen-scope">Scope</label>
+      <select name="scope" id="gen-scope">
+        <option value="characters" selected>Characters</option>
+        <option value="environments">Environments / Worlds</option>
+        <option value="props">Props &amp; Assets</option>
+        <option value="all">Everything</option>
+      </select>
+    </div>
+    <div class="gen-field">
+      <label for="gen-item">Item (optional)</label>
+      <input type="text" name="item" id="gen-item"
+             placeholder="Name, id, or category e.g. Lily / Furniture">
+    </div>
+    <div class="gen-field">
+      <label for="gen-count">Candidates</label>
+      <input type="number" name="count" id="gen-count" value="4" min="1" max="32">
+    </div>
+    <div class="gen-field">
+      <label for="gen-limit">Max items</label>
+      <input type="number" name="limit" id="gen-limit" value="10" min="1" max="100">
+    </div>
+    <div class="gen-field">
+      <label for="gen-backend">Backend</label>
+      <select name="backend" id="gen-backend">
+        <option value="mock" selected>Mock (no GPU)</option>
+        <option value="comfyui">ComfyUI</option>
+        <option value="cloud">Cloud API</option>
+      </select>
+    </div>
+    <div class="gen-field">
+      <label for="gen-variant">Variant</label>
+      <input type="text" name="variant" id="gen-variant" value="front">
+    </div>
+    <div class="gen-field">
+      <button type="submit" class="btn btn-primary">Generate</button>
+    </div>
+  </form>
+  <p class="gen-hint">
+    Runs in the background through the standard pipeline
+    (prompt &rarr; generate &rarr; score &rarr; diversity filter &rarr; shortlist).
+    Watch the Activity Log below for live progress.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!--  CHARACTERS                                                  -->
+<!-- ============================================================ -->
+<h2>Characters</h2>
+{% if characters %}
+  <table class="dashboard-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Assets</th>
+        <th>Pending Review</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for char in characters %}
+      <tr>
+        <td><strong>{{ char.name }}</strong></td>
+        <td>{{ char.category }}</td>
+        <td>{{ char.get("asset_count", "—") }}</td>
+        <td>
+          <span class="badge badge-pending">{{ char.get("pending_count", 0) }}</span>
+        </td>
+        <td>
+          <a href="/character/{{ char.id }}" class="btn btn-sm">View</a>
+          <a href="/review/{{ char.id }}?asset_type=expression&batch=true" class="btn btn-sm btn-primary">Review</a>
+          <form action="/generate" method="post" style="display:inline">
+            <input type="hidden" name="scope" value="characters">
+            <input type="hidden" name="item" value="{{ char.name }}">
+            <input type="hidden" name="count" value="4">
+            <input type="hidden" name="limit" value="1">
+            <input type="hidden" name="backend" value="mock">
+            <button type="submit" class="btn btn-sm btn-secondary">Generate</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="empty-state">No characters yet.  Use the Generate panel or seed the catalog.</p>
+{% endif %}
+
+<!-- ============================================================ -->
+<!--  ENVIRONMENTS                                                -->
+<!-- ============================================================ -->
+<h2>Environments / Worlds</h2>
+{% if environments %}
+  <table class="dashboard-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Zone</th>
+        <th>Assets</th>
+        <th>Pending Review</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for env in environments %}
+      <tr>
+        <td><strong>{{ env.name }}</strong></td>
+        <td>{{ env.bio_data.get("zone", env.category) if env.bio_data else env.category }}</td>
+        <td>{{ env.get("asset_count", "—") }}</td>
+        <td><span class="badge badge-pending">{{ env.get("pending_count", 0) }}</span></td>
+        <td>
+          <a href="/character/{{ env.id }}" class="btn btn-sm">View</a>
+          <a href="/review/{{ env.id }}?asset_type=environment&batch=true" class="btn btn-sm btn-primary">Review</a>
+          <form action="/generate" method="post" style="display:inline">
+            <input type="hidden" name="scope" value="environments">
+            <input type="hidden" name="item" value="{{ env.name }}">
+            <input type="hidden" name="count" value="4">
+            <input type="hidden" name="limit" value="1">
+            <input type="hidden" name="backend" value="mock">
+            <button type="submit" class="btn btn-sm btn-secondary">Generate</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="empty-state">No environments yet.</p>
+{% endif %}
+
+<!-- ============================================================ -->
+<!--  ASSET LIBRARY  (props, reusable assets)                     -->
+<!-- ============================================================ -->
+<h2>Props &amp; Asset Library</h2>
+{% if prop_categories %}
+  <table class="dashboard-table">
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>Count</th>
+        <th>Pending Review</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cat in prop_categories %}
+      <tr>
+        <td><strong>{{ cat.name }}</strong></td>
+        <td>{{ cat.count }}</td>
+        <td><span class="badge badge-pending">{{ cat.pending }}</span></td>
+        <td>
+          <form action="/generate" method="post" style="display:inline">
+            <input type="hidden" name="scope" value="props">
+            <input type="hidden" name="item" value="{{ cat.name }}">
+            <input type="hidden" name="count" value="4">
+            <input type="hidden" name="limit" value="5">
+            <input type="hidden" name="backend" value="mock">
+            <button type="submit" class="btn btn-sm btn-secondary">Generate 5</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="empty-state">No assets in the library yet.</p>
+{% endif %}
+
+<!-- ============================================================ -->
+<!--  RECENT JOBS  (realtime via /api/jobs)                       -->
+<!-- ============================================================ -->
+<h2>Recent Jobs</h2>
+<table class="dashboard-table" id="job-table">
+  <thead>
+    <tr>
+      <th>Job</th>
+      <th>Target</th>
+      <th>Type</th>
+      <th>Status</th>
+      <th>Created</th>
+    </tr>
+  </thead>
+  <tbody id="job-list">
+    {% for job in jobs[:10] %}
+    <tr>
+      <td><code>{{ job.id }}</code></td>
+      <td>{{ job.character_id }}</td>
+      <td>{{ job.job_type }}</td>
+      <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
+      <td>{{ job.created_at }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5"><p class="empty-state">No generation jobs yet.</p></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<!--  ACTIVITY LOG  (live generation / seeding progress)          -->
+<!-- ============================================================ -->
+<h2>Activity Log</h2>
+<div class="log-panel">
+  <ul class="log-list" id="log-list">
+    {% for entry in logs %}
+    <li class="log-line log-{{ entry.level | lower }}">
+      <span class="log-time">{{ entry.time }}</span>
+      <span class="log-level">{{ entry.level }}</span>
+      <span class="log-msg">{{ entry.message }}</span>
+    </li>
+    {% else %}
+    <li class="log-line log-empty">No activity yet.  Generate or seed to see progress here.</li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% endblock %}

@@ -1,14 +1,24 @@
-"""FastAPI review application — character dashboard, detail, and side-by-side review.
+"""Studio UI application — realtime review + generation studio for PHASE 1-4.
 
-All routes are server-rendered HTML via Jinja2 templates.  No JavaScript
-framework; no build step.  Dependency injection through ``create_app()``
-facilitates testing without a live database.
+The Studio covers every image-generation workflow across the production phases:
 
-The app also exposes a lightweight generation panel (``POST /generate``) that
-queues catalog seeds through the standard pipeline in the background, plus
-auto-seeding of the universe catalog when a real repository is injected.
+  * Phase 1  — Characters  (reference, expression, pose, outfit, lighting)
+  * Phase 2  — World       (environment, exterior, interior, season,
+               time_of_day, weather, camera, vehicle, background)
+  * Phase 3  — Assets      (prop reference, view, material, color, lighting)
+  * Phase 4  — Motion      (animation bible / motion system library browser)
+
+Routes are server-rendered HTML via Jinja2 templates plus a lightweight JSON
+API (``/api/...``) that the ``studio.js`` client uses for realtime interactions
+— approving, rejecting, promoting, shortlisting or regenerating an asset
+updates its state chip in place, with no full page reload.
+
+The existing form-based POST routes (``/approve``, ``/reject``, ``/promote``,
+``/regenerate``) are preserved verbatim so non-JS clients and the test suite
+keep working; the JS simply calls the JSON endpoints instead.
 """
 
+import json
 import logging
 import time
 from collections import deque
@@ -18,7 +28,7 @@ from typing import Optional
 
 import jinja2
 from fastapi import BackgroundTasks, FastAPI, Form, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -26,6 +36,75 @@ from src.asset_repository.sqlite_repo import NotFoundError
 from src.pipeline.job_queue import JobQueue
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Phase metadata (PHASE1.md – PHASE4.md)
+# ---------------------------------------------------------------------------
+
+# Character categories (Phase 1) → their full asset-type library.  Turnarounds
+# reuse the "reference" type with a variant angle (45/left/right/back/top/bottom).
+CHARACTER_ASSET_TYPES = ["reference", "expression", "pose", "outfit", "lighting"]
+
+# World categories (Phase 2)
+ENVIRONMENT_ASSET_TYPES = [
+    "environment", "exterior", "interior", "season",
+    "time_of_day", "weather", "camera",
+]
+
+# Reusable prop library (Phase 3)
+PROP_ASSET_TYPES = ["reference", "view", "material", "color", "lighting"]
+
+# Human labels for the asset-type → generate button wording.
+ASSET_TYPE_LABELS = {
+    "reference": "references",
+    "expression": "expressions",
+    "pose": "poses",
+    "outfit": "outfits",
+    "lighting": "lighting",
+    "environment": "environment",
+    "exterior": "exteriors",
+    "interior": "interiors",
+    "season": "seasons",
+    "time_of_day": "time of day",
+    "weather": "weather",
+    "camera": "camera angles",
+    "vehicle": "vehicles",
+    "background": "backgrounds",
+    "view": "views",
+    "material": "materials",
+    "color": "colors",
+}
+
+# All reviewable asset types across phases (for filters / review studio).
+ALL_ASSET_TYPES = sorted({
+    *CHARACTER_ASSET_TYPES, *ENVIRONMENT_ASSET_TYPES, *PROP_ASSET_TYPES,
+    "vehicle", "background",
+})
+
+PENDING_STATES = ("scored", "generated", "shortlisted")
+
+
+def _phase_for_category(category: str) -> int:
+    """Map a character-record category to its production phase."""
+    if category in ("environment", "vehicle", "background"):
+        return 2
+    if category == "asset":
+        return 3
+    return 1
+
+
+def _asset_types_for(category: str) -> list[str]:
+    """The reviewable asset types for an entity category."""
+    if category in ("environment",):
+        return ENVIRONMENT_ASSET_TYPES
+    if category == "vehicle":
+        return ["vehicle"]
+    if category == "background":
+        return ["background"]
+    if category == "asset":
+        return PROP_ASSET_TYPES
+    return CHARACTER_ASSET_TYPES
+
 
 # ---------------------------------------------------------------------------
 # Activity log (in-app buffer surfaced on the dashboard via GET /logs)
@@ -91,6 +170,7 @@ _env = jinja2.Environment(
     cache_size=0,
 )
 _env.globals["field"] = _template_field
+_env.globals["asset_type_label"] = lambda t: ASSET_TYPE_LABELS.get(t, t.replace("_", " ") + "s")
 templates = Jinja2Templates(env=_env)
 
 
@@ -225,7 +305,7 @@ def create_app(
     runner = None
     seeded = False
 
-    app = FastAPI(title="Character Review Studio")
+    app = FastAPI(title="Animation Studio")
 
     # Mount static files
     _STATIC.mkdir(parents=True, exist_ok=True)
@@ -298,6 +378,32 @@ def create_app(
             "bio_data": getattr(char, "bio_data", {}),
         }
 
+    def _score_payload(asset) -> dict:
+        """Extract persisted scores for an asset (real DB values, not stubs).
+
+        Returns ``{"total", "components", "present"}``.  ``scores`` is the
+        JSON dict written by the pipeline and ``brand_score`` the weighted
+        composite; when only per-component scores exist the total is the mean.
+        """
+        raw = _field(asset, "scores", None)
+        brand = _field(asset, "brand_score", None)
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except Exception:
+                raw = None
+        components: dict[str, float] = {}
+        if isinstance(raw, dict):
+            for key, val in raw.items():
+                if isinstance(val, dict):
+                    val = val.get("raw", val.get("score"))
+                if isinstance(val, (int, float)):
+                    components[key] = round(float(val), 3)
+        total = brand if isinstance(brand, (int, float)) else None
+        if total is None and components:
+            total = round(sum(components.values()) / len(components), 3)
+        return {"total": total, "components": components, "present": bool(components)}
+
     def _dashboard_rows(category: str) -> list[dict]:
         """Rows for one category section, enriched with asset counts."""
         rows = []
@@ -307,12 +413,94 @@ def create_app(
                 assets = repo.find_assets(rec["id"])
                 rec["asset_count"] = len(assets)
                 rec["pending_count"] = sum(
-                    1 for a in assets if _get_state(a) in ("scored", "generated", "shortlisted")
+                    1 for a in assets if _get_state(a) in PENDING_STATES
                 )
+                rec["phase"] = _phase_for_category(rec["category"])
                 rows.append(rec)
         order = {"main": 0, "family": 1, "friend": 2, "community": 3, "fantasy": 4}
-        rows.sort(key=lambda r: order.get(r["category"], 5))
+        rows.sort(key=lambda r: (order.get(r["category"], 5), r["name"]))
         return rows
+
+    def _candidate_dict(rec: dict, asset) -> dict:
+        """Normalise one pending/reviewable asset for templates + JSON API."""
+        scores = _score_payload(asset)
+        return {
+            "asset_id": _field(asset, "id", ""),
+            "entity_id": rec["id"],
+            "entity": rec["name"],
+            "category": rec["category"],
+            "phase": _phase_for_category(rec["category"]),
+            "asset_type": _field(asset, "asset_type", ""),
+            "variant": _field(asset, "variant", ""),
+            "state": _get_state(asset),
+            "brand_score": scores["total"],
+            "components": scores["components"],
+            "score_present": scores["present"],
+            "seed": _field(asset, "seed"),
+            "image_url": f"/asset-image/{_field(asset, 'id', '')}",
+            "prompt": _field(asset, "prompt", ""),
+        }
+
+    def _collect_candidates(
+        asset_type: str = "",
+        category: str = "",
+        state: str = "",
+        limit: int = 200,
+    ) -> list[dict]:
+        """Every pending candidate across the studio, newest-first.
+
+        ``state`` filters to a single pending state; empty = all pending.
+        """
+        cands = []
+        for char in repo.list_characters():
+            rec = _record_dict(char)
+            if category and _phase_for_category(rec["category"]) != _phase_for_category(category):
+                continue
+            for asset in repo.find_assets(rec["id"]):
+                st = _get_state(asset)
+                if st not in PENDING_STATES:
+                    continue
+                if state and st != state:
+                    continue
+                if asset_type and _field(asset, "asset_type", "") != asset_type:
+                    continue
+                cands.append(_candidate_dict(rec, asset))
+        cands.sort(key=lambda c: c["asset_id"])
+        return cands[:limit]
+
+    def _overview_stats() -> dict:
+        """Dashboard aggregate stats + the top review queue."""
+        rows = _dashboard_rows("all")
+        stats = {
+            "total_entities": len(rows),
+            "total_assets": 0,
+            "pending": 0,
+            "approved": 0,
+            "production": 0,
+            "by_phase": {1: {"count": 0, "pending": 0},
+                         2: {"count": 0, "pending": 0},
+                         3: {"count": 0, "pending": 0}},
+            "by_state": {s: 0 for s in _D15_CHAIN},
+        }
+        for rec in rows:
+            phase = rec["phase"]
+            if phase in stats["by_phase"]:
+                stats["by_phase"][phase]["count"] += 1
+                stats["by_phase"][phase]["pending"] += rec["pending_count"]
+            assets = repo.find_assets(rec["id"])
+            stats["total_assets"] += len(assets)
+            for a in assets:
+                st = _get_state(a)
+                if st in stats["by_state"]:
+                    stats["by_state"][st] += 1
+                if st in PENDING_STATES:
+                    stats["pending"] += 1
+                if st in ("approved", "production"):
+                    stats["approved"] += 1
+                if st == "production":
+                    stats["production"] += 1
+        stats["review_queue"] = _collect_candidates(limit=8)
+        return stats
 
     async def _maybe_seed() -> None:
         """Seed the universe catalog once if the repo is empty and a seeder exists."""
@@ -364,9 +552,11 @@ def create_app(
     def _find_seeds(scope: str, item: str) -> list:
         """Resolve catalog seeds for a scope + optional item filter."""
         from src.universe.catalog import (
+            discover_backgrounds,
             discover_characters,
             discover_environments,
             discover_props,
+            discover_vehicles,
         )
         scope = (scope or "all").lower()
         item = (item or "").strip()
@@ -376,6 +566,10 @@ def create_app(
             groups["characters"] = discover_characters(universe_dir)
         if scope in ("all", "environments"):
             groups["environments"] = discover_environments(world_dir)
+        if scope in ("all", "vehicles"):
+            groups["vehicles"] = discover_vehicles(world_dir)
+        if scope in ("all", "backgrounds"):
+            groups["backgrounds"] = discover_backgrounds(world_dir)
         if scope in ("all", "props"):
             groups["props"] = discover_props(world_dir, assets_dir)
 
@@ -406,11 +600,11 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
-        """Dashboard listing characters, environments, props, and jobs."""
+        """Dashboard: phase overview cards, review queue, live jobs + log."""
         await _maybe_seed()
         all_rows = _dashboard_rows("all")
-        characters = [r for r in all_rows if r["category"] not in ("environment", "asset")]
-        envs = [r for r in all_rows if r["category"] == "environment"]
+        characters = [r for r in all_rows if r["category"] not in ("environment", "asset", "vehicle", "background")]
+        envs = [r for r in all_rows if r["category"] in ("environment", "vehicle", "background")]
         props = [r for r in all_rows if r["category"] == "asset"]
 
         # Aggregate the asset library by its category field.
@@ -438,7 +632,7 @@ def create_app(
 
         return templates.TemplateResponse(
             request,
-            "review.html",
+            "dashboard.html",
             {
                 "page": "dashboard",
                 "characters": characters,
@@ -446,7 +640,8 @@ def create_app(
                 "prop_categories": prop_categories,
                 "jobs": jobs,
                 "logs": list(_LOG_BUFFER)[-50:],
-                "candidates": [],
+                "overview": _overview_stats(),
+                "asset_types": ALL_ASSET_TYPES,
             },
         )
 
@@ -455,37 +650,86 @@ def create_app(
         """Recent activity log entries as JSON (polled by the dashboard)."""
         return {"entries": list(_LOG_BUFFER)}
 
+    @app.get("/api/overview")
+    async def api_overview():
+        """Dashboard stats as JSON (polled for realtime counter updates)."""
+        await _maybe_seed()
+        return _overview_stats()
+
+    @app.get("/api/jobs")
+    async def api_jobs():
+        """Live job queue status as JSON."""
+        return {
+            "jobs": [
+                {
+                    "id": j.id,
+                    "character_id": j.character_id,
+                    "job_type": j.job_type,
+                    "status": j.status,
+                    "count": j.config.get("count", ""),
+                    "created_at": j.created_at.isoformat() if j.created_at else "",
+                }
+                for j in jq.list_jobs(status=None)
+            ]
+        }
+
+    @app.get("/api/candidates")
+    async def api_candidates(
+        asset_type: str = Query(""),
+        category: str = Query(""),
+        state: str = Query(""),
+        limit: int = Query(50),
+    ):
+        """The pending review queue as JSON (filters optional)."""
+        await _maybe_seed()
+        return {
+            "candidates": _collect_candidates(
+                asset_type=asset_type, category=category,
+                state=state, limit=limit,
+            )
+        }
+
+    @app.get("/api/review/next")
+    async def api_review_next(
+        asset_type: str = Query(""),
+        category: str = Query(""),
+        state: str = Query(""),
+    ):
+        """The oldest pending candidate for the review studio."""
+        await _maybe_seed()
+        queue = _collect_candidates(
+            asset_type=asset_type, category=category, state=state, limit=1
+        )
+        return {"candidate": queue[0] if queue else None, "remaining": len(queue)}
+
     @app.get("/character/{character_id}", response_class=HTMLResponse)
     async def character_detail(character_id: str, request: Request):
-        """Character detail page with asset-type sections."""
+        """Entity detail page with phase-aware asset-type sections."""
         character = repo.get_character(character_id)
         if character is None:
             return HTMLResponse("Character not found", status_code=404)
 
         rec = _record_dict(character)
-        category = rec["category"]
-        if category in ("environment",):
-            asset_types = ["environment"]
-        elif category == "asset":
-            asset_types = ["reference", "view", "material", "color", "lighting"]
-        else:
-            asset_types = ["reference", "expression", "pose", "outfit"]
+        asset_types = _asset_types_for(rec["category"])
 
-        # Group assets by type
+        # Group assets by type (enriched with real scores + image URLs).
         assets = repo.find_assets(character_id)
         by_type: dict[str, list] = {}
         for a in assets:
-            by_type.setdefault(_field(a, "asset_type", "unknown"), []).append(a)
+            by_type.setdefault(_field(a, "asset_type", "unknown"), []).append(
+                _candidate_dict(rec, a)
+            )
 
         return templates.TemplateResponse(
             request,
-            "review.html",
+            "entity_detail.html",
             {
-                "page": "character",
-                "character": character,
+                "page": "entity",
+                "entity": character,
                 "rec": rec,
                 "asset_types": asset_types,
                 "assets_by_type": by_type,
+                "phase": _phase_for_category(rec["category"]),
             },
         )
 
@@ -502,13 +746,15 @@ def create_app(
         if character is None:
             return HTMLResponse("Character not found", status_code=404)
 
+        rec = _record_dict(character)
+
         # Approved reference (used as left-panel comparison)
         approved = repo.find_approved(character_id, asset_type)
 
         # Candidates awaiting review
         candidates = [
             a for a in repo.find_assets(character_id, asset_type)
-            if _field(a, "state") in ("scored", "generated", "shortlisted")
+            if _field(a, "state") in PENDING_STATES
         ]
 
         # Parse grid dimensions (D-16 configurable batch grids)
@@ -517,33 +763,11 @@ def create_app(
             grid = "2x2"  # Normalise unrecognised grids to default
         grid_cols, grid_rows, grid_capacity = grid_config[grid]
 
-        # Dummy score example for template rendering
-        sample_scores = {
-            "total": 0.82,
-            "max": 1.0,
-            "components": {
-                "prompt_accuracy": {"raw": 0.85, "weighted": 0.17, "weight": 0.20},
-                "character_consistency": {"raw": 0.90, "weighted": 0.18, "weight": 0.20},
-                "technical_quality": {"raw": 0.75, "weighted": 0.1125, "weight": 0.15},
-                "facial_appeal": {"raw": 0.80, "weighted": 0.12, "weight": 0.15},
-                "child_friendliness": {"raw": 0.95, "weighted": 0.095, "weight": 0.10},
-                "color_harmony": {"raw": 0.70, "weighted": 0.07, "weight": 0.10},
-                "silhouette_recognizability": {"raw": 0.60, "weighted": 0.03, "weight": 0.05},
-                "style_consistency": {"raw": 0.88, "weighted": 0.044, "weight": 0.05},
-            },
-        }
-
-        # Build candidate card list with scores
+        # Build candidate card list with real persisted scores.
         candidate_cards = []
-        for i, asset in enumerate(candidates):
-            card = {
-                "asset": asset,
-                "scores": sample_scores,
-                "seed": _field(asset, "seed", 42 + i),
-                "model": _field(asset, "model_id", "FLUX.1-dev"),
-                "prompt": _field(asset, "prompt", ""),
-                "visual_drift": 0.45 + (i * 0.08),  # dummy varied values
-            }
+        for asset in candidates:
+            card = _candidate_dict(rec, asset)
+            card["model"] = _field(asset, "model_id", "FLUX.1-dev")
             candidate_cards.append(card)
 
         # Limit to grid capacity in batch mode
@@ -554,7 +778,8 @@ def create_app(
             "review.html",
             {
                 "page": "review",
-                "character": character,
+                "entity": character,
+                "rec": rec,
                 "asset_type": asset_type,
                 "approved": approved,
                 "candidates": candidates_for_template,
@@ -563,8 +788,80 @@ def create_app(
                 "grid_rows": grid_rows,
                 "grid_capacity": grid_capacity,
                 "current_grid": grid,
+                "asset_types": ALL_ASSET_TYPES,
             },
         )
+
+    @app.get("/motion", response_class=HTMLResponse)
+    async def motion_page(request: Request):
+        """Phase 4 — Animation Bible & Motion System library browser."""
+        from src.animation_bible import libraries as lib
+        from src.animation_bible.bible import AnimationBible
+
+        bible = AnimationBible()
+
+        def _motion_dict(m):
+            return {
+                "name": m.motion, "frames": m.base_frames, "loopable": m.looping,
+                "description": m.description,
+                "difficulty": getattr(m, "complexity", ""),
+            }
+
+        def _shot_dict(s):
+            return {
+                "name": s.name, "description": s.description,
+                "min_frames": getattr(s, "min_frames", ""),
+                "max_frames": getattr(s, "max_frames", ""),
+                "movement": getattr(s, "movement", ""),
+                "use": getattr(s, "use", ""),
+            }
+
+        def _gesture_dict(g):
+            return {
+                "name": g.name, "frames": g.frames, "arm": g.arm,
+                "hand": g.hand, "posture": g.posture, "use": g.use,
+                "note": getattr(g, "note", ""),
+            }
+
+        def _transition_dict(t):
+            return {
+                "name": t.name, "description": t.description,
+                "min_frames": getattr(t, "min_frames", ""),
+                "max_frames": getattr(t, "max_frames", ""),
+                "curve": getattr(t, "curve", ""), "use": getattr(t, "use", ""),
+            }
+
+        def _expression_dict(e):
+            return {
+                "emotion": e.emotion,
+                "description": getattr(e, "description", ""),
+                "levels": [
+                    {"intensity": lvl.intensity, "name": lvl.name, "face": lvl.face}
+                    for lvl in getattr(e, "levels", ())
+                ],
+            }
+
+        data = {
+            "philosophy": lib.PHILOSOPHY,
+            "forbidden": lib.FORBIDDEN_MOTION,
+            "quality_checks": lib.QUALITY_CHECKS,
+            "master_frame_rate": lib.MASTER_FRAME_RATE,
+            "export_frame_rate": lib.EXPORT_FRAME_RATE,
+            "motions": [_motion_dict(m) for m in lib.MOTION_CYCLES],
+            "camera_shots": [_shot_dict(s) for s in lib.CAMERA_SHOTS],
+            "gestures": [_gesture_dict(g) for g in lib.GESTURES],
+            "transitions": [_transition_dict(t) for t in lib.SCENE_TRANSITIONS],
+            "expressions": [_expression_dict(e) for e in lib.FACIAL_EXPRESSIONS],
+            "idle_layers": [{
+                "name": l.name, "rate": l.rate, "frames": l.frames,
+                "amplitude": l.amplitude, "description": l.description,
+            } for l in lib.IDLE_LAYERS],
+            "interactions": [{
+                "name": i.name, "description": i.description,
+                "total_frames": i.total_frames, "loopable": i.loopable,
+            } for i in lib.INTERACTIONS],
+        }
+        return templates.TemplateResponse(request, "motion.html", data)
 
     # ------------------------------------------------------------------ #
     #  Generation & seeding  (POST /generate, POST /seed)
@@ -612,6 +909,8 @@ def create_app(
         kind_map = {
             "characters": "character",
             "environments": "environment",
+            "vehicles": "vehicle",
+            "backgrounds": "background",
             "props": "prop",
         }
         scope_names = list(kind_map) if (scope or "").lower() == "all" else [(scope or "characters").lower()]
@@ -700,12 +999,57 @@ def create_app(
         """Extract the referer URL from the request (with safe fallback)."""
         return request.headers.get("referer", "/")
 
+    async def _apply_action(asset_id: str, action: str, reason: str = ""):
+        """Run a lifecycle action and return ``(ok, message, new_state)``.
+
+        Shared by the HTML form routes and the JSON API so both paths behave
+        identically.  ``regenerate`` returns a job id instead of a state.
+        """
+        if action == "reject":
+            await repo.update_state(asset_id, "draft")
+            if reason:
+                logger.info("Asset %s rejected. Reason: %s", asset_id, reason)
+            else:
+                logger.info("Asset %s rejected (no reason)", asset_id)
+            return True, "Rejected", "draft"
+        if action == "shortlist":
+            await _advance_to(repo, asset_id, "shortlisted")
+            logger.info("Asset %s shortlisted", asset_id)
+            return True, "Shortlisted", "shortlisted"
+        if action == "approve":
+            await _advance_to(repo, asset_id, "approved")
+            logger.info("Asset %s approved", asset_id)
+            return True, "Approved", "approved"
+        if action == "promote":
+            await _advance_to(repo, asset_id, "production")
+            logger.info("Asset %s promoted to production", asset_id)
+            return True, "Promoted to production", "production"
+        if action == "regenerate":
+            asset = await repo.get(asset_id)
+            seed = _field(asset, "seed", None) if asset is not None else None
+            if seed is not None:
+                nearby = [
+                    seed - 5, seed - 3, seed - 1,
+                    seed + 1, seed + 3, seed + 5,
+                ]
+                job = jq.create_job(
+                    character_id=_field(asset, "character_id", ""),
+                    job_type=_field(asset, "asset_type", ""),
+                    config={"seeds": nearby, "prompt": _field(asset, "prompt", "")},
+                )
+                logger.info(
+                    "Regeneration queued: asset=%s job=%s seeds=%s",
+                    asset_id, job.id, nearby,
+                )
+                return True, "Regeneration queued", "", job.id
+            return True, "No seed to regenerate from", ""
+        raise ValueError(f"Unknown action: {action}")
+
     @app.post("/approve/{asset_id}")
     async def approve_asset(asset_id: str, request: Request):
         """Approve: any candidate state → approved (D-15, shortlist implied)."""
         try:
-            await _advance_to(repo, asset_id, "approved")
-            logger.info("Asset %s approved", asset_id)
+            await _apply_action(asset_id, "approve")
         except (NotFoundError, ValueError) as exc:
             logger.warning("Approve failed for %s: %s", asset_id, exc)
         return RedirectResponse(url=_get_referer(request), status_code=303)
@@ -718,11 +1062,7 @@ def create_app(
     ):
         """Reject with optional reason: candidate → draft (regeneration)."""
         try:
-            await repo.update_state(asset_id, "draft")
-            if reason:
-                logger.info("Asset %s rejected. Reason: %s", asset_id, reason)
-            else:
-                logger.info("Asset %s rejected (no reason)", asset_id)
+            await _apply_action(asset_id, "reject", reason)
         except (NotFoundError, ValueError) as exc:
             logger.warning("Reject failed for %s: %s", asset_id, exc)
         return RedirectResponse(url=_get_referer(request), status_code=303)
@@ -731,21 +1071,7 @@ def create_app(
     async def regenerate_similar(asset_id: str, request: Request):
         """Regenerate similar: queue a new generation job with nearby seeds."""
         try:
-            asset = await repo.get(asset_id)
-            if asset is not None and asset.seed is not None:
-                nearby = [
-                    asset.seed - 5, asset.seed - 3, asset.seed - 1,
-                    asset.seed + 1, asset.seed + 3, asset.seed + 5,
-                ]
-                job = jq.create_job(
-                    character_id=asset.character_id,
-                    job_type=asset.asset_type,
-                    config={"seeds": nearby, "prompt": asset.prompt},
-                )
-                logger.info(
-                    "Regeneration queued: asset=%s job=%s seeds=%s",
-                    asset_id, job.id, nearby,
-                )
+            await _apply_action(asset_id, "regenerate")
         except Exception as exc:
             logger.warning("Regenerate failed for %s: %s", asset_id, exc)
         return RedirectResponse(url=_get_referer(request), status_code=303)
@@ -754,10 +1080,46 @@ def create_app(
     async def promote_asset(asset_id: str, request: Request):
         """Approve & Promote: any candidate state → production (two-step)."""
         try:
-            await _advance_to(repo, asset_id, "production")
-            logger.info("Asset %s promoted to production", asset_id)
+            await _apply_action(asset_id, "promote")
         except (NotFoundError, ValueError) as exc:
             logger.warning("Promote failed for %s: %s", asset_id, exc)
         return RedirectResponse(url=_get_referer(request), status_code=303)
+
+    # ------------------------------------------------------------------ #
+    #  Realtime JSON action API  (used by studio.js)
+    # ------------------------------------------------------------------ #
+
+    @app.post("/api/assets/{asset_id}/{action}")
+    async def api_asset_action(
+        asset_id: str,
+        action: str,
+        reason: str = Form(""),
+    ):
+        """Realtime lifecycle action → ``{ok, message, state, job_id}`` JSON.
+
+        Allowed actions: approve | reject | promote | shortlist | regenerate.
+        The frontend updates the asset's state chip in place from the response,
+        so a click takes effect immediately without a page reload.
+        """
+        try:
+            result = await _apply_action(asset_id, action, reason)
+            ok, message, new_state = result[0], result[1], result[2]
+            payload = {
+                "ok": ok,
+                "message": message,
+                "asset_id": asset_id,
+                "action": action,
+                "state": new_state,
+            }
+            if len(result) > 3:
+                payload["job_id"] = result[3]
+            return JSONResponse(payload)
+        except (NotFoundError, ValueError) as exc:
+            logger.warning("API %s failed for %s: %s", action, asset_id, exc)
+            return JSONResponse(
+                {"ok": False, "error": str(exc), "asset_id": asset_id,
+                 "action": action},
+                status_code=400,
+            )
 
     return app

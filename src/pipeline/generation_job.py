@@ -12,7 +12,7 @@ import random
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 from src.generation_engine.base import GenerationBackend, GenerationInput
 from src.identity_engine.scorer import IdentityScorer
@@ -58,6 +58,7 @@ class GenerationJob:
         universe_dir: str = "Universe",
         world_dir: str = "World",
         assets_dir: str = "Assets",
+        on_asset: Optional[Callable[[dict], Awaitable]] = None,
     ):
         self.backend = backend
         self.prompt_builder = prompt_builder
@@ -71,6 +72,7 @@ class GenerationJob:
         self.universe_dir = universe_dir
         self.world_dir = world_dir
         self.assets_dir = assets_dir
+        self.on_asset = on_asset
         self._rng = random.SystemRandom()
 
     async def execute(self, job: Job) -> dict:
@@ -336,6 +338,18 @@ class GenerationJob:
 
             scored_assets.append((img, brand_total, asset))
 
+            # Fire the per-asset hook (crash-safe upload): called once for
+            # every persisted asset so an external sync can push each image
+            # immediately.  Failures are swallowed — generation continues.
+            if self.on_asset is not None and asset.id:
+                try:
+                    await self._notify_asset(asset)
+                except Exception as exc:
+                    logger.warning(
+                        "on_asset hook failed for asset '%s': %s",
+                        asset.id, exc,
+                    )
+
         scored_count = len(scored_assets)
 
         # 4. Run diversity filter
@@ -366,6 +380,25 @@ class GenerationJob:
             "scored": scored_count,
             "shortlisted_ids": shortlisted_ids,
         }
+
+    async def _notify_asset(self, asset: AssetModel) -> None:
+        """Call the ``on_asset`` hook with a snapshot of a saved asset.
+
+        The hook receives a plain dict so a sync layer (e.g. the Colab
+        ``git_sync`` uploader) can push each freshly generated image to git
+        immediately — one image out, never more, is lost on a crash.
+        """
+        info = {
+            "asset_id": asset.id,
+            "character_id": asset.character_id,
+            "asset_type": asset.asset_type,
+            "variant": getattr(asset, "variant", "") or "",
+            "seed": getattr(asset, "seed", None),
+            "file_path": getattr(asset, "file_path", "") or "",
+            "state": getattr(asset, "state", "") or "",
+            "brand_score": getattr(asset, "brand_score", None),
+        }
+        await self.on_asset(info)
 
     def _generate_seeds(self, count: int) -> list[int]:
         """Generate a list of unique seeds for image generation.

@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Motion — Animation Bible &amp; Motion System{% endblock %}
+
+{% block content %}
+
+<div class="entity-header">
+  <a href="/" class="btn btn-sm">Back to Dashboard</a>
+  <h1>Animation Bible &amp; Motion System</h1>
+  <p class="character-meta">
+    <strong>Phase 4</strong> &bull;
+    Master frame rate: <strong>{{ master_frame_rate }} fps</strong> &bull;
+    Export frame rate: <strong>{{ export_frame_rate }} fps</strong>
+  </p>
+</div>
+
+<!-- ============================================================ -->
+<!--  STANDARDS                                                   -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Studio Style &amp; Guardrails</h2>
+  <div class="standards-grid">
+    <div class="standards-card">
+      <h3>Philosophy</h3>
+      <ul class="tag-list">
+        {% for word in philosophy %}
+          <li class="tag">{{ word }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="standards-card standards-forbidden">
+      <h3>Forbidden Motion</h3>
+      <ul class="tag-list">
+        {% for word in forbidden %}
+          <li class="tag tag-forbidden">{{ word }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="standards-card">
+      <h3>Quality Checks</h3>
+      <ul class="check-list">
+        {% for check in quality_checks %}
+          <li>{{ check }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!--  MOTION CYCLES                                               -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Motion Cycles ({{ motions | length }})</h2>
+  {% if motions %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Cycle</th>
+          <th>Frames</th>
+          <th>Loopable</th>
+          <th>Difficulty</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in motions %}
+        <tr>
+          <td><strong>{{ m.name }}</strong></td>
+          <td>{{ m.frames }}</td>
+          <td>{% if m.loopable %}Yes{% else %}No{% endif %}</td>
+          <td><span class="badge badge-difficulty">{{ m.difficulty }}</span></td>
+          <td>{{ m.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No motion cycles loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  CAMERA SHOTS                                                -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Camera Shots ({{ camera_shots | length }})</h2>
+  {% if camera_shots %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Shot</th>
+          <th>Frames</th>
+          <th>Movement</th>
+          <th>Use</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in camera_shots %}
+        <tr>
+          <td><strong>{{ s.name }}</strong></td>
+          <td>{{ s.min_frames }}&ndash;{{ s.max_frames }}</td>
+          <td>{{ s.movement }}</td>
+          <td>{{ s.use }}</td>
+          <td>{{ s.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No camera shots loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  FACIAL EXPRESSIONS                                          -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Facial Expressions ({{ expressions | length }})</h2>
+  {% if expressions %}
+    <div class="expr-grid">
+      {% for e in expressions %}
+        <div class="expr-card">
+          <h3>{{ e.emotion }}</h3>
+          {% if e.description %}<p class="expr-desc">{{ e.description }}</p>{% endif %}
+          <ul class="level-list">
+            {% for lvl in e.levels %}
+              <li>
+                <span class="level-int">{{ lvl.intensity }}</span>
+                <span class="level-name">{{ lvl.name }}</span>
+                <span class="level-face">{{ lvl.face }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty-state">No facial expressions loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  GESTURES                                                    -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Gesture Library ({{ gestures | length }})</h2>
+  {% if gestures %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Gesture</th>
+          <th>Timing</th>
+          <th>Arm</th>
+          <th>Hand</th>
+          <th>Posture</th>
+          <th>Use</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in gestures %}
+        <tr>
+          <td><strong>{{ g.name }}</strong></td>
+          <td>{{ g.frames }}</td>
+          <td>{{ g.arm }}</td>
+          <td>{{ g.hand }}</td>
+          <td>{{ g.posture }}</td>
+          <td>{{ g.use }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No gestures loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  TRANSITIONS                                                 -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Scene Transitions ({{ transitions | length }})</h2>
+  {% if transitions %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Transition</th>
+          <th>Frames</th>
+          <th>Curve</th>
+          <th>Use</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transitions %}
+        <tr>
+          <td><strong>{{ t.name }}</strong></td>
+          <td>{{ t.min_frames }}&ndash;{{ t.max_frames }}</td>
+          <td>{{ t.curve }}</td>
+          <td>{{ t.use }}</td>
+          <td>{{ t.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No scene transitions loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  IDLE LAYERS                                                 -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Idle Animation Layers ({{ idle_layers | length }})</h2>
+  {% if idle_layers %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>Rate</th>
+          <th>Frames</th>
+          <th>Amplitude</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in idle_layers %}
+        <tr>
+          <td><strong>{{ l.name }}</strong></td>
+          <td>{{ l.rate }}</td>
+          <td>{{ l.frames }}</td>
+          <td>{{ l.amplitude }}</td>
+          <td>{{ l.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No idle layers loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  INTERACTIONS                                                -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Interaction Library ({{ interactions | length }})</h2>
+  {% if interactions %}
+    <div class="interaction-grid">
+      {% for i in interactions %}
+        <div class="interaction-card">
+          <h3>{{ i.name }}
+            {% if i.loopable %}<span class="badge badge-loop">loop</span>{% endif %}
+          </h3>
+          <p class="interaction-frames">{{ i.total_frames }} frames total</p>
+          <p class="interaction-desc">{{ i.description }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty-state">No interactions loaded.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

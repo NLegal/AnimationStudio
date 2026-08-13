@@ -131,3 +131,42 @@ class TestAutoSync:
             remote_url=scratch_repo["bare"],
         )
         assert second is False
+
+
+class TestWalCheckpoint:
+    """auto_sync must flush WAL contents before copying the DB file."""
+
+    def test_checkpoint_flushes_wal_before_copy(self, scratch_repo, tmp_path):
+        import sqlite3
+
+        from colab.git_sync import auto_sync
+
+        db = tmp_path / "catalog.db"
+        conn = sqlite3.connect(str(db))
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE assets (id TEXT)")
+        conn.execute("INSERT INTO assets VALUES ('wal-row')")
+        conn.commit()
+        # Keep the connection open: without a checkpoint the row lives only
+        # in catalog.db-wal and a plain copy would commit a stale DB.
+        assert os.path.exists(str(db) + "-wal")
+
+        pushed = auto_sync(
+            repo=scratch_repo["repo"],
+            branch="main",
+            db_path=str(db),
+            remote_url=scratch_repo["bare"],
+        )
+        assert pushed is True
+        conn.close()
+
+        committed = tmp_path / "committed.db"
+        blob = subprocess.run(
+            ["git", "show", "main:catalog.db"],
+            cwd=scratch_repo["bare"], capture_output=True, check=True,
+        ).stdout
+        committed.write_bytes(blob)
+        check = sqlite3.connect(str(committed))
+        rows = check.execute("SELECT id FROM assets").fetchall()
+        check.close()
+        assert rows == [("wal-row",)]

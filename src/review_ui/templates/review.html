@@ -1,504 +1,161 @@
 {% extends "base.html" %}
 
-{% block title %}
-  {% if page == "dashboard" %}
-    Dashboard — Character Review Studio
-  {% elif page == "character" and character %}
-    {{ character.name }} — Character Review Studio
-  {% elif page == "review" and character %}
-    Review {{ character.name }} — Character Review Studio
-  {% else %}
-    Character Review Studio
-  {% endif %}
-{% endblock %}
+{% block title %}Review {{ rec.name }} — Animation Studio{% endblock %}
 
 {% block content %}
 
-{% if page == "dashboard" %}
-  <!-- ============================================================ -->
-  <!--  DASHBOARD                                                   -->
-  <!-- ============================================================ -->
-  <h1>Universe Dashboard</h1>
-
-  <!-- ============================================================ -->
-  <!--  GENERATION PANEL                                            -->
-  <!-- ============================================================ -->
-  <section class="gen-panel">
-    <h2>Generate Assets</h2>
-    <form action="/generate" method="post" class="gen-form">
-      <div class="gen-field">
-        <label for="gen-scope">Scope</label>
-        <select name="scope" id="gen-scope">
-          <option value="characters" selected>Characters</option>
-          <option value="environments">Environments / Worlds</option>
-          <option value="props">Props &amp; Assets</option>
-          <option value="all">Everything</option>
-        </select>
-      </div>
-      <div class="gen-field">
-        <label for="gen-item">Item (optional)</label>
-        <input type="text" name="item" id="gen-item"
-               placeholder="Name, id, or category e.g. Lily / Furniture">
-      </div>
-      <div class="gen-field">
-        <label for="gen-count">Candidates</label>
-        <input type="number" name="count" id="gen-count" value="4" min="1" max="32">
-      </div>
-      <div class="gen-field">
-        <label for="gen-limit">Max items</label>
-        <input type="number" name="limit" id="gen-limit" value="10" min="1" max="100">
-      </div>
-      <div class="gen-field">
-        <label for="gen-backend">Backend</label>
-        <select name="backend" id="gen-backend">
-          <option value="mock" selected>Mock (no GPU)</option>
-          <option value="comfyui">ComfyUI</option>
-          <option value="cloud">Cloud API</option>
-        </select>
-      </div>
-      <div class="gen-field">
-        <label for="gen-variant">Variant</label>
-        <input type="text" name="variant" id="gen-variant" value="front">
-      </div>
-      <div class="gen-field">
-        <button type="submit" class="btn btn-primary">Generate</button>
-      </div>
-    </form>
-    <p class="gen-hint">
-      Runs in the background through the standard pipeline
-      (prompt &rarr; generate &rarr; score &rarr; diversity filter &rarr; shortlist).
-      Refresh the page to see new candidates.
-    </p>
-  </section>
-
-  <!-- ============================================================ -->
-  <!--  CHARACTERS                                                  -->
-  <!-- ============================================================ -->
-  <h2>Characters</h2>
-  {% if characters %}
-    <table class="dashboard-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Category</th>
-          <th>Assets</th>
-          <th>Pending Review</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for char in characters %}
-        <tr>
-          <td><strong>{{ char.name }}</strong></td>
-          <td>{{ char.category }}</td>
-          <td>{{ char.get("asset_count", "—") }}</td>
-          <td>
-            <span class="badge badge-pending">{{ char.get("pending_count", 0) }}</span>
-          </td>
-          <td>
-            <a href="/character/{{ char.id }}" class="btn btn-sm">View</a>
-            <a href="/review/{{ char.id }}?asset_type=expression" class="btn btn-sm btn-primary">Review</a>
-            <form action="/generate" method="post" style="display:inline">
-              <input type="hidden" name="scope" value="characters">
-              <input type="hidden" name="item" value="{{ char.name }}">
-              <input type="hidden" name="count" value="4">
-              <input type="hidden" name="limit" value="1">
-              <input type="hidden" name="backend" value="mock">
-              <button type="submit" class="btn btn-sm btn-secondary">Generate</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty-state">No characters yet.  Use the Generate panel or seed the catalog.</p>
-  {% endif %}
-
-  <!-- ============================================================ -->
-  <!--  ENVIRONMENTS                                                -->
-  <!-- ============================================================ -->
-  <h2>Environments / Worlds</h2>
-  {% if environments %}
-    <table class="dashboard-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Assets</th>
-          <th>Pending Review</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for env in environments %}
-        <tr>
-          <td><strong>{{ env.name }}</strong></td>
-          <td>{{ env.get("asset_count", "—") }}</td>
-          <td><span class="badge badge-pending">{{ env.get("pending_count", 0) }}</span></td>
-          <td>
-            <a href="/character/{{ env.id }}" class="btn btn-sm">View</a>
-            <a href="/review/{{ env.id }}?asset_type=environment" class="btn btn-sm btn-primary">Review</a>
-            <form action="/generate" method="post" style="display:inline">
-              <input type="hidden" name="scope" value="environments">
-              <input type="hidden" name="item" value="{{ env.name }}">
-              <input type="hidden" name="count" value="4">
-              <input type="hidden" name="limit" value="1">
-              <input type="hidden" name="backend" value="mock">
-              <button type="submit" class="btn btn-sm btn-secondary">Generate</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty-state">No environments yet.</p>
-  {% endif %}
-
-  <!-- ============================================================ -->
-  <!--  ASSET LIBRARY  (props, reusable assets)                     -->
-  <!-- ============================================================ -->
-  <h2>Props &amp; Asset Library</h2>
-  {% if prop_categories %}
-    <table class="dashboard-table">
-      <thead>
-        <tr>
-          <th>Category</th>
-          <th>Count</th>
-          <th>Pending Review</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for cat in prop_categories %}
-        <tr>
-          <td><strong>{{ cat.name }}</strong></td>
-          <td>{{ cat.count }}</td>
-          <td><span class="badge badge-pending">{{ cat.pending }}</span></td>
-          <td>
-            <form action="/generate" method="post" style="display:inline">
-              <input type="hidden" name="scope" value="props">
-              <input type="hidden" name="item" value="{{ cat.name }}">
-              <input type="hidden" name="count" value="4">
-              <input type="hidden" name="limit" value="5">
-              <input type="hidden" name="backend" value="mock">
-              <button type="submit" class="btn btn-sm btn-secondary">Generate 5</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty-state">No assets in the library yet.</p>
-  {% endif %}
-
-  <!-- ============================================================ -->
-  <!--  RECENT JOBS                                                 -->
-  <!-- ============================================================ -->
-  <h2>Recent Jobs</h2>
-  {% if jobs %}
-    <table class="dashboard-table">
-      <thead>
-        <tr>
-          <th>Job</th>
-          <th>Target</th>
-          <th>Type</th>
-          <th>Status</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for job in jobs[:10] %}
-        <tr>
-          <td><code>{{ job.id }}</code></td>
-          <td>{{ job.character_id }}</td>
-          <td>{{ job.job_type }}</td>
-          <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
-          <td>{{ job.created_at }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty-state">No generation jobs yet.</p>
-  {% endif %}
-
-  <!-- ============================================================ -->
-  <!--  ACTIVITY LOG  (live generation / seeding progress)         -->
-  <!-- ============================================================ -->
-  <h2>Activity Log</h2>
-  <div class="log-panel">
-    <ul class="log-list" id="log-list">
-      {% for entry in logs %}
-      <li class="log-line log-{{ entry.level | lower }}">
-        <span class="log-time">{{ entry.time }}</span>
-        <span class="log-level">{{ entry.level }}</span>
-        <span class="log-msg">{{ entry.message }}</span>
-      </li>
-      {% else %}
-      <li class="log-line log-empty">No activity yet.  Generate or seed to see progress here.</li>
-      {% endfor %}
-    </ul>
+<!-- ============================================================ -->
+<!--  REVIEW PAGE  (side-by-side comparison)                     -->
+<!-- ============================================================ -->
+<div class="review-header">
+  <h1>Review: {{ rec.name }} &mdash; {{ asset_type_label(asset_type) }}</h1>
+  <div class="review-controls">
+    <a href="/character/{{ rec.id }}" class="btn btn-sm">Back to Character</a>
+    {% if not batch_mode %}
+      <a href="/review/{{ rec.id }}?asset_type={{ asset_type }}&batch=true&grid={{ current_grid }}" class="btn btn-sm btn-secondary">
+        Batch Compare ({{ grid_cols }}x{{ grid_rows }})
+      </a>
+    {% else %}
+      <a href="/review/{{ rec.id }}?asset_type={{ asset_type }}" class="btn btn-sm btn-secondary">
+        Single View
+      </a>
+    {% endif %}
   </div>
-  <script>
-    (function () {
-      var list = document.getElementById("log-list");
-      function render(entries) {
-        list.innerHTML = "";
-        if (!entries.length) {
-          var li = document.createElement("li");
-          li.className = "log-line log-empty";
-          li.textContent = "No activity yet.  Generate or seed to see progress here.";
-          list.appendChild(li);
-          return;
-        }
-        entries.forEach(function (e) {
-          var li = document.createElement("li");
-          li.className = "log-line log-" + (e.level || "").toLowerCase();
-          var t = document.createElement("span");
-          t.className = "log-time";
-          t.textContent = e.time || "";
-          var l = document.createElement("span");
-          l.className = "log-level";
-          l.textContent = e.level || "";
-          var m = document.createElement("span");
-          m.className = "log-msg";
-          m.textContent = e.message || "";
-          li.appendChild(t); li.appendChild(l); li.appendChild(m);
-          list.appendChild(li);
-        });
-      }
-      async function refresh() {
-        try {
-          var r = await fetch("/logs");
-          var data = await r.json();
-          render(data.entries || []);
-        } catch (err) {}
-      }
-      setInterval(refresh, 2000);
-    })();
-  </script>
+</div>
 
-{% elif page == "character" and character %}
+{% if batch_mode %}
   <!-- ============================================================ -->
-  <!--  CHARACTER DETAIL                                            -->
+  <!--  BATCH COMPARE MODE  (configurable grid sizes per D-16)     -->
   <!-- ============================================================ -->
-  <h1>{{ character.name }}</h1>
-  <p class="character-meta">
-    <strong>Species:</strong> {{ character.species | default("—") }} &bull;
-    <strong>Category:</strong> {{ character.category | default("—") }}
-  </p>
-
-  {% if character.bio_data %}
-    <section class="bio-section">
-      <h2>Bio</h2>
-      <ul>
-        {% for key, value in character.bio_data.items() %}
-          <li><strong>{{ key | replace("_", " ") | title }}:</strong>
-            {% if value is iterable and value is not string %}
-              {{ value | join(", ") }}
-            {% else %}
-              {{ value }}
-            {% endif %}
-          </li>
-        {% endfor %}
-      </ul>
-    </section>
-  {% endif %}
-
-  {% set asset_types = asset_types | default(["reference", "expression", "pose", "outfit"]) %}
-  {% for atype in asset_types %}
-    {% set assets = assets_by_type.get(atype, []) %}
-    <section class="asset-section">
-      <h2>{{ atype | title }}s</h2>
-      {% if assets %}
-        <div class="asset-grid">
-          {% for asset in assets %}
-            <div class="asset-card">
-              <span class="asset-state {{ asset.state }}">{{ asset.state }}</span>
-              <div class="asset-thumb">
-                <img src="/asset-image/{{ asset.id }}" alt="asset"
-                     onerror="this.style.display='none'">
-              </div>
-              <p class="asset-prompt">{{ field(asset, "prompt", "") | truncate(60) }}</p>
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <p class="empty-state">No {{ atype }} assets yet.</p>
-      {% endif %}
-      <div class="action-row">
-        <a href="/review/{{ character.id }}?asset_type={{ atype }}" class="btn btn-sm btn-primary">
-          Review {{ atype }}s
-        </a>
-        <form action="/generate" method="post" style="display:inline">
-          <input type="hidden" name="scope" value="{% if character.category == 'environment' %}environments{% elif character.category == 'asset' %}props{% else %}characters{% endif %}">
-          <input type="hidden" name="item" value="{{ character.name }}">
-          <input type="hidden" name="asset_type" value="{{ atype }}">
-          <input type="hidden" name="count" value="4">
-          <input type="hidden" name="limit" value="1">
-          <input type="hidden" name="backend" value="mock">
-          <button type="submit" class="btn btn-sm btn-secondary">Generate {{ atype }}s</button>
-        </form>
-      </div>
-    </section>
-  {% endfor %}
-
-{% elif page == "review" and character %}
-  <!-- ============================================================ -->
-  <!--  REVIEW PAGE  (side-by-side comparison)                     -->
-  <!-- ============================================================ -->
-  <div class="review-header">
-    <h1>Review: {{ character.name }} &mdash; {{ asset_type | title }}s</h1>
-    <div class="review-controls">
-      <a href="/character/{{ character.id }}" class="btn btn-sm">Back to Character</a>
-      {% if not batch_mode %}
-        <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true&grid={{ current_grid }}" class="btn btn-sm btn-secondary">
-          Batch Compare ({{ grid_cols }}x{{ grid_rows }})
-        </a>
-      {% else %}
-        <a href="/review/{{ character.id }}?asset_type={{ asset_type }}" class="btn btn-sm btn-secondary">
-          Single View
-        </a>
-      {% endif %}
-    </div>
+  <div class="grid-selector">
+    <span class="grid-label">Grid:</span>
+    <a href="/review/{{ rec.id }}?asset_type={{ asset_type }}&batch=true&grid=2x2"
+       class="btn btn-sm {% if current_grid == '2x2' %}btn-active{% endif %}">2x2</a>
+    <a href="/review/{{ rec.id }}?asset_type={{ asset_type }}&batch=true&grid=3x3"
+       class="btn btn-sm {% if current_grid == '3x3' %}btn-active{% endif %}">3x3</a>
+    <a href="/review/{{ rec.id }}?asset_type={{ asset_type }}&batch=true&grid=4x4"
+       class="btn btn-sm {% if current_grid == '4x4' %}btn-active{% endif %}">4x4</a>
   </div>
 
-  {% if batch_mode %}
-    <!-- ============================================================ -->
-    <!--  BATCH COMPARE MODE  (configurable grid sizes per D-16)     -->
-    <!-- ============================================================ -->
-    <div class="grid-selector">
-      <span class="grid-label">Grid:</span>
-      <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true&grid=2x2"
-         class="btn btn-sm {% if current_grid == '2x2' %}btn-active{% endif %}">2x2</a>
-      <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true&grid=3x3"
-         class="btn btn-sm {% if current_grid == '3x3' %}btn-active{% endif %}">3x3</a>
-      <a href="/review/{{ character.id }}?asset_type={{ asset_type }}&batch=true&grid=4x4"
-         class="btn btn-sm {% if current_grid == '4x4' %}btn-active{% endif %}">4x4</a>
-    </div>
-
-    <div class="batch-grid grid-{{ current_grid }}">
-      {% for card in candidates[:grid_capacity] %}
-        <div class="batch-card">
-          <div class="candidate-image">
-            <img src="/asset-image/{{ card.asset.id }}" alt="candidate"
-                 onerror="this.style.display='none'">
-          </div>
-          <div class="score-summary">
-            <span class="brand-score">{{ "%.2f" | format(card.scores.total) }}</span>
-            <span class="drift-badge {% if card.visual_drift < 0.5 %}drift-high{% elif card.visual_drift < 0.7 %}drift-medium{% else %}drift-low{% endif %}">
-              Drift: {{ "%.2f" | format(card.visual_drift) }}
-            </span>
-          </div>
-          <div class="action-row">
-            <form action="/approve/{{ card.asset.id }}" method="post" style="display:inline">
-              <button type="submit" class="btn btn-approve btn-sm">✓ Approve</button>
-            </form>
-            <form action="/reject/{{ card.asset.id }}" method="post" style="display:inline">
-              <button type="submit" class="btn btn-reject btn-sm">✗ Reject</button>
-            </form>
-          </div>
+  <div class="batch-grid grid-{{ current_grid }}">
+    {% for card in candidates[:grid_capacity] %}
+      <div class="batch-card" data-asset-id="{{ card.asset_id }}" data-state="{{ card.state }}">
+        <div class="candidate-image">
+          <img src="{{ card.image_url }}" alt="candidate"
+               onerror="this.style.display='none'">
         </div>
-      {% endfor %}
-    </div>
-
-  {% else %}
-    <!-- ============================================================ -->
-    <!--  SINGLE REVIEW  (two-column: reference | candidate)         -->
-    <!-- ============================================================ -->
-    <div class="review-two-column">
-      <!-- LEFT: Reference -->
-      <div class="reference-panel">
-        <h2>Reference</h2>
-        {% if approved %}
-          <div class="reference-image">
-            <img src="/asset-image/{{ approved[0].id }}" alt="reference"
-                 onerror="this.style.display='none'">
-          </div>
-          <p class="reference-label">{{ field(approved[0], "prompt", "") | truncate(80) }}</p>
-        {% else %}
-          <div class="reference-image placeholder-img placeholder-empty">
-            <span class="placeholder-text">No approved reference</span>
-          </div>
+        <div class="score-summary">
+          <span class="asset-state state-{{ card.state }}">{{ card.state }}</span>
+          <span class="brand-score">
+            {{ "%.2f" | format(card.brand_score) if card.brand_score is not none else "no score" }}
+          </span>
+        </div>
+        {% if card.variant %}
+          <p class="asset-variant">{{ card.variant }}</p>
         {% endif %}
+        <div class="action-row">
+          <button type="button" class="btn btn-approve btn-sm" data-action="approve">✓ Approve</button>
+          <button type="button" class="btn btn-promote btn-sm" data-action="promote">▲ Promote</button>
+          <button type="button" class="btn btn-reject btn-sm" data-action="reject">✗ Reject</button>
+        </div>
       </div>
+    {% endfor %}
+  </div>
 
-      <!-- RIGHT: Candidate -->
-      <div class="candidate-panel">
-        <h2>Candidates ({{ candidates | length }})</h2>
+{% else %}
+  <!-- ============================================================ -->
+  <!--  SINGLE REVIEW  (two-column: reference | candidate)         -->
+  <!-- ============================================================ -->
+  <div class="review-two-column">
+    <!-- LEFT: Reference -->
+    <div class="reference-panel">
+      <h2>Reference</h2>
+      {% if approved %}
+        <div class="reference-image">
+          <img src="/asset-image/{{ approved[0].id }}" alt="reference"
+               onerror="this.style.display='none'">
+        </div>
+        <p class="reference-label">{{ field(approved[0], "prompt", "") | truncate(80) }}</p>
+      {% else %}
+        <div class="reference-image placeholder-img placeholder-empty">
+          <span class="placeholder-text">No approved reference</span>
+        </div>
+      {% endif %}
+    </div>
 
-        {% for card in candidates %}
-          <div class="candidate-card">
-            <div class="candidate-image">
-              <img src="/asset-image/{{ card.asset.id }}" alt="candidate"
-                   onerror="this.style.display='none'">
+    <!-- RIGHT: Candidate -->
+    <div class="candidate-panel">
+      <h2>Candidates ({{ candidates | length }})</h2>
+
+      {% for card in candidates %}
+        <div class="candidate-card" data-asset-id="{{ card.asset_id }}" data-state="{{ card.state }}">
+          <div class="candidate-image">
+            <img src="{{ card.image_url }}" alt="candidate"
+                 onerror="this.style.display='none'">
+          </div>
+
+          <div class="card-head-row">
+            <span class="asset-state state-{{ card.state }}">{{ card.state }}</span>
+            {% if card.variant %}
+              <span class="asset-variant">{{ card.variant }}</span>
+            {% endif %}
+          </div>
+
+          <!-- Score breakdown (real persisted scores) -->
+          <div class="score-panel">
+            <div class="brand-score-row">
+              <span class="brand-score-label">Brand Score</span>
+              <span class="brand-score-value {% if card.brand_score is none %}score-ok{% elif card.brand_score >= 0.7 %}score-good{% elif card.brand_score >= 0.5 %}score-ok{% else %}score-bad{% endif %}">
+                {% if card.brand_score is not none %}
+                  {{ "%.0f" | format(card.brand_score * 100) }}/100
+                {% else %}
+                  n/a
+                {% endif %}
+              </span>
             </div>
 
-            <!-- Score breakdown -->
-            <div class="score-panel">
-              <div class="brand-score-row">
-                <span class="brand-score-label">Brand Score</span>
-                <span class="brand-score-value {% if card.scores.total >= 0.7 %}score-good{% elif card.scores.total >= 0.5 %}score-ok{% else %}score-bad{% endif %}">
-                  {{ "%.0f" | format(card.scores.total * 100) }}/100
-                </span>
-              </div>
-
-              <!-- Visual drift warning -->
-              {% if card.visual_drift < 0.7 %}
-                <div class="drift-warning {% if card.visual_drift < 0.5 %}drift-critical{% else %}drift-caution{% endif %}">
-                  ⚠ Visual drift detected (DINOv2 similarity: {{ "%.2f" | format(card.visual_drift) }})
-                </div>
-              {% endif %}
-
-              <!-- Sub-score bars -->
+            <!-- Sub-score bars -->
+            {% if card.components %}
               <div class="sub-scores">
-                {% for key, comp in card.scores.components.items() %}
+                {% for key, value in card.components.items() %}
                   <div class="score-bar-row">
                     <span class="score-bar-label">{{ key | replace("_", " ") | title }}</span>
                     <div class="score-bar-track">
-                      <div class="score-bar-fill" style="width: {{ comp.raw * 100 }}%"></div>
+                      <div class="score-bar-fill" style="width: {{ (value * 100) | round(1) }}%"></div>
                     </div>
-                    <span class="score-bar-value">{{ "%.0f" | format(comp.raw * 100) }}</span>
+                    <span class="score-bar-value">{{ "%.0f" | format(value * 100) }}</span>
                   </div>
                 {% endfor %}
               </div>
-            </div>
-
-            <!-- Generation metadata -->
-            <details class="metadata-panel">
-              <summary>Generation Metadata</summary>
-              <dl>
-                <dt>Seed</dt><dd><code>{{ card.seed }}</code></dd>
-                <dt>Model</dt><dd>{{ card.model }}</dd>
-                <dt>Prompt</dt><dd><code>{{ card.prompt | truncate(120) }}</code></dd>
-              </dl>
-            </details>
-
-            <!-- Action buttons -->
-            <div class="action-bar">
-              <form action="/approve/{{ card.asset.id }}" method="post" style="display:inline">
-                <button type="submit" class="btn btn-approve">✓ Approve</button>
-              </form>
-              <form action="/promote/{{ card.asset.id }}" method="post" style="display:inline">
-                <button type="submit" class="btn btn-promote">▲ Approve &amp; Promote</button>
-              </form>
-              <form action="/reject/{{ card.asset.id }}" method="post" style="display:inline">
-                <input type="text" name="reason" placeholder="Reason (optional)" class="reason-input">
-                <button type="submit" class="btn btn-reject">✗ Reject</button>
-              </form>
-              <form action="/regenerate/{{ card.asset.id }}" method="post" style="display:inline">
-                <button type="submit" class="btn btn-regenerate">⟳ Regenerate Similar</button>
-              </form>
-            </div>
+            {% endif %}
           </div>
-        {% else %}
-          <p class="empty-state">No candidates awaiting review for {{ asset_type }}.</p>
-        {% endfor %}
-      </div>
+
+          <!-- Generation metadata -->
+          <details class="metadata-panel">
+            <summary>Generation Metadata</summary>
+            <dl>
+              <dt>Seed</dt><dd><code>{{ card.seed }}</code></dd>
+              <dt>Model</dt><dd>{{ card.model }}</dd>
+              <dt>Prompt</dt><dd><code>{{ card.prompt | truncate(120) }}</code></dd>
+            </dl>
+          </details>
+
+          <!-- Action buttons (realtime via studio.js) -->
+          <div class="action-bar">
+            <button type="button" class="btn btn-approve" data-action="approve">✓ Approve</button>
+            <button type="button" class="btn btn-promote" data-action="promote">▲ Approve &amp; Promote</button>
+            <span class="reject-group">
+              <input type="text" class="reason-input" data-reason placeholder="Reason (optional)">
+              <button type="button" class="btn btn-reject" data-action="reject">✗ Reject</button>
+            </span>
+            <button type="button" class="btn btn-regenerate" data-action="regenerate">⟳ Regenerate Similar</button>
+          </div>
+        </div>
+      {% else %}
+        <p class="empty-state">No candidates awaiting review for {{ asset_type }}.</p>
+      {% endfor %}
     </div>
-  {% endif %}
+  </div>
 {% endif %}
 
 {% endblock %}
