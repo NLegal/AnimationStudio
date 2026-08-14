@@ -12,9 +12,9 @@
 | Standardized prompt library | ✅ | `Universe/PromptTemplates/*-prompt-sheet.md` (all 39) + per-character `prompts/templates.json`. |
 | Standardized negative prompts | ✅ | `Universe/NegativePrompt/standards.md`; enforced by `PromptBuilder` for every asset. |
 | Model sheets + turnarounds | ✅ | `Universe/ModelSheets/<Name>_model_sheet.png` (39) + per-character `turnarounds/` (6 angles + sheet). |
-| Expression / pose / outfit / accessory libraries | ✅ | 32 expressions, 28 poses, per-character wardrobes, 11 lighting studies per character; `Universe/Accessories/` (12 categories + INDEX). |
+| Expression / pose / outfit / accessory libraries | ✅ | 32 expressions, 28 poses, per-character wardrobes, 11 lighting studies per character, per-character `accessories/` (from each bio's Appearance accessories); `Universe/Accessories/` (12 categories + INDEX). |
 | Style guide + color palette | ✅ | `Universe/StyleGuide/` + `Universe/ColorPalette/brand-palette.json`. |
-| Organized asset repository | ✅ | `Universe/Characters/<Name>/{references,expressions,poses,outfits,turnarounds,lighting}` — 3,340 PNGs on disk, DB `file_path` recorded. |
+| Organized asset repository | ✅ | `Universe/Characters/<Name>/{references,expressions,poses,outfits,turnarounds,lighting,accessories}` — 3,340 PNGs on disk, DB `file_path` recorded. |
 
 ## Quality Checklist (per character — all 39 pass)
 

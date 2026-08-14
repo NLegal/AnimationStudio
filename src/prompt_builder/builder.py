@@ -48,8 +48,10 @@ class PromptBuilder:
 
         Args:
             character: CharacterPrompt with character details.
-            asset_type: One of 'reference', 'expression', 'pose', 'outfit'.
-            variant: Sub-type (expression name, pose name, outfit name, angle).
+            asset_type: One of 'reference', 'expression', 'pose', 'outfit',
+                'accessory'.
+            variant: Sub-type (expression name, pose name, outfit name,
+                accessory name, angle).
             age: Optional age descriptor ('toddler', 'preschool', 'kindergarten')
                 to prepend as an age variant modifier.
             rotation: Optional rotation angle string for rotation library templates.
@@ -88,6 +90,9 @@ class PromptBuilder:
             elif asset_type == "outfit":
                 outfit = variant or kwargs.get("outfit", character.outfit)
                 positive = self.templates.outfit(character, outfit)
+            elif asset_type == "accessory":
+                accessory = variant or kwargs.get("accessory", "backpack")
+                positive = self.templates.accessory(character, accessory)
             else:
                 raise ValueError(f"Unknown asset_type: {asset_type}")
 

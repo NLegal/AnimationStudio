@@ -232,9 +232,10 @@ class CharacterPrompt:
 class PromptTemplates:
     """Template methods for character asset prompts.
 
-    Base methods (reference_sheet, expression, pose, outfit) are static and
-    accept a ``CharacterPrompt``.  Extended methods (age_variant, rotation,
-    lighting) are instance methods that also accept an optional override dict.
+    Base methods (reference_sheet, expression, pose, outfit, accessory) are
+    static and accept a ``CharacterPrompt``.  Extended methods (age_variant,
+    rotation, lighting) are instance methods that also accept an optional
+    override dict.
 
     Usage::
 
@@ -293,6 +294,21 @@ class PromptTemplates:
             f"{character.name}, {character.species}, {character.appearance}, "
             f"wearing {outfit}, standing, front view, "
             f"{character.style}, highly detailed, full body"
+        )
+
+    @staticmethod
+    def accessory(character: CharacterPrompt, accessory: str) -> str:
+        """Build a prompt for one of the character's signature accessories.
+
+        PHASE1.md's Accessory Library is per-character (``accessories/`` under
+        each character): the accessory keeps the character's design language
+        while being shown as a single child-safe product shot.
+        """
+        return (
+            f"{character.name}, {character.species}, {character.appearance}, "
+            f"wearing {character.outfit}, holding {accessory}, "
+            f"{character.style}, single accessory, product shot, "
+            f"clean background, no text, no logo, highly detailed"
         )
 
     # ------------------------------------------------------------------ #

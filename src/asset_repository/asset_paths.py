@@ -28,6 +28,7 @@ CHARACTER_DIRS = {
     "pose": "poses",
     "outfit": "outfits",
     "lighting": "lighting",
+    "accessory": "accessories",
 }
 
 # environment asset_type -> folder suffix used in the World/ zone tree

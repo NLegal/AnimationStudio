@@ -46,8 +46,8 @@ async def main() -> int:
                         help="characters | environments | vehicles | backgrounds | props | all (default: characters)")
     parser.add_argument("--asset-types", default="",
                         help="Optional comma list: reference,expression,pose,outfit,lighting,"
-                             "exterior,interior,season,time_of_day,weather,camera,vehicle,"
-                             "background,view,material,color")
+                             "accessory,exterior,interior,season,time_of_day,weather,camera,"
+                             "vehicle,background,view,material,color")
     parser.add_argument("--universe", default="Universe", help="Universe/ directory")
     parser.add_argument("--world", default="World", help="World/ directory")
     parser.add_argument("--assets", default="Assets", help="Assets/ directory")
@@ -71,7 +71,8 @@ async def main() -> int:
     # catalog's singular asset_type column values (expression, pose, ...).
     _SINGULAR = {
         "expressions": "expression", "poses": "pose", "outfits": "outfit",
-        "references": "reference", "views": "view", "materials": "material",
+        "accessories": "accessory", "references": "reference", "views": "view",
+        "materials": "material",
         "colors": "color", "exteriors": "exterior", "interiors": "interior",
         "seasons": "season", "weathers": "weather", "vehicles": "vehicle",
         "backgrounds": "background",

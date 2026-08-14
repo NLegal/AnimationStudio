@@ -49,7 +49,7 @@ class TestBuildPrompt:
 
     def test_character_asset_type_variants(self):
         seed = discover_characters("Universe")[0]
-        for atype in ("reference", "expression", "pose", "outfit"):
+        for atype in ("reference", "expression", "pose", "outfit", "accessory"):
             positive, _ = build_prompt(seed, "character", atype, "front")
             assert positive
 

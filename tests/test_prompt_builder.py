@@ -215,6 +215,13 @@ class TestAssetTypeTemplates:
         assert lily.name in pos
         assert "winter coat" in pos
 
+    def test_accessory_prompt(self, lily: CharacterPrompt, builder: PromptBuilder):
+        """Accessory prompt contains the accessory name and character name."""
+        pos, neg = builder.build(lily, asset_type="accessory", variant="blue bow")
+        assert lily.name in pos
+        assert "blue bow" in pos
+        assert "product shot" in pos
+
 
 # ---------------------------------------------------------------------------
 # Age variant tests

@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # Character categories (Phase 1) → their full asset-type library.  Turnarounds
 # reuse the "reference" type with a variant angle (45/left/right/back/top/bottom).
-CHARACTER_ASSET_TYPES = ["reference", "expression", "pose", "outfit", "lighting"]
+CHARACTER_ASSET_TYPES = ["reference", "expression", "pose", "outfit", "lighting", "accessory"]
 
 # World categories (Phase 2)
 ENVIRONMENT_ASSET_TYPES = [
@@ -61,6 +61,7 @@ ASSET_TYPE_LABELS = {
     "pose": "poses",
     "outfit": "outfits",
     "lighting": "lighting",
+    "accessory": "accessories",
     "environment": "environment",
     "exterior": "exteriors",
     "interior": "interiors",

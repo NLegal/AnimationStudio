@@ -9,6 +9,7 @@ Produces the complete per-character asset library from PHASE1.md:
   * outfits (each wardrobe variant from the character's bio)
   * turnarounds (front / 45 / left / right / back / top / bottom)
   * lighting studies (morning, golden hour, night, …)
+  * accessories (each accessory declared in the character's bio)
 
 Every image goes through the standard pipeline (prompt → generate → score →
 diversity filter → shortlist) and is persisted into the SQLite repository so
@@ -59,21 +60,44 @@ ASSET_TYPES: dict[str, tuple[str, str]] = {
     "outfits": ("outfit", "outfit"),
     "turnarounds": ("reference", "turnaround"),
     "lighting": ("lighting", "lighting study"),
+    "accessories": ("accessory", "accessory"),
+}
+
+# Accept the plural CLI forms (expressions, references, ...) that match the
+# on-disk library directories.  Maps onto the canonical library keys.
+_ASSET_TYPE_ALIASES: dict[str, str] = {
+    "references": "reference",
+    "expressions": "expressions",
+    "poses": "poses",
+    "outfits": "outfits",
+    "turnarounds": "turnarounds",
+    "turnaround": "turnarounds",
+    "lighting": "lighting",
+    "lightings": "lighting",
+    "accessories": "accessories",
+    "accessory": "accessories",
 }
 
 
 def _parse_asset_types(value: str) -> list[str]:
     """Expand the --asset-types option into individual library keys."""
-    value = (value or "all").lower()
+    value = (value or "all").strip().lower()
     keys = list(ASSET_TYPES)
-    if value == "all":
+    if value in ("all", "*", ""):
         return keys
-    wanted = [v.strip() for v in value.split(",") if v.strip()]
-    for w in wanted:
+    wanted: list[str] = []
+    for part in value.split(","):
+        w = part.strip().lower()
+        if not w:
+            continue
+        w = _ASSET_TYPE_ALIASES.get(w, w)
         if w not in keys:
             raise SystemExit(
-                f"Unknown asset type '{w}'. Use one of: {', '.join(keys)}, all"
+                f"Unknown asset type '{part.strip()}'. Use one of: "
+                f"{', '.join(keys)}, all"
             )
+        if w not in wanted:
+            wanted.append(w)
     return wanted
 
 
@@ -81,6 +105,22 @@ def _outfits_for(seed) -> list[str]:
     """Wardrobe variant names for a character (from the bio's wardrobe table)."""
     wardrobe = seed.bio_data.get("wardrobe", {})
     return [name for name in wardrobe if name]
+
+
+def _accessories_for(seed) -> list[str]:
+    """Per-character accessory names (from the bio's Appearance field).
+
+    PHASE1.md puts an ``accessories/`` directory under every character and
+    lists an Accessory Library as a Phase-1 deliverable; each bio already
+    declares the character's own accessories (e.g. Lily Bunny's "Blue bow on
+    left ear (signature), small backpack").  We generate one study per
+    accessory so the character library covers that deliverable too.
+    """
+    appearance = seed.bio_data.get("appearance_fields", {}) or {}
+    raw = appearance.get("accessories", "")
+    parts = [p.strip(" .") for p in raw.split(",") if p.strip()]
+    # De-duplicate, preserving order.
+    return list(dict.fromkeys(p for p in parts if p))
 
 
 def _variants(asset_type: str, seed) -> list[str]:
@@ -98,6 +138,8 @@ def _variants(asset_type: str, seed) -> list[str]:
         return TURNAROUNDS
     if key == "lighting":
         return LIGHTING
+    if key == "accessories":
+        return _accessories_for(seed) or ["default accessory"]
     return []
 
 
@@ -129,7 +171,7 @@ async def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--asset-types", default="all",
                         help="Comma list or 'all' (default): reference, expressions, "
-                             "poses, outfits, turnarounds, lighting")
+                             "poses, outfits, turnarounds, lighting, accessories")
     parser.add_argument("--backend", default="mock",
                         help="mock | comfyui | cloud (default: mock)")
     parser.add_argument("--provider", default="fal",
@@ -141,7 +183,8 @@ async def main() -> int:
     parser.add_argument("--shortlist", type=int, default=1,
                         help="Top candidates to shortlist per (character, variant) (default: 1)")
     parser.add_argument("--characters", default="",
-                        help="Comma list of character names to include (default: all)")
+                        help="Comma list of character names to include, or "
+                             "'all' (default: all)")
     parser.add_argument("--limit", type=int, default=None,
                         help="Max characters to process (default: all)")
     parser.add_argument("--jobs", type=int, default=4,
@@ -198,9 +241,18 @@ async def main() -> int:
     asset_types = _parse_asset_types(args.asset_types)
 
     seeds = discover_characters(args.universe)
-    if args.characters:
-        wanted = {c.strip().lower() for c in args.characters.split(",") if c.strip()}
-        seeds = [s for s in seeds if s.name.lower() in wanted]
+    wanted = args.characters.strip()
+    if wanted and wanted.lower() not in ("all", "*"):
+        wanted = {c.strip().lower() for c in wanted.split(",") if c.strip()}
+        matched = [s for s in seeds if s.name.lower() in wanted]
+        missing = sorted(wanted - {s.name.lower() for s in matched})
+        if missing:
+            known = ", ".join(f"'{s.name}'" for s in seeds)
+            raise SystemExit(
+                f"Unknown character name(s): {', '.join(missing)}.\n"
+                f"Discoverable characters ({len(seeds)}): {known}."
+            )
+        seeds = matched
     if args.limit:
         seeds = seeds[: args.limit]
     if not seeds:
@@ -209,6 +261,11 @@ async def main() -> int:
     tasks = list(_tasks(seeds, asset_types))
     print("=" * 70)
     print(f"  PHASE 1 LIBRARY — {len(seeds)} characters × {len(asset_types)} asset types")
+    if len(seeds) <= 8:
+        print("  characters: " + ", ".join(s.name for s in seeds))
+    else:
+        print(f"  characters: {len(seeds)} total (first: "
+              + ", ".join(s.name for s in seeds[:3]) + ", …)")
     print(f"  asset-types: {', '.join(asset_types)}")
     print(f"  tasks: {len(tasks)} (character × variant)")
     print(f"  backend: {args.backend}  db: {args.db}")

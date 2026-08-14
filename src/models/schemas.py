@@ -37,7 +37,7 @@ class AssetModel(BaseModel):
     character_id: str
     asset_type: Literal[
         "reference", "expression", "pose", "outfit",
-        "lighting", "environment", "prop",
+        "lighting", "accessory", "environment", "prop",
         "exterior", "interior", "season", "time_of_day", "weather",
         "camera", "vehicle", "background",
         "view", "material", "color",
@@ -64,7 +64,7 @@ class GenerationJobRequest(BaseModel):
     character_id: str
     job_type: Literal[
         "reference", "expression", "pose", "outfit",
-        "lighting", "environment", "prop",
+        "lighting", "accessory", "environment", "prop",
         "exterior", "interior", "season", "time_of_day", "weather",
         "camera", "vehicle", "background",
         "view", "material", "color",
