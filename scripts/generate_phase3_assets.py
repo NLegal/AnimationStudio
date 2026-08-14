@@ -23,6 +23,7 @@ Usage:
     python scripts/generate_phase3_assets.py --backend mock --count 2
     python scripts/generate_phase3_assets.py --asset-types materials colors --prompt-only
     python scripts/generate_phase3_assets.py --category Toys --asset-types views
+    python scripts/generate_phase3_assets.py --materials all --colors all --category Food
 """
 
 import argparse
@@ -56,19 +57,60 @@ ASSET_TYPES: dict[str, tuple[str, str, str]] = {
     "lighting": ("prop", "lighting", "lighting study"),
 }
 
+# alias / singular forms accepted by --asset-types (Phase 1 parity).
+_ASSET_TYPE_ALIASES: dict[str, str] = {
+    "reference": "references",
+    "view": "views",
+    "material": "materials",
+    "color": "colors",
+}
+
 
 def _parse_asset_types(value: str) -> list[str]:
     """Expand the --asset-types option into individual library keys."""
-    value = (value or "all").lower()
+    value = (value or "all").strip().lower()
     keys = list(ASSET_TYPES)
-    if value == "all":
+    if value in ("all", "*"):
         return keys
-    wanted = [v.strip() for v in value.split(",") if v.strip()]
-    for w in wanted:
-        if w not in keys:
+    wanted: list[str] = []
+    for part in value.split(","):
+        part = part.strip().lower()
+        part = _ASSET_TYPE_ALIASES.get(part, part)
+        if not part or part in wanted:
+            continue
+        if part not in keys:
             raise SystemExit(
-                f"Unknown asset type '{w}'. Use one of: {', '.join(keys)}, all"
+                f"Unknown asset type '{part}'. Use one of: {', '.join(keys)}, all"
             )
+        wanted.append(part)
+    if not wanted:
+        raise SystemExit("No asset types selected. Use --asset-types 'all' or a comma list.")
+    return wanted
+
+
+def _parse_variants(value: str, default: list[str], catalog: list[str],
+                    label: str) -> list[str]:
+    """Expand a --materials/--colors option value.
+
+    Empty keeps the single deterministic variant per prop; ``all`` / ``*``
+    generates the full PHASE3.md catalog for that dimension; a comma list is
+    validated against the catalog.
+    """
+    value = (value or "").strip().lower()
+    if value in ("", "all", "*"):
+        return list(catalog if value else default)
+    wanted: list[str] = []
+    for part in value.split(","):
+        part = part.strip()
+        if not part or part in wanted:
+            continue
+        if part not in catalog:
+            raise SystemExit(
+                f"Unknown {label} '{part}'. Use one of: {', '.join(catalog)}, all"
+            )
+        wanted.append(part)
+    if not wanted:
+        raise SystemExit(f"No {label} selected.")
     return wanted
 
 
@@ -90,8 +132,26 @@ def _pick_color(seed) -> str:
     return colors[digest % len(colors)]
 
 
-def _tasks(props: list, asset_types: list[str]):
-    """Yield (seed, kind, asset_type, variant) task tuples."""
+def _material_catalog() -> list[str]:
+    """The full PHASE3.md material library (keys of ``_PROP_MATERIALS``)."""
+    import src.prompt_builder.templates as _templates
+    return sorted(_templates._PROP_MATERIALS)
+
+
+def _color_catalog() -> list[str]:
+    """The full prop color palette (keys of ``_PROP_COLOR_VARIANTS``)."""
+    import src.prompt_builder.templates as _templates
+    return sorted(_templates._PROP_COLOR_VARIANTS)
+
+
+def _tasks(props: list, asset_types: list[str],
+           materials: list[str] | None = None,
+           colors: list[str] | None = None):
+    """Yield (seed, kind, asset_type, variant) task tuples.
+
+    Empty ``materials``/``colors`` picks one deterministic variant per prop;
+    a list (from ``--materials all`` etc.) generates every catalog variant.
+    """
     for key in asset_types:
         kind, asset_type, _label = ASSET_TYPES[key]
         if key == "references":
@@ -103,14 +163,30 @@ def _tasks(props: list, asset_types: list[str]):
                     yield prop, "prop", asset_type, variant
         elif key == "materials":
             for prop in props:
-                yield prop, "prop", asset_type, _pick_material(prop)
+                for variant in (materials if materials else [_pick_material(prop)]):
+                    yield prop, "prop", asset_type, variant
         elif key == "colors":
             for prop in props:
-                yield prop, "prop", asset_type, _pick_color(prop)
+                for variant in (colors if colors else [_pick_color(prop)]):
+                    yield prop, "prop", asset_type, variant
         elif key == "lighting":
             for prop in props:
                 for variant in LIGHTING_STUDIES:
                     yield prop, "prop", asset_type, variant
+
+
+def _checkpoint_sync(args, message: str) -> None:
+    """Push generated images + the DB to git; never block generation on it."""
+    try:
+        from colab.git_sync import auto_sync
+    except Exception as exc:  # pragma: no cover - environment dependent
+        logger.warning("Periodic sync unavailable (generation continues): %s", exc)
+        return
+    repo = args.sync_repo or str(Path(__file__).resolve().parents[1])
+    auto_sync(repo=repo, branch=args.sync_branch, db_path=args.db,
+              token=args.sync_token, remote_url=args.sync_remote_url,
+              git_name=args.sync_git_name, git_email=args.sync_git_email,
+              message=message)
 
 
 async def main() -> int:
@@ -119,9 +195,18 @@ async def main() -> int:
     parser.add_argument("--asset-types", default="all",
                         help="Comma list or 'all' (default): references, views, "
                              "materials, colors, lighting")
+    parser.add_argument("--materials", default="",
+                        help="Comma list or 'all' for the material catalog "
+                             "(default: one deterministic material per prop)")
+    parser.add_argument("--colors", default="",
+                        help="Comma list or 'all' for the color palette "
+                             "(default: one deterministic color per prop)")
     parser.add_argument("--category", default="",
                         help="Restrict to one category dir name "
                              "(e.g. Toys, Food, Animals, Books)")
+    parser.add_argument("--props", default="",
+                        help="Restrict to specific prop names or asset ids "
+                             "(comma list, case-insensitive)")
     parser.add_argument("--backend", default="mock",
                         help="mock | comfyui | cloud (default: mock)")
     parser.add_argument("--provider", default="fal",
@@ -143,12 +228,41 @@ async def main() -> int:
                         help="SQLite database path (default: catalog.db)")
     parser.add_argument("--assets", default="Assets",
                         help="Path to the Assets/ directory")
+    parser.add_argument("--universe", default="Universe",
+                        help="Path to the Universe/ directory (default: Universe)")
     parser.add_argument("--world", default="World",
                         help="Path to the World/ directory (prop indexes)")
+    parser.add_argument("--persist-images", dest="persist_images",
+                        action="store_true", default=True,
+                        help="Write each generated image into the catalog tree "
+                             "(default: on)")
+    parser.add_argument("--no-persist-images", dest="persist_images",
+                        action="store_false",
+                        help="Record assets without writing image files")
     parser.add_argument("--prompt-only", action="store_true",
                         help="Print prompts without generating images")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable debug logging")
+    parser.add_argument("--sync-every", type=int, default=0,
+                        help="After every N variant groups, push generated "
+                             "images + the DB to git (default: 0 = only a "
+                             "final sync at the end, driven by the notebook)")
+    parser.add_argument("--sync-every-image", action="store_true",
+                        help="Push each individual image + the DB to git the "
+                             "moment it is generated, so a Colab termination "
+                             "loses at most the single in-flight image")
+    parser.add_argument("--sync-repo", default="",
+                        help="Local git repo path for syncing (default: repo root)")
+    parser.add_argument("--sync-branch", default="",
+                        help="Git branch to push synced output to")
+    parser.add_argument("--sync-token", default="",
+                        help="GitHub PAT for the sync push")
+    parser.add_argument("--sync-remote-url", default="",
+                        help="Remote URL (with token embedded) for the sync push")
+    parser.add_argument("--sync-git-name", default="Colab Studio",
+                        help="Git author name for sync commits")
+    parser.add_argument("--sync-git-email", default="colab@animationstudio.local",
+                        help="Git author email for sync commits")
     args = parser.parse_args()
 
     if args.verbose:
@@ -157,21 +271,37 @@ async def main() -> int:
         logging.basicConfig(level=logging.WARNING)
 
     asset_types = _parse_asset_types(args.asset_types)
+    materials = _parse_variants(args.materials, [], _material_catalog(), "material")
+    colors = _parse_variants(args.colors, [], _color_catalog(), "color")
 
     props = discover_props(args.world, args.assets)
     if args.category:
         wanted = args.category.lower()
         props = [p for p in props if p.category_dir.lower() == wanted]
+    if args.props:
+        wanted = {p.strip().lower() for p in args.props.split(",") if p.strip()}
+        matched = [
+            p for p in props
+            if p.name.lower() in wanted or p.asset_id.lower() in wanted
+        ]
+        missing = sorted(wanted - {p.name.lower() for p in matched}
+                         - {p.asset_id.lower() for p in matched})
+        if missing:
+            names = ", ".join(repr(p.name) for p in props)
+            raise SystemExit(f"Unknown prop(s): {missing}. Available: {names}")
+        props = matched
     if args.limit:
         props = props[: args.limit]
     if not props:
         raise SystemExit("No props matched the given filters.")
 
-    tasks = list(_tasks(props, asset_types))
+    tasks = list(_tasks(props, asset_types, materials=materials, colors=colors))
     print("=" * 70)
     print("  PHASE 3 ASSET LIBRARY")
     print(f"  props: {len(props)}  categories: {len({p.category_dir for p in props})}")
     print(f"  asset-types: {', '.join(asset_types)}")
+    if materials:
+        print(f"  materials: {len(materials)}  colors: {len(colors)}")
     print(f"  tasks: {len(tasks)} (prop × variant)")
     print(f"  backend: {args.backend}  db: {args.db}")
     print("=" * 70)
@@ -190,8 +320,20 @@ async def main() -> int:
     backend = resolve_backend(args.backend, comfyui_url=args.comfyui_url,
                               provider=args.provider)
     scorer = IdentityScorer(light=args.fast_scoring)
+
+    # Per-image git checkpoint hook: push each image + the DB the moment it is
+    # generated, so a Colab termination loses at most the single in-flight
+    # image (same pattern as the Phase-1/2 notebooks).
+    async def _on_asset(info: dict) -> None:
+        label = info.get("file_path") or info.get("asset_id") or "asset"
+        _checkpoint_sync(args, f"image {label} (per-image checkpoint)")
+
     runner = BatchRunner(asset_repo=asset_repo, char_repo=char_repo,
-                         backend=backend, scorer=scorer)
+                         backend=backend, scorer=scorer,
+                         persist_images=args.persist_images,
+                         universe_dir=args.universe, world_dir=args.world,
+                         assets_dir=args.assets,
+                         on_asset=_on_asset if args.sync_every_image else None)
 
     batch_id = f"phase3_{int(time.time())}"
     overall = {"tasks": 0, "generated": 0, "shortlisted": 0, "failed": 0}
@@ -201,7 +343,9 @@ async def main() -> int:
         by_variant.setdefault((kind, asset_type, variant), []).append(seed)
 
     print(f"\nRunning {len(by_variant)} variant groups…")
+    group_index = 0
     for (kind, asset_type, variant), group_seeds in by_variant.items():
+        group_index += 1
         label = getattr(group_seeds[0], "asset_id", "") or ""
         print(f"\n▶ {kind}/{asset_type} / {variant}  ({len(group_seeds)} props)")
         try:
@@ -214,6 +358,7 @@ async def main() -> int:
                 asset_type=asset_type,
                 variant=variant,
                 batch_id=batch_id,
+                skip_scored=True,
             )
         except Exception as exc:
             logger.exception("Group %s/%s/%s failed: %s",
@@ -226,6 +371,15 @@ async def main() -> int:
         overall["failed"] += result["items_failed"]
         for fail in result["failures"]:
             print(f"    ✗ {fail.get('name')}: {fail.get('error')}")
+        if args.sync_every > 0 and group_index % args.sync_every == 0:
+            _checkpoint_sync(
+                args,
+                f"checkpoint {group_index}/{len(by_variant)} groups "
+                f"(asset library)",
+            )
+
+    if args.sync_every > 0:
+        _checkpoint_sync(args, f"final sync after {group_index} groups (asset library)")
 
     print("\n" + "=" * 70)
     print("  SUMMARY")

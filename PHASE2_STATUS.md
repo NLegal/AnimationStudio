@@ -51,11 +51,27 @@
 # Regenerate every world asset from the markdown bibles
 python scripts/generate_phase2_world.py --fast-scoring --jobs 12
 
+# Restrict scope (zone / locations / asset types / variant dimensions)
+python scripts/generate_phase2_world.py --zone Residential --asset-types exteriors
+python scripts/generate_phase2_world.py --locations "Lighthouse,ENV_Residential_001"
+
+# Full PHASE2.md variant catalogs (supersedes the 4-core defaults)
+python scripts/generate_phase2_world.py --seasons all --times all --weathers all --cameras all
+
 # Write PNGs + record file_path, build reference sheets, approve
 python scripts/export_assets.py --db catalog.db --scope all
 python scripts/build_world_sheets.py --db catalog.db
 python scripts/finalize_phase1.py --db catalog.db --all
 ```
+
+> The script accepts singular/alias asset-type forms (`exterior`, `vehicle`,
+> `background`, …) and `--seasons/--times/--weathers/--cameras` accepts `all`
+> or a comma list validated against the full PHASE2.md catalogs (10 seasons,
+> 9 times, 8 weathers, 15 camera angles).  Empty variant options keep the
+> four-core defaults documented above.  Re-runs are idempotent
+> (`skip_scored=True`): already-shortlisted variants are skipped.
+> `--persist-images` (default on) writes PNGs into `World/`; use
+> `--no-persist-images` to only record assets in `catalog.db`.
 
 ## Notes / Caveats
 

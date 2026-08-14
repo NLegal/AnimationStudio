@@ -68,8 +68,11 @@ ASSET_TYPES: dict[str, tuple[str, str]] = {
 _ASSET_TYPE_ALIASES: dict[str, str] = {
     "references": "reference",
     "expressions": "expressions",
+    "expression": "expressions",
     "poses": "poses",
+    "pose": "poses",
     "outfits": "outfits",
+    "outfit": "outfits",
     "turnarounds": "turnarounds",
     "turnaround": "turnarounds",
     "lighting": "lighting",

@@ -29,6 +29,10 @@ def test_parse_asset_types_comma_list_and_aliases():
     # Singular/alias forms map onto the canonical library keys.
     assert _parse_asset_types("reference,expressions") == ["reference", "expressions"]
     assert _parse_asset_types("turnaround,accessory") == ["turnarounds", "accessories"]
+    # Singular forms of every library key are accepted.
+    assert _parse_asset_types("expression,pose,outfit,reference,turnaround,lighting,accessory") == [
+        "expressions", "poses", "outfits", "reference", "turnarounds", "lighting", "accessories",
+    ]
 
 
 def test_parse_asset_types_unknown_raises():

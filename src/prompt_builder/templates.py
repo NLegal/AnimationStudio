@@ -154,12 +154,18 @@ _PROP_MATERIALS: dict[str, str] = {
     "plastic": "smooth glossy plastic finish, primary color",
     "metal": "smooth brushed metal finish, rounded edges",
     "fabric": "soft plush fabric finish, cozy texture",
+    "cotton": "soft fluffy cotton finish, cloud-soft texture",
     "rubber": "soft matte rubber finish, flexible look",
     "glass": "clear rounded glass, safe smooth edges",
     "paper": "thick cardstock paper finish, matte surface",
     "cardboard": "sturdy cardboard finish, warm brown",
     "ceramic": "smooth glazed ceramic finish, glossy",
     "stone": "smooth polished stone finish, rounded",
+    "grass": "soft felt grass finish, gentle tufted texture",
+    "water": "calm translucent water finish, rounded safe surface",
+    "snow": "fluffy snow finish, soft sparkling texture",
+    "ice": "smooth glossy ice finish, rounded frosty edges",
+    "sand": "fine smooth sand finish, soft matte texture",
     "foam": "soft foam finish, squishy safe texture",
 }
 

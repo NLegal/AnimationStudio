@@ -25,6 +25,7 @@ Usage:
     python scripts/generate_phase2_world.py --backend mock --count 2
     python scripts/generate_phase2_world.py --asset-types seasons weather --prompt-only
     python scripts/generate_phase2_world.py --zone Residential --asset-types exteriors
+    python scripts/generate_phase2_world.py --seasons all --times all --weathers all
 """
 
 import argparse
@@ -53,8 +54,29 @@ HOME_VIEWS: list[str] = ["front", "back", "garage", "garden", "mailbox", "drivew
 # Standard exterior reference for every other location.
 STANDARD_VIEW: str = "front"
 
-# Seasonal / time / weather variants (PHASE2.md lists the full catalog;
-# the script defaults to the four core values for each dimension).
+# Full PHASE2.md variant catalogs (supersets used with --seasons/--times/
+# --weathers/--cameras all).
+SEASONS_ALL: list[str] = [
+    "spring", "summer", "autumn", "winter",
+    "holiday", "halloween", "christmas", "new_year", "easter", "birthday",
+]
+TIMES_ALL: list[str] = [
+    "morning", "sunrise", "noon", "afternoon", "golden_hour",
+    "sunset", "evening", "night", "moonlight",
+]
+WEATHERS_ALL: list[str] = [
+    "sunny", "cloudy", "rain", "snow",
+    "fog", "wind", "rainbow", "light_storm",
+]
+CAMERA_ANGLES_ALL: list[str] = [
+    "wide", "ultra_wide", "medium", "close", "extreme_close",
+    "overhead", "birds_eye", "ground_level", "tracking", "walking_follow",
+    "front", "side", "rear", "low_angle", "high_angle",
+]
+
+# Seasonal / time / weather variants — the four core values for each
+# dimension by default.  Pass --seasons/--times/--weathers/--cameras 'all'
+# (or a comma list) to generate the complete PHASE2.md catalog.
 SEASONS: list[str] = ["spring", "summer", "autumn", "winter"]
 TIMES: list[str] = ["morning", "noon", "golden_hour", "night"]
 WEATHERS: list[str] = ["sunny", "cloudy", "rain", "snow"]
@@ -78,18 +100,64 @@ ASSET_TYPES: dict[str, tuple[str, str, str]] = {
 }
 
 
+# alias / singular forms accepted by --asset-types (Phase 1 parity).
+_ASSET_TYPE_ALIASES: dict[str, str] = {
+    "exterior": "exteriors",
+    "interior": "interiors",
+    "season": "seasons",
+    "times": "time",
+    "camera": "camera",
+    "cameras": "camera",
+    "vehicle": "vehicles",
+    "background": "backgrounds",
+}
+
+
 def _parse_asset_types(value: str) -> list[str]:
     """Expand the --asset-types option into individual library keys."""
-    value = (value or "all").lower()
+    value = (value or "all").strip().lower()
     keys = list(ASSET_TYPES)
-    if value == "all":
+    if value in ("all", "*"):
         return keys
-    wanted = [v.strip() for v in value.split(",") if v.strip()]
-    for w in wanted:
-        if w not in keys:
+    wanted: list[str] = []
+    for part in value.split(","):
+        part = part.strip().lower()
+        part = _ASSET_TYPE_ALIASES.get(part, part)
+        if not part or part in wanted:
+            continue
+        if part not in keys:
             raise SystemExit(
-                f"Unknown asset type '{w}'. Use one of: {', '.join(keys)}, all"
+                f"Unknown asset type '{part}'. Use one of: {', '.join(keys)}, all"
             )
+        wanted.append(part)
+    if not wanted:
+        raise SystemExit("No asset types selected. Use --asset-types 'all' or a comma list.")
+    return wanted
+
+
+def _parse_variants(value: str, default: list[str], catalog: list[str],
+                    label: str) -> list[str]:
+    """Expand a --seasons/--times/--weathers/--cameras option value.
+
+    Accepts ``all`` / ``*`` (the full PHASE2.md catalog), a comma list
+    validated against the catalog, or an empty value (keeps the core default
+    list for that dimension).
+    """
+    value = (value or "").strip().lower()
+    if value in ("", "all", "*"):
+        return list(catalog if value else default)
+    wanted: list[str] = []
+    for part in value.split(","):
+        part = part.strip()
+        if not part or part in wanted:
+            continue
+        if part not in catalog:
+            raise SystemExit(
+                f"Unknown {label} '{part}'. Use one of: {', '.join(catalog)}, all"
+            )
+        wanted.append(part)
+    if not wanted:
+        raise SystemExit(f"No {label} selected.")
     return wanted
 
 
@@ -125,10 +193,18 @@ def _bg_layer(seed) -> str:
     return "sky"
 
 
-def _tasks(envs: list, vehs: list, bgs: list, asset_types: list[str]):
+def _tasks(envs: list, vehs: list, bgs: list, asset_types: list[str],
+           seasons: list[str] | None = None,
+           times: list[str] | None = None,
+           weathers: list[str] | None = None,
+           cameras: list[str] | None = None):
     """Yield (seed, kind, asset_type, variant) task tuples."""
     rooms = _rooms()
     hero = _hero_locations(envs)
+    seasons = seasons or SEASONS
+    times = times or TIMES
+    weathers = weathers or WEATHERS
+    cameras = cameras or CAMERA_ANGLES
 
     for key in asset_types:
         kind, asset_type, _label = ASSET_TYPES[key]
@@ -144,19 +220,19 @@ def _tasks(envs: list, vehs: list, bgs: list, asset_types: list[str]):
                 yield env, "environment", asset_type, rooms[i % len(rooms)]
         elif key == "seasons":
             for env in envs:
-                for variant in SEASONS:
+                for variant in seasons:
                     yield env, "environment", asset_type, variant
         elif key == "time":
             for env in envs:
-                for variant in TIMES:
+                for variant in times:
                     yield env, "environment", asset_type, variant
         elif key == "weather":
             for env in envs:
-                for variant in WEATHERS:
+                for variant in weathers:
                     yield env, "environment", asset_type, variant
         elif key == "camera":
             for env in hero:
-                for variant in CAMERA_ANGLES:
+                for variant in cameras:
                     yield env, "environment", asset_type, variant
         elif key == "vehicles":
             for veh in vehs:
@@ -167,14 +243,43 @@ def _tasks(envs: list, vehs: list, bgs: list, asset_types: list[str]):
                 yield bg, "background", asset_type, _bg_layer(bg)
 
 
+def _checkpoint_sync(args, message: str) -> None:
+    """Push generated images + the DB to git; never block generation on it."""
+    try:
+        from colab.git_sync import auto_sync
+    except Exception as exc:  # pragma: no cover - environment dependent
+        logger.warning("Periodic sync unavailable (generation continues): %s", exc)
+        return
+    repo = args.sync_repo or str(Path(__file__).resolve().parents[1])
+    auto_sync(repo=repo, branch=args.sync_branch, db_path=args.db,
+              token=args.sync_token, remote_url=args.sync_remote_url,
+              git_name=args.sync_git_name, git_email=args.sync_git_email,
+              message=message)
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--asset-types", default="all",
                         help="Comma list or 'all' (default): exteriors, interiors, "
                              "seasons, time, weather, camera, vehicles, backgrounds")
+    parser.add_argument("--seasons", default="",
+                        help="Comma list or 'all' for the seasonal catalog "
+                             "(default: spring,summer,autumn,winter)")
+    parser.add_argument("--times", default="",
+                        help="Comma list or 'all' for the time-of-day catalog "
+                             "(default: morning,noon,golden_hour,night)")
+    parser.add_argument("--weathers", default="",
+                        help="Comma list or 'all' for the weather catalog "
+                             "(default: sunny,cloudy,rain,snow)")
+    parser.add_argument("--cameras", default="",
+                        help="Comma list or 'all' for the camera-angle catalog "
+                             "(default: the 10 standard angles)")
     parser.add_argument("--zone", default="",
                         help="Restrict to one zone dir name (e.g. Residential)")
+    parser.add_argument("--locations", default="",
+                        help="Restrict to specific location identifiers or names "
+                             "(comma list, case-insensitive)")
     parser.add_argument("--backend", default="mock",
                         help="mock | comfyui | cloud (default: mock)")
     parser.add_argument("--provider", default="fal",
@@ -196,10 +301,41 @@ async def main() -> int:
                         help="SQLite database path (default: catalog.db)")
     parser.add_argument("--world", default="World",
                         help="Path to the World/ directory")
+    parser.add_argument("--universe", default="Universe",
+                        help="Path to the Universe/ directory (default: Universe)")
+    parser.add_argument("--assets", default="Assets",
+                        help="Path to the Assets/ directory (default: Assets)")
+    parser.add_argument("--persist-images", dest="persist_images",
+                        action="store_true", default=True,
+                        help="Write each generated image into the catalog tree "
+                             "(default: on)")
+    parser.add_argument("--no-persist-images", dest="persist_images",
+                        action="store_false",
+                        help="Record assets without writing image files")
     parser.add_argument("--prompt-only", action="store_true",
                         help="Print prompts without generating images")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable debug logging")
+    parser.add_argument("--sync-every", type=int, default=0,
+                        help="After every N variant groups, push generated "
+                             "images + the DB to git (default: 0 = only a "
+                             "final sync at the end, driven by the notebook)")
+    parser.add_argument("--sync-every-image", action="store_true",
+                        help="Push each individual image + the DB to git the "
+                             "moment it is generated, so a Colab termination "
+                             "loses at most the single in-flight image")
+    parser.add_argument("--sync-repo", default="",
+                        help="Local git repo path for syncing (default: repo root)")
+    parser.add_argument("--sync-branch", default="",
+                        help="Git branch to push synced output to")
+    parser.add_argument("--sync-token", default="",
+                        help="GitHub PAT for the sync push")
+    parser.add_argument("--sync-remote-url", default="",
+                        help="Remote URL (with token embedded) for the sync push")
+    parser.add_argument("--sync-git-name", default="Colab Studio",
+                        help="Git author name for sync commits")
+    parser.add_argument("--sync-git-email", default="colab@animationstudio.local",
+                        help="Git author email for sync commits")
     args = parser.parse_args()
 
     if args.verbose:
@@ -208,6 +344,11 @@ async def main() -> int:
         logging.basicConfig(level=logging.WARNING)
 
     asset_types = _parse_asset_types(args.asset_types)
+    seasons = _parse_variants(args.seasons, SEASONS, SEASONS_ALL, "season")
+    times = _parse_variants(args.times, TIMES, TIMES_ALL, "time of day")
+    weathers = _parse_variants(args.weathers, WEATHERS, WEATHERS_ALL, "weather")
+    cameras = _parse_variants(args.cameras, CAMERA_ANGLES, CAMERA_ANGLES_ALL,
+                              "camera angle")
 
     envs = discover_world_environments(args.world)
     vehs = discover_vehicles(args.world)
@@ -215,16 +356,35 @@ async def main() -> int:
     if args.zone:
         envs = [e for e in envs if e.bio_data.get("zone_dir", "").lower()
                 == args.zone.lower()]
+    if args.locations:
+        wanted = {p.strip().lower() for p in args.locations.split(",") if p.strip()}
+        matched = [
+            e for e in envs
+            if e.name.lower() in wanted
+            or str(getattr(e, "identifier", "")).lower() in wanted
+            or str(getattr(e, "asset_id", "")).lower() in wanted
+        ]
+        missing = sorted(wanted - {e.name.lower() for e in matched}
+                         - {str(getattr(e, "identifier", "")).lower() for e in matched}
+                         - {str(getattr(e, "asset_id", "")).lower() for e in matched})
+        if missing:
+            names = ", ".join(repr(e.name) for e in envs)
+            raise SystemExit(f"Unknown location(s): {missing}. Available: {names}")
+        envs = matched
     if args.limit:
         envs = envs[: args.limit]
     if not envs and not vehs and not bgs:
         raise SystemExit("No world locations matched the given filters.")
 
-    tasks = list(_tasks(envs, vehs, bgs, asset_types))
+    tasks = list(_tasks(envs, vehs, bgs, asset_types,
+                        seasons=seasons, times=times,
+                        weathers=weathers, cameras=cameras))
     print("=" * 70)
     print(f"  PHASE 2 WORLD LIBRARY")
     print(f"  locations: {len(envs)}  vehicles: {len(vehs)}  backgrounds: {len(bgs)}")
     print(f"  asset-types: {', '.join(asset_types)}")
+    print(f"  variants -> seasons: {len(seasons)}  time: {len(times)}"
+          f"  weather: {len(weathers)}  camera: {len(cameras)}")
     print(f"  tasks: {len(tasks)} (location × variant)")
     print(f"  backend: {args.backend}  db: {args.db}")
     print("=" * 70)
@@ -243,8 +403,20 @@ async def main() -> int:
     backend = resolve_backend(args.backend, comfyui_url=args.comfyui_url,
                               provider=args.provider)
     scorer = IdentityScorer(light=args.fast_scoring)
+
+    # Per-image git checkpoint hook: push each image + the DB the moment it is
+    # generated, so a Colab termination loses at most the single in-flight
+    # image (same pattern as the Phase-1 notebook).
+    async def _on_asset(info: dict) -> None:
+        label = info.get("file_path") or info.get("asset_id") or "asset"
+        _checkpoint_sync(args, f"image {label} (per-image checkpoint)")
+
     runner = BatchRunner(asset_repo=asset_repo, char_repo=char_repo,
-                         backend=backend, scorer=scorer)
+                         backend=backend, scorer=scorer,
+                         persist_images=args.persist_images,
+                         universe_dir=args.universe, world_dir=args.world,
+                         assets_dir=args.assets,
+                         on_asset=_on_asset if args.sync_every_image else None)
 
     batch_id = f"phase2_{int(time.time())}"
     overall = {"tasks": 0, "generated": 0, "shortlisted": 0, "failed": 0}
@@ -254,7 +426,9 @@ async def main() -> int:
         by_variant.setdefault((kind, asset_type, variant), []).append(seed)
 
     print(f"\nRunning {len(by_variant)} variant groups…")
+    group_index = 0
     for (kind, asset_type, variant), group_seeds in by_variant.items():
+        group_index += 1
         label = getattr(group_seeds[0], "identifier", None) or ""
         print(f"\n▶ {kind}/{asset_type} / {variant}  ({len(group_seeds)} locations)")
         try:
@@ -267,6 +441,7 @@ async def main() -> int:
                 asset_type=asset_type,
                 variant=variant,
                 batch_id=batch_id,
+                skip_scored=True,
             )
         except Exception as exc:
             logger.exception("Group %s/%s/%s failed: %s",
@@ -279,6 +454,15 @@ async def main() -> int:
         overall["failed"] += result["items_failed"]
         for fail in result["failures"]:
             print(f"    ✗ {fail.get('name')}: {fail.get('error')}")
+        if args.sync_every > 0 and group_index % args.sync_every == 0:
+            _checkpoint_sync(
+                args,
+                f"checkpoint {group_index}/{len(by_variant)} groups "
+                f"(world library)",
+            )
+
+    if args.sync_every > 0:
+        _checkpoint_sync(args, f"final sync after {group_index} groups (world library)")
 
     print("\n" + "=" * 70)
     print("  SUMMARY")

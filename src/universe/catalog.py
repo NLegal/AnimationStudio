@@ -6,6 +6,7 @@ seeding (``src.universe.seed``) and batch generation (``src.universe.
 batch_generator``) without hand-maintaining a second list of the universe.
 """
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -131,6 +132,125 @@ class PropSeed:
     @property
     def slug(self) -> str:
         return _slugify(self.asset_id)
+
+
+# Scale tiers per Assets/ReferenceSheets/Scale/SCALE_GUIDE.md (PHASE3.md
+# §Scale Guide).  Used as per-prop defaults when a bible omits the field.
+_PROP_SCALES: dict[str, str] = {
+    "tiny": "under 5 cm",
+    "small": "5-20 cm",
+    "medium": "20-100 cm",
+    "large": "1-3 m",
+    "huge": "3-10 m",
+    "massive": "10+ m",
+}
+
+# Per-category metadata defaults (PHASE3.md §Metadata).  Explicit values in
+# the bibles always win; these guarantee every prop carries the full metadata
+# set so records are never left with empty animation/interactive/scale/etc.
+_PROP_METADATA_DEFAULTS: dict[str, dict[str, str]] = {
+    "Toys": {"material": "plastic", "scale": "small",
+             "animation": "rolling, spinning", "interactive": "yes",
+             "location": "toy room, playground"},
+    "Props": {"material": "plastic", "scale": "small",
+              "animation": "static", "interactive": "yes",
+              "location": "varies"},
+    "Food": {"material": "food-safe plastic", "scale": "tiny",
+             "animation": "static", "interactive": "no",
+             "location": "kitchen, dining room, grocery"},
+    "Books": {"material": "paper, cardboard", "scale": "small",
+              "animation": "static", "interactive": "yes",
+              "location": "library, bookshelf"},
+    "Educational": {"material": "plastic, wood", "scale": "small",
+                    "animation": "static", "interactive": "yes",
+                    "location": "classroom"},
+    "School": {"material": "plastic, wood", "scale": "medium",
+               "animation": "static", "interactive": "yes",
+               "location": "classroom, hallway"},
+    "Playground": {"material": "metal, plastic", "scale": "large",
+                   "animation": "static", "interactive": "yes",
+                   "location": "playground"},
+    "Sports": {"material": "rubber, plastic", "scale": "small",
+               "animation": "rolling, bouncing", "interactive": "yes",
+               "location": "gym, field"},
+    "Musical": {"material": "wood, metal", "scale": "small",
+                "animation": "static", "interactive": "yes",
+                "location": "music room"},
+    "Medical": {"material": "plastic", "scale": "small",
+                "animation": "static", "interactive": "no",
+                "location": "clinic"},
+    "Occupations": {"material": "plastic", "scale": "small",
+                    "animation": "static", "interactive": "yes",
+                    "location": "varies"},
+    "Nature": {"material": "wood, stone", "scale": "medium",
+               "animation": "swaying", "interactive": "no",
+               "location": "outdoors"},
+    "Animals": {"material": "plush fabric", "scale": "small",
+                "animation": "hopping, waddling", "interactive": "yes",
+                "location": "farm, home, wildlife"},
+    "Holidays": {"material": "paper, plastic", "scale": "small",
+                 "animation": "static", "interactive": "yes",
+                 "location": "home, festive decor"},
+    "Kitchen": {"material": "metal, ceramic", "scale": "medium",
+                "animation": "static", "interactive": "no",
+                "location": "kitchen"},
+    "Bathroom": {"material": "plastic, ceramic", "scale": "medium",
+                 "animation": "static", "interactive": "no",
+                 "location": "bathroom"},
+    "Bedroom": {"material": "wood, fabric", "scale": "medium",
+                "animation": "static", "interactive": "no",
+                "location": "bedroom"},
+    "LivingRoom": {"material": "wood, fabric", "scale": "medium",
+                   "animation": "static", "interactive": "no",
+                   "location": "living room"},
+    "Materials": {"material": "varies", "scale": "small",
+                  "animation": "static", "interactive": "no",
+                  "location": "material library"},
+    "Textures": {"material": "varies", "scale": "tiny",
+                 "animation": "static", "interactive": "no",
+                 "location": "material library"},
+}
+
+_PROP_METADATA_FALLBACK: dict[str, str] = {
+    "material": "plastic",
+    "scale": "small",
+    "animation": "static",
+    "interactive": "no",
+    "location": "varies",
+}
+
+
+def _default_prop_color(seed: "PropSeed") -> str:
+    """Deterministic pastel primary color for props without an explicit one."""
+    try:
+        from src.prompt_builder.templates import _PROP_COLOR_VARIANTS
+        palette = sorted(_PROP_COLOR_VARIANTS.values())
+    except Exception:
+        palette = ["pastel blue", "pastel pink", "pastel yellow", "pastel green"]
+    digest = hashlib.sha1(seed.asset_id.encode()).digest()[0]
+    return palette[digest % len(palette)].capitalize()
+
+
+def _enrich_prop_metadata(seed: "PropSeed") -> None:
+    """Fill missing prop metadata from per-category defaults.
+
+    Explicit values parsed from the bibles always win; the defaults cover the
+    PHASE3.md §Metadata deliverable (material / scale / animation /
+    interactive / typical_location / colors) for every prop record.
+    """
+    defaults = _PROP_METADATA_DEFAULTS.get(seed.category_dir, _PROP_METADATA_FALLBACK)
+    if not seed.material:
+        seed.material = defaults["material"]
+    if not seed.scale:
+        seed.scale = defaults["scale"]
+    if not seed.animation:
+        seed.animation = defaults["animation"]
+    if not seed.interactive:
+        seed.interactive = defaults["interactive"]
+    if not seed.location:
+        seed.location = defaults["location"]
+    if not seed.colors:
+        seed.colors = _default_prop_color(seed)
 
 
 # ---------------------------------------------------------------------------
@@ -592,6 +712,8 @@ def discover_props(world_dir: str = "World", assets_dir: str = "Assets") -> list
             seeds.extend(_parse_prop_table_index(index, category_dir=category_dir))
 
     seeds.sort(key=lambda s: s.asset_id)
+    for seed in seeds:
+        _enrich_prop_metadata(seed)
     return seeds
 
 
