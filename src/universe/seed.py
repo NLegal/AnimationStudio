@@ -77,6 +77,8 @@ def build_prop_model(seed: PropSeed) -> CharacterModel:
             "animation": seed.animation,
             "interactive": seed.interactive,
             "typical_location": seed.location,
+            "child_safe": seed.child_safe,
+            "reusable": seed.reusable,
         },
     )
 
@@ -138,7 +140,7 @@ async def seed_characters(char_repo, universe_dir: str = "Universe") -> int:
 
 
 async def seed_environments(char_repo, world_dir: str = "World") -> int:
-    """Seed the nine world zones.  Returns the number created."""
+    """Seed the ten world zones.  Returns the number created."""
     created = 0
     for seed in discover_environments(world_dir):
         model = build_environment_model(seed)
@@ -154,8 +156,8 @@ async def seed_environments(char_repo, world_dir: str = "World") -> int:
 async def seed_world_locations(char_repo, world_dir: str = "World") -> int:
     """Seed every named location from the Phase 2 zone bibles.
 
-    Uses ``discover_world_environments`` (137 ENV_* entries) rather than the
-    nine top-level zone summaries.  Returns the number created.
+    Uses ``discover_world_environments`` (138 ENV_* entries) rather than the
+    ten top-level zone summaries.  Returns the number created.
     """
     created = 0
     for seed in discover_world_environments(world_dir):

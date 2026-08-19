@@ -128,6 +128,8 @@ class PropSeed:
     category_dir: str = "Props"
     prompt: str = ""
     negative_prompt: str = ""
+    child_safe: str = ""
+    reusable: str = ""
 
     @property
     def slug(self) -> str:
@@ -251,6 +253,10 @@ def _enrich_prop_metadata(seed: "PropSeed") -> None:
         seed.location = defaults["location"]
     if not seed.colors:
         seed.colors = _default_prop_color(seed)
+    if not seed.child_safe:
+        seed.child_safe = "Yes"
+    if not seed.reusable:
+        seed.reusable = "Yes"
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +487,7 @@ _WORLD_ZONE_DOCS: dict[str, tuple[str, str]] = {
     "Beach": ("BEACH.md", "Sandy Cove Beach Zone"),
     "Mountains": ("MOUNTAINS.md", "Pine Mountain Zone"),
     "Fantasy": ("FANTASY.md", "Dreamland Fantasy Zone"),
+    "Transportation": ("TRANSPORTATION.md", "Busy Bridge Transportation Zone"),
 }
 
 # Fallback zone names for docs that don't declare identifiers.
@@ -494,6 +501,7 @@ _WORLD_DOC_ZONES: dict[str, str] = {
     "BEACH.md": "Sandy Cove Beach Zone",
     "MOUNTAINS.md": "Pine Mountain Zone",
     "FANTASY.md": "Dreamland Fantasy Zone",
+    "TRANSPORTATION.md": "Busy Bridge Transportation Zone",
 }
 
 _WORLD_DOC_NEGATIVES: dict[str, str] = {
@@ -506,6 +514,7 @@ _WORLD_DOC_NEGATIVES: dict[str, str] = {
     "MOUNTAINS.md": "steep cliff, avalanche, snowy blizzard",
     "FANTASY.md": "evil castle, dark magic, scary creatures",
     "RESIDENTIAL.md": "empty house, broken home, dark alleys",
+    "TRANSPORTATION.md": "busy city, highway traffic, realistic cars, construction site",
 }
 
 
@@ -519,8 +528,8 @@ def discover_world_environments(world_dir: str = "World") -> list[EnvironmentSee
     * ``### ENV_X_### — Name`` sections (Beach / Forest / Mountains /
       Fantasy) — title embedded in the heading.
 
-    Returns one EnvironmentSeed per documented location (137+ across the
-    nine zones), carrying its identifier, zone, and a generation prompt.
+    Returns one EnvironmentSeed per documented location (138 across the
+    ten zones), carrying its identifier, zone, and a generation prompt.
     """
     seeds: list[EnvironmentSeed] = []
     world_root = Path(world_dir)
@@ -758,7 +767,8 @@ def _parse_prop_entries(index_path: Path, category_dir: str = "Props") -> list[P
 
             fields = {"**Colors:**": "colors", "**Typical Location:**": "location",
                       "**Materials:**": "material", "**Scale:**": "scale",
-                      "**Animation:**": "animation", "**Interactive:**": "interactive"}
+                      "**Animation:**": "animation", "**Interactive:**": "interactive",
+                      "**Child Safe:**": "child_safe", "**Reusable:**": "reusable"}
             values: dict[str, str] = {}
             for line in body.splitlines():
                 for label, key in fields.items():
@@ -777,6 +787,8 @@ def _parse_prop_entries(index_path: Path, category_dir: str = "Props") -> list[P
                 scale=values.get("scale", ""),
                 animation=values.get("animation", ""),
                 interactive=values.get("interactive", ""),
+                child_safe=values.get("child_safe", ""),
+                reusable=values.get("reusable", ""),
             ))
 
     return seeds
@@ -817,6 +829,8 @@ def _parse_prop_table_index(index_path: Path, category_dir: str = "Props") -> li
                 scale=row.get("scale", row.get("size", "")),
                 animation=row.get("animation", ""),
                 interactive=row.get("interactive", row.get("interactivity", "")),
+                child_safe=row.get("child_safe", row.get("child_safety", "")),
+                reusable=row.get("reusable", ""),
             ))
 
     return seeds

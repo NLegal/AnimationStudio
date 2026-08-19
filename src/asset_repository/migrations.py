@@ -132,7 +132,7 @@ class SchemaManager:
         Props are keyed by their permanent ``asset_id`` stored inside
         ``bio_data``; the expression index turns the full-table
         ``json_extract`` scan used by ``find_character_by_asset_id`` into an
-        indexed seek (seeding 1,523 props drops from ~10s to <1s).
+        indexed seek (seeding 1,559 props drops from ~10s to <1s).
         """
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_characters_name ON characters(name)"

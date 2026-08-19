@@ -186,6 +186,9 @@ _PROP_COLOR_VARIANTS: dict[str, str] = {
     "leaf_green": "leaf green",
     "chocolate": "chocolate brown",
     "cream": "cream white",
+    "warm_oak": "warm oak",
+    "light_maple": "light maple",
+    "dark_walnut": "dark walnut",
 }
 
 

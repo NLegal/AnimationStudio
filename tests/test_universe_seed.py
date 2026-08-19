@@ -75,7 +75,7 @@ class TestSeedAll:
     async def test_seeds_full_catalog(self, char_repo):
         summary = await seed_all(char_repo)
         assert summary["characters"] == 39
-        assert summary["zones"] == 9
+        assert summary["zones"] == 10
         assert summary["locations"] == len(discover_world_environments("World"))
         assert summary["vehicles"] == len(discover_vehicles("World"))
         assert summary["backgrounds"] == len(discover_backgrounds("World"))
@@ -92,7 +92,7 @@ class TestSeedAll:
         chars = await char_repo.list_characters()
         expected = (
             len(discover_characters("Universe"))
-            + 9
+            + 10
             + len(discover_world_environments("World"))
             + len(discover_vehicles("World"))
             + len(discover_backgrounds("World"))
@@ -110,7 +110,7 @@ class TestSeedAll:
         summary = await seed_all(char_repo, include_props=False)
         assert summary["props"] == 0
         assert summary["characters"] == 39
-        assert summary["zones"] == 9
+        assert summary["zones"] == 10
         assert summary["locations"] == len(discover_world_environments("World"))
 
     async def test_reseeding_refreshes_stale_metadata(self, char_repo):

@@ -3,7 +3,7 @@
 
 Builds the reusable production asset library from PHASE3.md / Assets/ bibles:
 
-  * references — canonical front product shot for every prop (1,523 props:
+  * references — canonical front product shot for every prop (1,559 props:
                   toys, food, books, furniture, nature, holiday, medical,
                   musical, school, playground, sports, occupations, materials
                   and textures)

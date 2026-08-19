@@ -1,7 +1,7 @@
 """Tests for the universe catalog parser (``src.universe.catalog``).
 
 Verifies that the Phase 1/2/3 markdown documents parse into the expected
-catalog: 39 character seeds, 9 world zones, and the reusable props/assets,
+catalog: 39 character seeds, 10 world zones, and the reusable props/assets,
 with correct categories, identifiers, and prompt-building data.
 """
 
@@ -54,13 +54,13 @@ class TestDiscoverCharacters:
 class TestDiscoverEnvironments:
     """Parsing of World/WORLD_OVERVIEW.md into EnvironmentSeed objects."""
 
-    def test_parses_nine_zones(self):
+    def test_parses_all_zones(self):
         seeds = discover_environments("World")
-        assert len(seeds) == 9
+        assert len(seeds) == 10
 
     def test_zone_names(self):
         seeds = {s.name for s in discover_environments("World")}
-        for expected in ("Sunny Meadow", "Main Street", "Dreamland"):
+        for expected in ("Sunny Meadow", "Main Street", "Dreamland", "Busy Bridge"):
             assert expected in seeds
 
     def test_identifiers_present(self):
@@ -91,7 +91,7 @@ class TestDiscoverWorldLocations:
 
     def test_parses_all_locations(self):
         seeds = discover_world_environments("World")
-        assert len(seeds) == 130
+        assert len(seeds) == 138
 
     def test_all_identifiers_unique(self):
         seeds = discover_world_environments("World")

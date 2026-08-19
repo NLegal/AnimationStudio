@@ -49,8 +49,13 @@ from src.universe.catalog import (
 
 logger = logging.getLogger(__name__)
 
-# Home Library views (PHASE2.md) — applied to Residential locations.
-HOME_VIEWS: list[str] = ["front", "back", "garage", "garden", "mailbox", "driveway", "top"]
+# Home Library views (PHASE2.md §Home Library) — applied to Residential
+# locations.  Front/Back/Garage/Garden/Mailbox/Driveway/Trees/Fence come
+# straight from the spec; "top" satisfies the §Environment Standards Top View.
+HOME_VIEWS: list[str] = [
+    "front", "back", "garage", "garden", "mailbox", "driveway",
+    "trees", "fence", "top",
+]
 # Standard exterior reference for every other location.
 STANDARD_VIEW: str = "front"
 

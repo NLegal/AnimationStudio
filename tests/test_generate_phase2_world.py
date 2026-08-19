@@ -104,7 +104,7 @@ def test_tasks_exteriors_home_views_only_for_residential():
     residential = [e for e in envs if e.bio_data.get("zone_dir") == "Residential"]
     non_residential = [e for e in envs if e.bio_data.get("zone_dir") != "Residential"]
     tasks = list(_tasks(envs, [], [], ["exteriors"]))
-    # 7 Home Library views per residential home, one front view otherwise.
+    # 9 Home Library views per residential home, one front view otherwise.
     assert sum(1 for t in tasks if t[0] in residential) == len(residential) * len(HOME_VIEWS)
     assert sum(1 for t in tasks if t[0] in non_residential) == len(non_residential)
     variants = {t[3] for t in tasks if t[0] in residential}
@@ -134,7 +134,7 @@ def test_tasks_camera_one_hero_location_per_zone():
     envs, _vehs, _bgs = _world()
     tasks = list(_tasks(envs, [], [], ["camera"]))
     heroes = _hero_locations(envs)
-    assert len(heroes) == 9
+    assert len(heroes) == len({e.bio_data.get("zone_dir") for e in envs})
     assert len(tasks) == len(heroes) * len(CAMERA_ANGLES)
     assert {t[0].identifier for t in tasks} == {h.identifier for h in heroes}
 
@@ -170,6 +170,7 @@ def test_bg_layer_uses_asset_id_prefix():
 
 def test_tasks_full_catalogs_expand():
     envs, vehs, bgs = _world()
+    heroes = _hero_locations(envs)
     tasks = list(_tasks(envs, vehs, bgs, ["seasons", "time", "weather", "camera"],
                         seasons=SEASONS_ALL, times=TIMES_ALL,
                         weathers=WEATHERS_ALL, cameras=CAMERA_ANGLES_ALL))
@@ -177,7 +178,7 @@ def test_tasks_full_catalogs_expand():
         len(envs) * len(SEASONS_ALL)
         + len(envs) * len(TIMES_ALL)
         + len(envs) * len(WEATHERS_ALL)
-        + 9 * len(CAMERA_ANGLES_ALL)
+        + len(heroes) * len(CAMERA_ANGLES_ALL)
     )
     assert len(tasks) == expected
     assert any(t[3] == "holiday" for t in tasks)
@@ -187,7 +188,7 @@ def test_tasks_full_catalogs_expand():
 
 
 def test_tasks_all_asset_types_core_workload():
-    """The default 'all' workload matches PHASE2_STATUS.md (2,126 tasks)."""
+    """The default 'all' workload matches PHASE2_STATUS.md (2,298 tasks)."""
     envs, vehs, bgs = _world()
     tasks = list(_tasks(envs, vehs, bgs, list(ASSET_TYPES)))
-    assert len(tasks) == 2126
+    assert len(tasks) == 2298

@@ -28,9 +28,9 @@ from src.universe.catalog import _PROP_SCALES, discover_props
 
 @pytest.fixture(scope="module")
 def props():
-    """All 1,523 prop seeds (World/INDEX.md + Assets/Props/INDEX.md)."""
+    """All 1,559 prop seeds (World/INDEX.md + Assets/Props/INDEX.md)."""
     found = discover_props("World", "Assets")
-    assert len(found) == 1523  # PHASE3_STATUS.md baseline
+    assert len(found) == 1559  # PHASE3_STATUS.md baseline
     return found
 
 
@@ -150,9 +150,9 @@ def test_tasks_lighting_two_studies_per_prop(props):
 
 
 def test_tasks_all_asset_types_core_workload(props):
-    """The default 'all' workload matches PHASE3_STATUS.md (12,184 tasks)."""
+    """The default 'all' workload matches PHASE3_STATUS.md (12,472 tasks)."""
     tasks = list(_tasks(props, list(ASSET_TYPES)))
-    assert len(tasks) == 12184
+    assert len(tasks) == 12472
 
 
 def test_tasks_full_catalogs_expand(props):
@@ -169,9 +169,12 @@ def test_tasks_full_catalogs_expand(props):
 
 
 def test_metadata_enrichment_fills_every_prop(props):
-    """All 1,523 props carry material/scale/animation/interactive/colors/location."""
+    """All 1,559 props carry material/scale/animation/interactive/colors/location."""
     for key in ("material", "scale", "animation", "interactive", "colors", "location"):
         assert all(getattr(p, key) for p in props), key
+    # PHASE3.md §Metadata: every prop also declares child safety and reuse.
+    assert all(getattr(p, "child_safe") for p in props)
+    assert all(getattr(p, "reusable") for p in props)
     assert _PROP_SCALES  # PHASE3_STATUS.md scale guide stays reachable
 
 
