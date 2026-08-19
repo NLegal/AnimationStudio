@@ -15,7 +15,7 @@ Medical props are designed with friendly, non-threatening aesthetics — soft wh
 
 ---
 
-## Tool (MED_Tool_001–015)
+## Tool (MED_Tool_001–016)
 
 | ID | Name | Description |
 |---|---|---|
@@ -34,10 +34,11 @@ Medical props are designed with friendly, non-threatening aesthetics — soft wh
 | MED_Tool_013 | Tweezers | A pair of angled stainless steel tweezers with precision-pointed tips for removing splinters or debris. |
 | MED_Tool_014 | Eye Chart | A wall-mounted Snellen eye chart with rows of progressively smaller letters and a bold E at the top. |
 | MED_Tool_015 | Medicine Dropper | A clear glass or plastic dropper with a rubber bulb top, used to measure and dispense liquid medicine. |
+| MED_Tool_016 | Medicine Bottle | A friendly child-safe medicine bottle with a big "Dose" label, a squeeze-dropper cap, and a rounded base that won't tip. |
 
 ---
 
-## Equipment (MED_Equipment_001–010)
+## Equipment (MED_Equipment_001–011)
 
 | ID | Name | Description |
 |---|---|---|
@@ -51,6 +52,7 @@ Medical props are designed with friendly, non-threatening aesthetics — soft wh
 | MED_Equipment_008 | Heart Monitor | A friendly cartoon-style heart monitor with a glowing screen displaying a bouncing heartbeat line in green. |
 | MED_Equipment_009 | Oxygen Tank | A portable green oxygen cylinder with a pressure gauge, flow regulator, and clear tubing with a mask. |
 | MED_Equipment_010 | Nebulizer | A compact nebulizer machine with a cup, tubing, and mask for delivering breathing treatments to children. |
+| MED_Equipment_011 | Medical Mask | A soft fabric medical mask with rounded ear loops and a friendly star print, worn by little helpers during doctor play. |
 
 ---
 

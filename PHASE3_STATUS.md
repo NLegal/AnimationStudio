@@ -7,21 +7,21 @@
 
 | Deliverable | Status | Evidence |
 |-------------|--------|----------|
-| 5,000–20,000 reusable assets | ✅ **12,184** | 1,523 props × 8 approved assets each — 1,523 references, 4,569 turnaround views, 1,523 material variants, 1,523 color variants, 3,046 lighting studies. All `state='approved'`, all `file_path` recorded. |
+| 5,000–20,000 reusable assets | ✅ **12,472** | 1,559 props × 8 approved assets each — 1,559 references, 4,677 turnaround views, 1,559 material variants, 1,559 color variants, 3,118 lighting studies. All `state='approved'`, all `file_path` recorded. |
 | Standard naming | ✅ | Permanent `ASSET_ID`s per `PHASE3.md` §Naming Convention (`PROP_*`, `TOY_*`, `FOOD_*`, `ANM_*`, `MUS_*`, `ENV_*`, `VEH_*`, `BG_*`). Duplicate display names (183 props, e.g. "Banana", "Frisbee") stay on separate records keyed by `asset_id`. |
 | Prompt library | ✅ | `PromptTemplates.prop` + `build_prop` in code (`src/prompt_builder/`), per-category markdown templates under `Assets/PromptTemplates/<Category>/`. |
 | Material library | ✅ | 73 material seeds (`MTR_*`) + a deterministic material variant per prop, selected from `_PROP_MATERIALS` (17 materials — superset of the 16 listed in `PHASE3.md`); `--materials all` generates every catalog material per prop; `Assets/ReferenceSheets/Material/MATERIAL_REFERENCE.md`. |
 | Texture library | ✅ | 55 texture seeds (`TEX_*`) under `Assets/Textures/` (fabric, floor, nature, surface, wall). |
-| Color palette | ✅ | `_PROP_COLOR_VARIANTS` palette (16 colors) + a color variant per prop; `--colors all` generates every palette color per prop; `Assets/ReferenceSheets/Color/COLOR_GUIDE.md`. |
+| Color palette | ✅ | `_PROP_COLOR_VARIANTS` palette (19 colors, incl. the `PHASE3.md` wood tones Warm Oak / Light Maple / Dark Walnut) + a color variant per prop; `--colors all` generates every palette color per prop; `Assets/ReferenceSheets/Color/COLOR_GUIDE.md`. |
 | Scale references | ✅ | `Assets/ReferenceSheets/Scale/SCALE_GUIDE.md` — 6 scale tiers (Tiny→Massive) with real-world analogs; scale recorded in each prop's metadata (`_PROP_SCALES`). |
-| Physics metadata | ✅ | `material`/`scale`/`animation`/`interactive` on every `PropSeed` and stored in the record's `bio_data`; `Assets/Metadata/METADATA_GUIDE.md`. |
+| Physics metadata | ✅ | `material`/`scale`/`animation`/`interactive`/`child_safe`/`reusable` on every `PropSeed` and stored in the record's `bio_data`; `Assets/Metadata/METADATA_GUIDE.md`. |
 | Asset categories | ✅ **20** | `Toys`, `Props`, `Holidays`, `Nature`, `School`, `Animals`, `Food`, `Books`, `Materials`, `Textures`, `Kitchen`, `Educational`, `Musical`, `Occupations`, `Sports`, `Playground`, `Bedroom`, `Medical`, `LivingRoom`, `Bathroom`. |
 | Animation metadata | ✅ | `animation` field per prop (rolling, flying, wobbling, …) in catalog + bio_data; no reusable asset left with empty animation. |
-| Metadata completeness (all 20 categories) | ✅ | Gap closed programmatically: `discover_props` runs `_enrich_prop_metadata` (in `src/universe/catalog.py`), which fills `material`/`scale`/`animation`/`interactive`/`colors`/`typical_location` from per-category defaults for the 18 categories whose bibles lack them (Bathroom, Bedroom, Kitchen, LivingRoom, Props, Animals, Books, Food, Holidays, Materials, Medical, Musical, Nature, Occupations, Playground, School, Sports, Textures). Explicit bible values always win — e.g. `TOY_Animal_001` keeps its hand-authored plush/size metadata. Verified: **0 of 1,523** props missing any metadata field; 100% coverage incl. scale/colors, which were previously ~24% / 53%. |
-| Storage structure | ✅ | `Assets/<Category>/{references,views,materials,colors,lighting}/` — **12,184 PNGs** on disk, DB `file_path` recorded. |
-| Reference sheets | ✅ | **1,523** labeled composite sheets under `Assets/ReferenceSheets/<Category>/` (12,184 panels). |
+| Metadata completeness (all 20 categories) | ✅ | Gap closed programmatically: `discover_props` runs `_enrich_prop_metadata` (in `src/universe/catalog.py`), which fills `material`/`scale`/`animation`/`interactive`/`colors`/`typical_location`/`child_safe`/`reusable` from per-category defaults for the 18 categories whose bibles lack them (Bathroom, Bedroom, Kitchen, LivingRoom, Props, Animals, Books, Food, Holidays, Materials, Medical, Musical, Nature, Occupations, Playground, School, Sports, Textures). Explicit bible values always win — e.g. `TOY_Animal_001` keeps its hand-authored plush/size metadata, and new toy/educational entries carry explicit `**Child Safe:**` / `**Reusable:**` lines. Verified: **0 of 1,559** props missing any metadata field; 100% coverage incl. scale/colors, which were previously ~24% / 53%. |
+| Storage structure | ✅ | `Assets/<Category>/{references,views,materials,colors,lighting}/` — **12,472 PNGs** on disk, DB `file_path` recorded. |
+| Reference sheets | ✅ | **1,559** labeled composite sheets under `Assets/ReferenceSheets/<Category>/` (12,472 panels). |
 
-## Quality Checklist (per asset — all 12,184 pass)
+## Quality Checklist (per asset — all 12,472 pass)
 
 | Item | Status | Notes |
 |------|--------|-------|
@@ -32,7 +32,7 @@
 | Standard materials | ✅ | `_PROP_MATERIALS` palette; every prop has a `material` value and one alternate material variant generated. |
 | Consistent colors | ✅ | `_PROP_COLOR_VARIANTS` palette; every prop has one color variant generated. |
 | Correct scale | ✅ | `scale` field on every prop record; guide + validation checklist in `SCALE_GUIDE.md`. |
-| Metadata complete | ✅ | `asset_id`/`category`/`material`/`scale`/`animation`/`interactive`/`typical_location` on every prop record. |
+| Metadata complete | ✅ | `asset_id`/`category`/`material`/`scale`/`animation`/`interactive`/`typical_location`/`child_safe`/`reusable` on every prop record. |
 | Prompt finalized | ✅ | `build_prop` deterministic from `asset_id` — same prompt for the same asset on rerun. |
 | Negative prompt tested | ✅ | Every asset generated end-to-end with `PROP_NEGATIVE` applied. |
 | Reference sheet created | ✅ | 1 per prop, composed from reference/view/material/color/lighting panels. |
@@ -42,12 +42,12 @@
 
 ## Generated Artifact Inventory
 
-- **12,184** approved prop assets in `catalog.db` — all `state='approved'`, all `file_path` recorded.
-  - 1,523 references · 4,569 turnaround views · 1,523 material variants · 1,523 color variants · 3,046 lighting studies
-- **12,184** PNGs exported under `Assets/<Category>/{references,views,materials,colors,lighting}/`.
-- **1,523** labeled reference sheets under `Assets/ReferenceSheets/<Category>/`.
-- Catalog: 1,523 prop seeds across **20** category dirs (`Assets/<Category>/INDEX.md` + `World/Props/INDEX.md`).
-- Grand total approved assets in DB (Phases 1–3): **17,611** (characters + world + props).
+- **12,472** approved prop assets in `catalog.db` — all `state='approved'`, all `file_path` recorded.
+  - 1,559 references · 4,677 turnaround views · 1,559 material variants · 1,559 color variants · 3,118 lighting studies
+- **12,472** PNGs exported under `Assets/<Category>/{references,views,materials,colors,lighting}/`.
+- **1,559** labeled reference sheets under `Assets/ReferenceSheets/<Category>/`.
+- Catalog: 1,559 prop seeds across **20** category dirs (`Assets/<Category>/INDEX.md` + `World/Props/INDEX.md`).
+- Grand total approved assets in DB (Phases 1–3): **18,071** (characters + world + props).
 
 ## Reproduction
 
@@ -56,8 +56,8 @@
 python scripts/seed_universe.py --db catalog.db
 
 # 2. Generate every prop variant through the full pipeline.
-#    Default 'all' = 12,184 tasks (references 1,523 · views 4,569 ·
-#    materials 1,523 · colors 1,523 · lighting 3,046).
+#    Default 'all' = 12,472 tasks (references 1,559 · views 4,677 ·
+#    materials 1,559 · colors 1,559 · lighting 3,118).
 python scripts/generate_phase3_assets.py --db catalog.db \
     --count 2 --shortlist 1 --fast-scoring --jobs 8
 
@@ -75,13 +75,13 @@ python scripts/finalize_phase1.py --db catalog.db --all
 | `--category <Name>` | Restrict to one of the 20 category dirs (e.g. `--category Toys`). |
 | `--props <names\|ids>` | Restrict to specific prop names or `asset_id`s (e.g. `--props "Stuffed Bunny,TOY_Animal_001"`); unknown names fail fast. |
 | `--materials all` | Full 17-material catalog per prop (superset of `PHASE3.md`); default is one deterministic material per prop. |
-| `--colors all` | Full 16-color palette per prop; default is one deterministic color per prop. |
+| `--colors all` | Full 19-color palette per prop; default is one deterministic color per prop. |
 | `--persist-images` / `--no-persist-images` | Write each image into the `Assets/` tree (on) or only record rows (off). |
 | `--sync-every N` / `--sync-every-image` | Push images + `catalog.db` to git after every N variant groups / per image — a Colab termination loses at most the single in-flight image. |
 | `--sync-repo/--sync-branch/--sync-token/--sync-remote-url/--sync-git-name/--sync-git-email` | Git-sync configuration for the Colab notebook. |
 
-`--materials all --colors all` expands the workload to **59,397 tasks**
-(1,523 props × 39 variants).
+`--materials all --colors all` expands the workload to **65,478 tasks**
+(1,559 props × 42 variants).
 
 ## Validation (2026-08-14)
 

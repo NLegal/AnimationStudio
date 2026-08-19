@@ -573,3 +573,33 @@ Educational assets follow the same global art style quality standards as all Lit
 **Materials:** Heavy paper, satin finish, wooden frame
 **Animation:** Static
 **Interactive:** No
+
+## EDUC_Classroom_016 — Folders
+**Description:** A set of bright classroom folders with picture labels — one for drawing, one for letters, one for numbers. Rounded corners and stretchy elastic closures keep work safe inside.
+**Colors:** Red, Blue, Green, Yellow
+**Scale:** 24 × 18 cm each
+**Materials:** Cardstock, plastic
+**Animation:** Static
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+## EDUC_Classroom_017 — Lunch Box
+**Description:** A friendly lunch box with a rounded dome lid and a picture of a smiling sandwich. A soft insulated liner keeps snacks fresh for recess.
+**Colors:** Blue, Red (handle), Yellow (latch)
+**Scale:** 18 × 14 × 10 cm
+**Materials:** Plastic, insulation
+**Animation:** Static
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+## EDUC_Classroom_018 — Maps
+**Description:** A classroom wall map of Little Learning Town with picture icons for each zone — a house, a school, a beach umbrella, a pine tree. A second world map shows a friendly globe of storybook continents.
+**Colors:** Multicolor
+**Scale:** A2 poster, 42 × 30 cm
+**Materials:** Paper, lamination
+**Animation:** Static
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes

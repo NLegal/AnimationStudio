@@ -163,3 +163,20 @@
 | NAT_Creature_013 | Spider Friendly | A round cute spider with a colorful body and big eyes, spinning decorative webs between branches. |
 | NAT_Creature_014 | Frog Green | A smooth bright green frog with wide eyes and long jumping legs, perched happily on lily pads. |
 | NAT_Creature_015 | Tadpole | A tiny round black tadpole with a wiggly tail, swimming in cheerful circles in shallow water. |
+
+---
+
+## Ground & Scatter (NAT_Ground_001–010)
+
+| Asset ID | Name | Description |
+|---|---|---|
+| NAT_Ground_001 | Leaves | A tumble of bright autumn leaves in red, orange, and gold, scattered across the ground for crunching walks and raking games. |
+| NAT_Ground_002 | Acorns | Round glossy acorns with little brown caps, gathered in a friendly pile under the forest oaks. |
+| NAT_Ground_003 | Pinecones | Sturdy pinecones with overlapping brown scales, collected for art projects and woodland pretend-play. |
+| NAT_Ground_004 | Mushrooms | A cheerful cluster of red-capped mushrooms with white dots, peeking from the mossy forest floor. |
+| NAT_Ground_005 | Logs | Rounded wooden logs with soft bark and flat ends, arranged as friendly forest seating and balance steps. |
+| NAT_Ground_006 | Twigs | A small bundle of clean, smooth twigs bundled with a bright string, ready for crafting and den-building. |
+| NAT_Ground_007 | Beehive | A friendly beehive with a round honeycomb door and a smiling little bee buzzing at the entrance, hanging from a leafy branch. |
+| NAT_Ground_008 | Snowflakes | Sparkly white snowflakes with six rounded arms, drifting gently down to dust the winter ground. |
+| NAT_Ground_009 | Raindrops | Round glittery raindrops with cheerful faces, pattering onto leaf umbrellas and windows. |
+| NAT_Ground_010 | Puddles | Shiny blue puddles with friendly ripples, perfect for careful splashing in rain boots. |

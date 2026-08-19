@@ -18,7 +18,7 @@ Examples: `LIV_Furniture_007`, `LIV_Decor_011`, `LIV_Electronic_004`
 
 ---
 
-# Furniture (LIV_Furniture_001–015)
+# Furniture (LIV_Furniture_001–016)
 
 | Asset ID | Name | Description | Primary Color | Shape | Material |
 |----------|------|-------------|---------------|-------|----------|
@@ -37,6 +37,7 @@ Examples: `LIV_Furniture_007`, `LIV_Decor_011`, `LIV_Electronic_004`
 | LIV_Furniture_013 | Couch — Convertible | Fold-out sofa bed with a pull-out mattress mechanism hidden inside. | Pastel Purple (#DDA0DD) | Rectangular with fold line | Fabric + Foam + Metal |
 | LIV_Furniture_014 | Rocking Chair | Adult-sized wooden rocking chair with curved runners and spindle back. | Dark Wood (#8B4513) | Chair on rockers | Wood |
 | LIV_Furniture_015 | Bench | Wooden bench with slatted seat and armrests, fits in an entryway or by a window. | Light Wood (#DEB887) | Long rectangular bench | Wood |
+| LIV_Furniture_016 | Fireplace | A child-safe play fireplace with a soft LED glow, rounded hearth, and a cozy chimney. Painted flames flicker gently and a little stocking hangs by the mantel. | Brick Red (#B22222) | Mantel with arched firebox | Wood + Plastic |
 
 ---
 

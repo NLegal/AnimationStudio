@@ -248,6 +248,23 @@ The imagination zone of Little Learning Town. Dreamland exists at the edge of re
 - ENV_Fantasy_008 — Candy Village
 - ENV_Fantasy_009 — Rainbow Bridge (Entry Point)
 
+### 10. Busy Bridge (Transportation Zone)
+**Identifier:** ENV_Transportation_###
+
+**Color Palette:** Train red, taxi yellow, crossing white, asphalt gray, ticket orange
+
+The friendly hub at the heart of Little Learning Town, where every road and rail route gently meets. Busy Bridge is the opposite of a real busy city — it is a tidy, child-scaled travel center of clean stations, chunky smiling buses and trains, wide safe streets, and well-marked crossings. A storybook train station, a tiny regional airport, and a rainbow-awninged bus depot sit beside broad sidewalks and slow traffic circles. Bridges arc over the calm river, and a short bright tunnel lets children pass under the road with echoing giggles. Every crossing is guarded by a friendly crossing guard, and signals are soft-toned and polite.
+
+**Key Landmarks:**
+- ENV_Transportation_001 — Train Station
+- ENV_Transportation_002 — Airport
+- ENV_Transportation_003 — Bus Station
+- ENV_Transportation_004 — Roads
+- ENV_Transportation_005 — Bridges
+- ENV_Transportation_006 — Tunnel
+- ENV_Transportation_007 — Traffic Circle
+- ENV_Transportation_008 — Parking Area
+
 ---
 
 ## Geographical Layout
@@ -441,6 +458,7 @@ World/
   Beach/
   Mountains/
   Fantasy/
+  Transportation/
 Props/
 Vehicles/
 Backgrounds/

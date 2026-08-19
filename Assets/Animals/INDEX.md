@@ -6,7 +6,7 @@
 
 ---
 
-## Farm (ANM_Farm_001–015)
+## Farm (ANM_Farm_001–016)
 
 | Asset ID | Name | Colors | Size | Habitat | Personality |
 |---|---|---|---|---|---|
@@ -25,6 +25,7 @@
 | ANM_Farm_013 | Duck White | Pure white feathers and orange beak | Small | Pond / yard | Waddly, quacky, loveable and silly |
 | ANM_Farm_014 | Duck Mallard | Green head, brown body, orange feet | Small | Pond / yard | Adventurous, always leading the flock |
 | ANM_Farm_015 | Turkey | Fan tail feathers in brown and bronze | Large | Barnyard | Goofy, strutting, unexpectedly affectionate |
+| ANM_Farm_016 | Donkey | Gray with a soft muzzle and cross stripe | Medium | Stable / paddock | Gentle, patient, a loyal cart helper |
 
 ---
 

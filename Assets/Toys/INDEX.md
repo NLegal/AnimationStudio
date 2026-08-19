@@ -446,6 +446,16 @@ Every toy asset must satisfy:
 **Animation:** Simple (wheels roll)
 **Interactive:** Yes
 
+## TOY_Car_031 — Remote Car
+**Description:** A chunky off-road remote control car with big soft tires, a stubby antenna, and a round controller with two chunky buttons. It scoots in gentle circles with a soft hum and a flashing headlight.
+**Colors:** Red, Black (tires), White (antenna)
+**Scale:** 15 × 9 × 8 cm
+**Materials:** ABS plastic, foam tires, rubber
+**Animation:** Simple (forward, reverse, turns)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
 # Animals (Plush / Stuffed)
 
 ## TOY_Animal_001 — Stuffed Bunny
@@ -971,6 +981,36 @@ Every toy asset must satisfy:
 **Materials:** Cardboard, paper cards, plastic mini cart
 **Animation:** Static
 **Interactive:** Yes
+
+## TOY_Game_021 — Yo-Yo
+**Description:** A classic wooden yo-yo with a bright cotton string and rounded rims, sized for gentle up-and-down play on smooth floors.
+**Colors:** Red, White (string)
+**Scale:** 6 cm diameter
+**Materials:** Beech wood, cotton string
+**Animation:** Simple (spins)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+## TOY_Game_022 — Kaleidoscope
+**Description:** A chunky kaleidoscope with a cardboard tube, a colorful view window, and a turning end cap that swirls rainbow patterns as it spins.
+**Colors:** Multicolor
+**Scale:** 16 × 5 cm
+**Materials:** Cardboard, plastic lens
+**Animation:** Static
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+## TOY_Game_023 — Marbles
+**Description:** A set of six oversized glossy marbles in rainbow colors, each big enough to be safely handled and rolled by small hands.
+**Colors:** Multicolor
+**Scale:** 4 cm diameter each
+**Materials:** Resin (glass-like)
+**Animation:** Simple (rolls)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
 
 # Outdoor
 
@@ -1587,8 +1627,18 @@ Every toy asset must satisfy:
 **Colors:** Pastel Yellow, Natural Wood (neck), White (floral)
 **Scale:** 40 cm length
 **Materials:** Birch wood, nylon strings
-**Animation:** Simple (strings plucked, strummed)
+**Animation:** Simple (strings play)
 **Interactive:** Yes
+
+## TOY_Musical_011 — Toy Violin
+**Description:** A miniature toy violin with a warm maple body, four soft nylon strings, and a chunky matching bow with a rounded tip. The chin rest is extra padded for comfortable first concerts.
+**Colors:** Warm Maple, Black (fingerboard), Gold (trim)
+**Scale:** 36 cm length
+**Materials:** Maple wood, nylon strings
+**Animation:** Simple (bow and strings play)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
 
 # Roleplay & Dress-Up
 
@@ -1671,3 +1721,76 @@ Every toy asset must satisfy:
 **Materials:** Felt, ABS plastic, paper
 **Animation:** Static
 **Interactive:** Yes
+
+## TOY_Roleplay_011 — Pirate Ship
+**Description:** A wooden pirate ship with three masts, fabric sails, a carved prow, and little cannons. Captain and crew figures stand ready for storybook voyages across the playroom sea.
+**Colors:** Brown, White (sails), Red (flag)
+**Scale:** 30 × 12 × 18 cm
+**Materials:** Beech wood, fabric, water-based paint
+**Animation:** Static
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+# Air & Space Toys
+
+## TOY_Air_001 — Toy Airplane
+**Description:** A chunky wooden toy airplane with a rounded propeller and soft rubber wheels. Wings lift off for gentle storage and it taxis across the floor with a cheerful wobble.
+**Colors:** Red, White, Blue
+**Scale:** 20 × 24 × 10 cm
+**Materials:** Beech wood, water-based paint, rubber
+**Animation:** Simple (propeller spins, wheels roll)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+## TOY_Air_002 — Toy Rocket
+**Description:** A bright toy rocket with a rounded nose cone, a porthole window, and three soft foam fins. A little astronaut figure peeks from the window for launch-day adventures.
+**Colors:** White, Red (nose), Silver (fins)
+**Scale:** 22 × 8 × 8 cm
+**Materials:** ABS plastic, foam, rubber
+**Animation:** Static
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+## TOY_Air_003 — Toy Helicopter
+**Description:** A friendly toy helicopter with a big spinning top rotor, skid landing gear, and a smiling pilot sticker in the window.
+**Colors:** Yellow, Red (rotors), Black (skids)
+**Scale:** 18 × 8 × 12 cm
+**Materials:** ABS plastic, rubber
+**Animation:** Simple (rotors spin)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+## TOY_Air_004 — Toy Submarine
+**Description:** A round toy submarine with a yellow porthole window, a small periscope, and a red propeller. It bobs happily in the bath with a friendly painted smile.
+**Colors:** Blue, Yellow (porthole), Red (propeller)
+**Scale:** 16 × 7 × 9 cm
+**Materials:** ABS plastic
+**Animation:** Simple (propeller spins)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+# Robots & Dinosaurs
+
+## TOY_Robot_001 — Toy Robot
+**Description:** A cute plastic toy robot with a rounded head, button eyes, and bendy antenna. Its arms and legs swivel for posing, and it beeps softly when rolled.
+**Colors:** Silver, Blue, Red (buttons)
+**Scale:** 20 × 12 × 7 cm
+**Materials:** ABS plastic, rubber
+**Animation:** Simple (arms and legs move)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes
+
+## TOY_Dino_001 — Toy Dinosaur
+**Description:** A chunky toy dinosaur with a friendly rounded snout, a short tail, and big rubber feet. Its mouth opens and closes for gentle chomping play.
+**Colors:** Green, Yellow (belly), Orange (spikes)
+**Scale:** 18 × 6 × 9 cm
+**Materials:** ABS plastic, rubber
+**Animation:** Simple (mouth opens, legs sway)
+**Interactive:** Yes
+**Child Safe:** Yes
+**Reusable:** Yes

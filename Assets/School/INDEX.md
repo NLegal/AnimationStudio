@@ -17,7 +17,7 @@ Bright classrooms, organized spaces, colorful materials, and child-friendly furn
 
 ---
 
-## Furniture (SCH_Furniture_001–015)
+## Furniture (SCH_Furniture_001–017)
 
 | ID | Name | Description |
 |---|---|---|
@@ -36,6 +36,8 @@ Bright classrooms, organized spaces, colorful materials, and child-friendly furn
 | SCH_Furniture_013 | Table Rectangle | A rectangular activity table seating six children, with a durable easy-clean laminate surface. |
 | SCH_Furniture_014 | Easel | A sturdy wooden double-sided art easel with paper roll holders and paint cup trays on both sides. |
 | SCH_Furniture_015 | Teacher Podium | A small raised platform with a slanted top surface for holding lesson notes and a book rest. |
+| SCH_Furniture_016 | Lunch Tables | A row of friendly picnic-style lunch tables with attached benches and wipe-clean tops, sized for small diners at midday recess. |
+| SCH_Furniture_017 | Play Mats | Soft padded play mats with printed town scenes — streets, a school, and a park — that join together with safe button connectors. |
 
 ---
 

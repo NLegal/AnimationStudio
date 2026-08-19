@@ -99,7 +99,7 @@ mock/fallback values.
 | `test_lora_training.py` | Dataset builder, versioning, benchmark |
 | `test_review_ui.py` | Review app routes |
 | `test_review_ui_generation.py` | UI generation panel, seeding, per-category detail pages |
-| `test_universe_catalog.py` | Universe/World/Assets markdown parsing (39 chars, 9 zones, 130 locations, 20 vehicles, 26 backgrounds, 1,523 props) |
+| `test_universe_catalog.py` | Universe/World/Assets markdown parsing (39 chars, 10 zones, 138 locations, 20 vehicles, 26 backgrounds, 1,559 props) |
 | `test_universe_seed.py` | Idempotent, self-healing seeding keyed by permanent asset_id |
 | `test_batch_generator.py` | Prompt building + mock end-to-end batch generation (incl. prop variants) |
 | `test_character_bio.py` | Lily Bunny bio schema validation |
@@ -141,7 +141,7 @@ to `create_app()`.
 
 ## Universe Generation
 
-The Phase 1–3 universe content (39 character bios, 9 world zones, **1,523
+The Phase 1–3 universe content (39 character bios, 10 world zones, **1,559
 reusable props** across 20 asset categories) lives as markdown under
 `Universe/`, `World/`, and `Assets/`. Two scripts turn those documents into a
 populated, reviewable studio database — no GPU required (a deterministic mock
@@ -165,8 +165,8 @@ python scripts/generate_universe.py --scope all --backend mock --serve --port 80
 
 ### Phase 3 — Global Asset Library & Production Kit
 
-The reusable production prop library (12,184 approved assets: references,
-turnaround views, material/color variants, and lighting studies for all 1,523
+The reusable production prop library (12,472 approved assets: references,
+turnaround views, material/color variants, and lighting studies for all 1,559
 props) is produced and maintained by the Phase 3 pipeline:
 
 ```bash
@@ -467,7 +467,7 @@ cd <project-root>
 # 1. Seed the catalog from the markdown docs (idempotent)
 .\scripts\seed_universe.ps1 --db catalog.db
 
-# 2. Generate the complete world library (all 130 locations + vehicles + backgrounds)
+# 2. Generate the complete world library (all 138 locations + vehicles + backgrounds)
 .\scripts\generate_phase2_world.ps1 --fast-scoring --jobs 12
 
 # 3. Write PNGs to the world asset repository + record file_path

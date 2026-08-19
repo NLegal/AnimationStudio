@@ -32,7 +32,7 @@ Sports equipment designed for the animation studio features bright team colors, 
 
 ---
 
-## Equipment (SPORT_Equipment_001–020)
+## Equipment (SPORT_Equipment_001–022)
 
 | ID | Name | Description |
 |---|---|---|
@@ -56,6 +56,8 @@ Sports equipment designed for the animation studio features bright team colors, 
 | SPORT_Equipment_018 | Boomerang | A curved V-shaped wooden or plastic boomerang designed to spin and return when thrown properly. |
 | SPORT_Equipment_019 | Jump Rope | A colorful jump rope with molded plastic handles and a lightweight nylon rope that swings smoothly. |
 | SPORT_Equipment_020 | Hula Hoop | A large plastic hoop with a smooth surface and colorful spiral pattern, perfect for waist spinning. |
+| SPORT_Equipment_021 | Gym Mat | A thick, soft folding gym mat with a wipe-clean cover and rounded edges, laid out for tumbling, stretching, and safe landings. |
+| SPORT_Equipment_022 | Cones | A set of bright orange marker cones with soft rounded tops and weighted bases, used for obstacle courses and practice drills. |
 
 ---
 

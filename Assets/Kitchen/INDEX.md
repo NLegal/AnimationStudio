@@ -155,3 +155,12 @@ dark kitchen, rusty metal, burnt food, adult themes,
 broken, dirty, greasy, scary, low quality, blurry,
 watermark, text
 ```
+
+---
+
+## Storage (KIT_Storage_001–002)
+
+| Asset ID | Name | Description |
+|---|---|---|
+| KIT_Storage_001 | Cabinets | A friendly set of rounded kitchen cabinets with soft-close doors and picture labels — one for cups, one for plates, one for snacks. Chunky handles are easy for small hands. |
+| KIT_Storage_002 | Dining Table | A sturdy child-height dining table with a wipe-clean top and gently rounded corners, paired with four matching stools that tuck neatly underneath. |

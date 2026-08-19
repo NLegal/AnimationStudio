@@ -30,7 +30,7 @@ Occupation props celebrate community helpers with bright, friendly, and recogniz
 
 ---
 
-## Tools (OCC_Tool_001–025)
+## Tools (OCC_Tool_001–026)
 
 | ID | Name | Description |
 |---|---|---|
@@ -59,6 +59,7 @@ Occupation props celebrate community helpers with bright, friendly, and recogniz
 | OCC_Tool_023 | Garden Shovel | A garden trowel with a pointed metal blade, a wooden handle, and a leather hanging loop at the end. |
 | OCC_Tool_024 | Watering Can | A metal or plastic watering can with a long spout, detachable rose sprinkler head, and a top handle. |
 | OCC_Tool_025 | Rake | A garden rake with a wide metal head of curved tines and a long wooden pole handle. |
+| OCC_Tool_026 | Seed Packet | A bright seed packet with a picture of smiling sunflowers, a seed window, and a wiggly watering-can label for the town gardener. |
 
 ---
 
