@@ -175,3 +175,25 @@ Plans:
 | 4. Visual Generation Pipeline | 0/0 | Not started | - |
 | 5. Audio-Visual Assembly & Export | 0/0 | Not started | - |
 | 6. Operations & Publishing | 0/0 | Not started | - |
+
+### Phase 7: Music Generation Backend Integration
+
+**Goal:** Implement a provider-agnostic music-generation backend layer (`src/music_generation/`) on top of the Phase 5 audio-bible standards: a `MusicGenerationBackend` protocol, a fully working **ACE-Step 1.5 local-API adapter** (async job submit/poll/download against `localhost:8001`, mapping song categories → caption/BPM/key/duration/lyric-structure per `.planning/research/MUSIC-GENERATION.md`), a **Suno adapter stub** that raises NotConfigured until an official API exists (optional third-party wrapper adapter clearly flagged), and a deterministic **mock backend** for tests. No audio generated in CI/tests; `catalog.db` untouched.
+**Requirements**: TBD
+**Depends on:** Audio bible standards (`src/audio_bible/` — complete)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 7 to break down)
+
+### Phase 8: Music Generation Pipeline Wiring
+
+**Goal:** Wire the backends into the studio: extend `scripts/generate_phase5.py` with a real generation mode (`--backend acestep|suno|mock --generate`, batch song requests from the 24 categories, song manifest JSON + files under `Audio/Music/`), add Review UI hooks for music prompt preview/generation jobs, create `colab/AnimationStudio_Colab_Phase5.ipynb` (offline ACE-Step run, mirroring the Phase 4 notebook pattern), and update PHASE5_STATUS.md.
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 8 to break down)

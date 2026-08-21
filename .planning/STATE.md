@@ -103,3 +103,10 @@ None yet.
 Last session: 2026-07-29T04:50:52.701Z
 Stopped at: Completed 01b-01 (wave 1)
 Resume file: None
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 7 added: Music Generation Backend Integration (ACE-Step local-API adapter + Suno stub + mock backend; research in .planning/research/MUSIC-GENERATION.md)
+- Phase 8 added: Music Generation Pipeline Wiring (generate_phase5.py generation mode, Review UI hooks, Colab Phase 5 notebook, status updates)

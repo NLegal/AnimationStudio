@@ -45,7 +45,9 @@
   - `prompts.py` — `MOTION_PROMPT_TEMPLATES`, `build_animation_prompt()`, `ANIMATION_NEGATIVE_BASE` + category negatives, `quality_checklist()`.
   - `motion_system.py` — `MotionSystem`/`MotionSystemResult`: integrates Phase 9 planners/validators/engines into one gate.
 - **`PHASE4_REPORT.md`** — generated report (doc↔code consistency 24/24 facts, 8 sample shots all ready, clip validation).
-- **Tests**: `tests/test_animation_bible.py` — **48 tests** across library contents, motion briefs, bible validation, prompt builders, motion system integration, and doc↔code consistency.
+- **Review UI** (`src/review_ui/templates/motion.html` + `/motion` route) — the Motion page renders **every** bible library: philosophy/forbidden-motion guardrails, motion cycles, walk & run variants, jump library, dance library (with BPM), camera shots, facial expressions with intensity levels, blink types, mouth shapes, gestures, transitions, idle layers, interactions, physics rules, cloth/accessory motion, and pacing standards. A text-only **Animation Prompt Builder** (`POST /motion/prompt`) composes shot prompts from `MOTION_PROMPT_TEMPLATES` via `build_animation_prompt()` — no database writes and no image generation.
+- **Colab notebook** — `colab/AnimationStudio_Colab_Phase4.ipynb`: offline verification run (clone → preview library scope → regenerate `PHASE4_REPORT.md` → animation test suites → sync). No GPU/ComfyUI/Drive required; never touches `catalog.db`.
+- **Tests**: `tests/test_animation_bible.py` — **48 tests** across library contents, motion briefs, bible validation, prompt builders, motion system integration, and doc↔code consistency; plus Review-UI coverage in `tests/test_review_ui_api.py` (`TestMotionPage`, `TestMotionPromptBuilder`).
 
 ## Reproduction
 
@@ -54,11 +56,14 @@
 python scripts/generate_phase4.py
 
 # Run the Phase 4 test suite
-python -m pytest tests/test_animation_bible.py -q
+python -m pytest tests/test_animation_bible.py tests/test_animation.py -q
 
 # Full suite
 python -m pytest -q   # 1382 passing
 ```
+
+Google Colab: open `colab/AnimationStudio_Colab_Phase4.ipynb` and Run all on a
+free CPU runtime — it performs the same verification end-to-end.
 
 ## Notes / Caveats
 

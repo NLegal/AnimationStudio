@@ -33,6 +33,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from src.asset_repository.sqlite_repo import NotFoundError
+from src.animation_bible.prompts import (
+    ANIMATION_NEGATIVE_BASE,
+    MOTION_PROMPT_TEMPLATES,
+    _CAMERA_STYLE_DESCRIPTORS,
+)
 from src.pipeline.job_queue import JobQueue
 
 logger = logging.getLogger(__name__)
@@ -825,13 +830,10 @@ def create_app(
             },
         )
 
-    @app.get("/motion", response_class=HTMLResponse)
-    async def motion_page(request: Request):
-        """Phase 4 — Animation Bible & Motion System library browser."""
+    def _motion_page_context(prompt_result: dict | None = None,
+                             form_values: dict | None = None) -> dict:
+        """Build the Phase 4 Animation Bible browser context."""
         from src.animation_bible import libraries as lib
-        from src.animation_bible.bible import AnimationBible
-
-        bible = AnimationBible()
 
         def _motion_dict(m):
             return {
@@ -874,6 +876,16 @@ def create_app(
                 ],
             }
 
+        def _loco_dict(v):
+            return {
+                "name": v.name,
+                "frames_per_step": v.frames_per_step,
+                "frames_per_stride": v.frames_per_stride,
+                "speed_percent": v.speed_percent,
+                "easing": getattr(v, "easing", ""),
+                "description": v.description,
+            }
+
         data = {
             "philosophy": lib.PHILOSOPHY,
             "forbidden": lib.FORBIDDEN_MOTION,
@@ -893,8 +905,98 @@ def create_app(
                 "name": i.name, "description": i.description,
                 "total_frames": i.total_frames, "loopable": i.loopable,
             } for i in lib.INTERACTIONS],
+            # Locomotion standards (walk / run variants)
+            "walk_variants": [_loco_dict(v) for v in lib.WALK_VARIANTS],
+            "run_variants": [_loco_dict(v) for v in lib.RUN_VARIANTS],
+            # Jump & dance libraries
+            "jumps": [{
+                "name": j.name, "total_frames": j.total_frames,
+                "height_percent": j.height_percent, "loopable": j.loopable,
+                "phases": list(getattr(j, "phases", ())), "description": j.description,
+            } for j in lib.JUMP_CYCLES],
+            "dances": [{
+                "name": d.name, "frames": d.frames, "bpm": d.bpm,
+                "difficulty": d.difficulty, "spacing": d.spacing,
+                "loopable": d.loopable, "description": d.description,
+            } for d in lib.DANCE_LOOPS],
+            "dance_bpm": lib.DANCE_BPM,
+            # Eye & mouth animation
+            "blink_types": [{
+                "name": b.name, "frames": b.frames,
+                "duration": b.duration, "usage": b.usage,
+            } for b in lib.BLINK_TYPES],
+            "mouth_shapes": sorted(lib.MOUTH_SHAPES.items()),
+            # Physics & secondary motion
+            "physics_rules": [{
+                "name": r.name, "value": r.value, "notes": r.notes,
+            } for r in lib.PHYSICS_RULES],
+            "cloth_elements": [{
+                "name": c.name, "delay_frames": c.delay_frames,
+                "amplitude": c.amplitude, "settle_frames": c.settle_frames,
+                "description": c.description,
+            } for c in lib.CLOTH_ELEMENTS],
+            # Timing standards
+            "pacing_standards": [{
+                "age": p.age, "multiplier": p.multiplier, "notes": p.notes,
+            } for p in lib.PACING_STANDARDS],
+            # Prompt builder inputs
+            "prompt_templates": sorted(MOTION_PROMPT_TEMPLATES.keys()),
+            "camera_styles": sorted(_CAMERA_STYLE_DESCRIPTORS.keys()),
+            "negative_prompt": ANIMATION_NEGATIVE_BASE,
+            "prompt_result": prompt_result or {},
+            "form_values": form_values or {},
         }
-        return templates.TemplateResponse(request, "motion.html", data)
+        return data
+
+    @app.get("/motion", response_class=HTMLResponse)
+    async def motion_page(request: Request):
+        """Phase 4 — Animation Bible & Motion System library browser."""
+        return templates.TemplateResponse(
+            request, "motion.html", _motion_page_context()
+        )
+
+    @app.post("/motion/prompt", response_class=HTMLResponse)
+    async def motion_prompt(request: Request):
+        """Build an animation prompt from the bible templates (text only).
+
+        Pure ``build_animation_prompt()`` evaluation — no database writes and
+        no image generation.
+        """
+        form = await request.form()
+        character = str(form.get("character", "")).strip() or "Lily Bunny"
+        template = str(form.get("template", "")).strip() or "walk"
+        emotion = str(form.get("emotion", "")).strip() or "happiness"
+        environment = str(form.get("environment", "")).strip()
+        camera_shot = str(form.get("camera_shot", "")).strip() or "medium"
+        details = str(form.get("details", "")).strip()
+
+        if template not in MOTION_PROMPT_TEMPLATES:
+            template = "walk"
+
+        from src.animation_bible.prompts import build_animation_prompt
+        prompt = build_animation_prompt(
+            character=character,
+            action=template,
+            emotion=emotion,
+            environment=environment,
+            camera_shot=camera_shot,
+            details=(details,) if details else (),
+            template=template,
+        )
+        result = {
+            "prompt": prompt,
+            "character": character,
+            "template": template,
+        }
+        values = {
+            "character": character, "template": template, "emotion": emotion,
+            "environment": environment, "camera_shot": camera_shot,
+            "details": details,
+        }
+        return templates.TemplateResponse(
+            request, "motion.html",
+            _motion_page_context(prompt_result=result, form_values=values),
+        )
 
     # ------------------------------------------------------------------ #
     #  Generation & seeding  (POST /generate, POST /seed)

@@ -48,6 +48,58 @@
 </section>
 
 <!-- ============================================================ -->
+<!--  MOTION PROMPT BUILDER  (text only — no image generation)     -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Animation Prompt Builder</h2>
+  <p class="gen-hint">
+    Compose a bible-conformant motion prompt from the studio templates.
+    Copy the result into any AI backend — nothing is generated or stored here.
+  </p>
+  <form action="/motion/prompt" method="post" class="prompt-builder-form">
+    <div class="prompt-fields">
+      <label>Character
+        <input type="text" name="character" value="{{ form_values.get('character', 'Lily Bunny') }}" required>
+      </label>
+      <label>Action Template
+        <select name="template">
+          {% for t in prompt_templates %}
+            <option value="{{ t }}" {% if form_values.get('template', 'walk') == t %}selected{% endif %}>{{ t | title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Emotion
+        <input type="text" name="emotion" value="{{ form_values.get('emotion', 'happiness') }}">
+      </label>
+      <label>Camera Style
+        <select name="camera_shot">
+          {% for c in camera_styles %}
+            <option value="{{ c }}" {% if form_values.get('camera_shot', 'medium') == c %}selected{% endif %}>{{ c | title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <label>Environment
+      <input type="text" name="environment" value="{{ form_values.get('environment', '') }}"
+             placeholder="e.g. Sunny Garden Playground">
+    </label>
+    <label>Details
+      <input type="text" name="details" value="{{ form_values.get('details', '') }}"
+             placeholder="extra action details, e.g. carrying a red balloon">
+    </label>
+    <button type="submit" class="btn btn-primary">Build Prompt</button>
+  </form>
+  {% if prompt_result %}
+    <div class="prompt-result">
+      <h3>Prompt for {{ prompt_result.character }} &mdash; {{ prompt_result.template | title }}</h3>
+      <p class="prompt-text">{{ prompt_result.prompt }}</p>
+      <h4>Negative prompt</h4>
+      <p class="prompt-text prompt-negative">{{ negative_prompt }}</p>
+    </div>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
 <!--  MOTION CYCLES                                               -->
 <!-- ============================================================ -->
 <section class="panel">
@@ -77,6 +129,143 @@
     </table>
   {% else %}
     <p class="empty-state">No motion cycles loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  WALK & RUN VARIANTS                                          -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Walk Variants ({{ walk_variants | length }})</h2>
+  {% if walk_variants %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Variant</th>
+          <th>Step Frames</th>
+          <th>Stride Frames</th>
+          <th>Speed</th>
+          <th>Easing</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in walk_variants %}
+        <tr>
+          <td><strong>{{ v.name }}</strong></td>
+          <td>{{ v.frames_per_step }}</td>
+          <td>{{ v.frames_per_stride }}</td>
+          <td>{{ v.speed_percent }}%</td>
+          <td><span class="badge badge-difficulty">{{ v.easing }}</span></td>
+          <td>{{ v.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No walk variants loaded.</p>
+  {% endif %}
+
+  <h2>Run Variants ({{ run_variants | length }})</h2>
+  {% if run_variants %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Variant</th>
+          <th>Step Frames</th>
+          <th>Stride Frames</th>
+          <th>Speed</th>
+          <th>Easing</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in run_variants %}
+        <tr>
+          <td><strong>{{ v.name }}</strong></td>
+          <td>{{ v.frames_per_step }}</td>
+          <td>{{ v.frames_per_stride }}</td>
+          <td>{{ v.speed_percent }}%</td>
+          <td><span class="badge badge-difficulty">{{ v.easing }}</span></td>
+          <td>{{ v.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No run variants loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  JUMP LIBRARY                                                 -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Jump Library ({{ jumps | length }})</h2>
+  {% if jumps %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Jump</th>
+          <th>Total Frames</th>
+          <th>Height</th>
+          <th>Loopable</th>
+          <th>Phases</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for j in jumps %}
+        <tr>
+          <td><strong>{{ j.name }}</strong></td>
+          <td>{{ j.total_frames }}</td>
+          <td>{{ j.height_percent }}%</td>
+          <td>{% if j.loopable %}Yes{% else %}No{% endif %}</td>
+          <td>{{ j.phases | join(' &rarr; ') }}</td>
+          <td>{{ j.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No jump cycles loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  DANCE LIBRARY                                                -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Dance Library ({{ dances | length }} @ {{ dance_bpm }} BPM)</h2>
+  {% if dances %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Dance Loop</th>
+          <th>Frames</th>
+          <th>BPM</th>
+          <th>Difficulty</th>
+          <th>Spacing</th>
+          <th>Loopable</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in dances %}
+        <tr>
+          <td><strong>{{ d.name }}</strong></td>
+          <td>{{ d.frames }}</td>
+          <td>{{ d.bpm }}</td>
+          <td><span class="badge badge-difficulty">{{ d.difficulty }}</span></td>
+          <td>{{ d.spacing }}</td>
+          <td>{% if d.loopable %}Yes{% else %}No{% endif %}</td>
+          <td>{{ d.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No dance loops loaded.</p>
   {% endif %}
 </section>
 
@@ -138,6 +327,56 @@
     </div>
   {% else %}
     <p class="empty-state">No facial expressions loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  EYE & MOUTH ANIMATION                                        -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Blink Types ({{ blink_types | length }})</h2>
+  {% if blink_types %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Frames</th>
+          <th>Duration</th>
+          <th>Usage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in blink_types %}
+        <tr>
+          <td><strong>{{ b.name }}</strong></td>
+          <td>{{ b.frames }}</td>
+          <td>{{ b.duration }}</td>
+          <td>{{ b.usage }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No blink types loaded.</p>
+  {% endif %}
+
+  <h2>Mouth Shapes ({{ mouth_shapes | length }})</h2>
+  {% if mouth_shapes %}
+    <table class="dashboard-table">
+      <thead>
+        <tr><th>Shape</th><th>Usage</th></tr>
+      </thead>
+      <tbody>
+        {% for name, usage in mouth_shapes %}
+        <tr>
+          <td><strong>{{ name | title }}</strong></td>
+          <td>{{ usage }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No mouth shapes loaded.</p>
   {% endif %}
 </section>
 
@@ -261,6 +500,84 @@
     </div>
   {% else %}
     <p class="empty-state">No interactions loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  PHYSICS & SECONDARY MOTION                                   -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Physics Rules ({{ physics_rules | length }})</h2>
+  {% if physics_rules %}
+    <table class="dashboard-table">
+      <thead>
+        <tr><th>Rule</th><th>Value</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        {% for r in physics_rules %}
+        <tr>
+          <td><strong>{{ r.name }}</strong></td>
+          <td>{{ r.value }}</td>
+          <td>{{ r.notes }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No physics rules loaded.</p>
+  {% endif %}
+
+  <h2>Cloth &amp; Accessory Motion ({{ cloth_elements | length }})</h2>
+  {% if cloth_elements %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Element</th>
+          <th>Delay</th>
+          <th>Amplitude</th>
+          <th>Settle</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cloth_elements %}
+        <tr>
+          <td><strong>{{ c.name }}</strong></td>
+          <td>{{ c.delay_frames }}f</td>
+          <td>{{ c.amplitude }}</td>
+          <td>{{ c.settle_frames }}f</td>
+          <td>{{ c.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No cloth elements loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  TIMING STANDARDS                                             -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Pacing Standards by Age ({{ pacing_standards | length }})</h2>
+  {% if pacing_standards %}
+    <table class="dashboard-table">
+      <thead>
+        <tr><th>Age</th><th>Pacing Multiplier</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        {% for p in pacing_standards %}
+        <tr>
+          <td><strong>{{ p.age }}</strong></td>
+          <td>{{ p.multiplier }}&times;</td>
+          <td>{{ p.notes }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No pacing standards loaded.</p>
   {% endif %}
 </section>
 

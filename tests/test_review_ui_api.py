@@ -174,6 +174,80 @@ class TestMotionPage:
         assert "Gesture Library" in body
         assert "24" in body  # master frame rate
 
+    def test_motion_page_full_libraries(self, client):
+        """Every PHASE4.md library section is rendered on the page."""
+        body = client.get("/motion").text
+        for section in (
+            "Walk Variants", "Run Variants", "Jump Library",
+            "Dance Library", "Blink Types", "Mouth Shapes",
+            "Physics Rules", "Cloth &amp; Accessory Motion",
+            "Pacing Standards",
+        ):
+            assert section in body, f"missing section: {section}"
+
+    def test_motion_page_library_counts(self, client):
+        """Library sizes match the encoded bible."""
+        from src.animation_bible import libraries as lib
+        body = client.get("/motion").text
+        expected = {
+            f"Walk Variants ({len(lib.WALK_VARIANTS)})",
+            f"Run Variants ({len(lib.RUN_VARIANTS)})",
+            f"Jump Library ({len(lib.JUMP_CYCLES)})",
+            f"Dance Library ({len(lib.DANCE_LOOPS)} @ {lib.DANCE_BPM} BPM)",
+            f"Blink Types ({len(lib.BLINK_TYPES)})",
+            f"Mouth Shapes ({len(lib.MOUTH_SHAPES)})",
+            f"Physics Rules ({len(lib.PHYSICS_RULES)})",
+            f"Cloth &amp; Accessory Motion ({len(lib.CLOTH_ELEMENTS)})",
+            f"Pacing Standards by Age ({len(lib.PACING_STANDARDS)})",
+        }
+        missing = [e for e in expected if e not in body]
+        assert not missing, f"missing counts: {missing}"
+
+
+class TestMotionPromptBuilder:
+    """Text-only animation prompt builder on the Phase 4 page."""
+
+    def test_form_renders(self, client):
+        body = client.get("/motion").text
+        assert 'action="/motion/prompt"' in body
+        assert 'name="character"' in body
+        assert 'name="template"' in body
+        assert 'name="camera_shot"' in body
+        # No result until submitted.
+        assert "prompt-result" not in body
+
+    def test_build_prompt(self, client):
+        response = client.post("/motion/prompt", data={
+            "character": "Lily Bunny",
+            "template": "dance",
+            "emotion": "excitement",
+            "environment": "Sunny Garden Playground",
+            "camera_shot": "wide",
+            "details": "holding a red balloon",
+        })
+        assert response.status_code == 200
+        body = response.text
+        assert "Prompt for Lily Bunny &mdash; Dance" in body
+        assert "dances happily in rhythm" in body
+        assert "Sunny Garden Playground" in body
+        # Negative prompt accompanies every result.
+        assert "violent motion" in body
+        # Form values are preserved after submit.
+        assert 'value="Lily Bunny"' in body
+        assert '<option value="dance" selected' in body
+
+    def test_unknown_template_falls_back_to_walk(self, client):
+        response = client.post("/motion/prompt", data={
+            "character": "Benny Bear", "template": "not-a-template",
+        })
+        assert response.status_code == 200
+        assert "walks forward at a comfortable pace" in response.text
+
+    def test_defaults_applied_for_blank_fields(self, client):
+        response = client.post("/motion/prompt", data={})
+        assert response.status_code == 200
+        assert "Prompt for Lily Bunny &mdash; Walk" in response.text
+
 
 class TestRealtimeMarkup:
     """HTML pages expose the realtime action hooks + studio.js."""
