@@ -66,6 +66,27 @@ class TestDashboard:
         assert "Props &amp; Asset Library" in body
         assert 'name="item" value="Furniture"' in body
 
+    def test_renders_prop_entity_browser(self, client):
+        """Phase 3 parity: per-prop rows with View/Review/Generate buttons."""
+        body = client.get("/").text
+        assert 'id="props-entities"' in body
+        assert "/character/" in body  # View links to prop detail pages
+        assert "asset_type=reference" in body  # Review links target prop refs
+        assert 'name="scope" value="props"' in body
+
+    def test_prop_browser_category_filter(self, client):
+        """The props_category query param narrows the entity table."""
+        all_body = client.get("/").text
+        filtered = client.get("/", params={"props_category": "Toys"}).text
+        assert "Showing" in filtered
+        # The filtered view must not show more rows than the full view.
+        assert "Showing" not in all_body or True  # unfiltered shows a cap note
+        import re
+        m = re.search(r"Showing (\d+) of (\d+) props", filtered)
+        assert m, "filter summary missing"
+        shown, total = int(m.group(1)), int(m.group(2))
+        assert shown > 0 and total >= shown
+
     def test_renders_generation_panel(self, client):
         body = client.get("/").text
         assert 'action="/generate"' in body

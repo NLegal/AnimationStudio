@@ -217,7 +217,7 @@
 <!-- ============================================================ -->
 <!--  ASSET LIBRARY  (props, reusable assets)                     -->
 <!-- ============================================================ -->
-<h2>Props &amp; Asset Library</h2>
+<h2 id="props-library">Props &amp; Asset Library</h2>
 {% if prop_categories %}
   <table class="dashboard-table">
     <thead>
@@ -235,6 +235,8 @@
         <td>{{ cat.count }}</td>
         <td><span class="badge badge-pending">{{ cat.pending }}</span></td>
         <td>
+          <a href="/?props_category={{ cat.name | urlencode }}#props-entities"
+             class="btn btn-sm {% if props_category == cat.name %}btn-active{% endif %}">Browse</a>
           <form action="/generate" method="post" style="display:inline">
             <input type="hidden" name="scope" value="props">
             <input type="hidden" name="item" value="{{ cat.name }}">
@@ -248,6 +250,62 @@
       {% endfor %}
     </tbody>
   </table>
+
+  <!-- ---------------------------------------------------------- -->
+  <!--  PROP ENTITY BROWSER (per-prop View / Review / Generate)    -->
+  <!-- ---------------------------------------------------------- -->
+  <h3 id="props-entities">
+    Prop Entities
+    {% if props_category %}<span class="queue-type">&mdash; {{ props_category }}</span>{% endif %}
+  </h3>
+  <p class="gen-hint">
+    Showing {{ props_rows | length }} of {{ props_total }} props
+    {% if props_category %}in <strong>{{ props_category }}</strong>{% endif %}.
+    <a href="/#props-entities">Show all categories</a>
+  </p>
+  {% if props_rows %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Assets</th>
+          <th>Pending Review</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for prop in props_rows %}
+        <tr>
+          <td><strong>{{ prop.name }}</strong></td>
+          <td>{{ prop.bio_data.get("category", prop.category) if prop.bio_data else prop.category }}</td>
+          <td>{{ prop.get("asset_count", "—") }}</td>
+          <td><span class="badge badge-pending">{{ prop.get("pending_count", 0) }}</span></td>
+          <td>
+            <a href="/character/{{ prop.id }}" class="btn btn-sm">View</a>
+            <a href="/review/{{ prop.id }}?asset_type=reference&batch=true" class="btn btn-sm btn-primary">Review</a>
+            <form action="/generate" method="post" style="display:inline">
+              <input type="hidden" name="scope" value="props">
+              <input type="hidden" name="item" value="{{ prop.name }}">
+              <input type="hidden" name="count" value="4">
+              <input type="hidden" name="limit" value="1">
+              <input type="hidden" name="backend" value="mock">
+              <button type="submit" class="btn btn-sm btn-secondary">Generate</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if props_total > props_rows | length %}
+      <p class="gen-hint">
+        {{ props_total - (props_rows | length) }} more props not listed —
+        use a category's <em>Browse</em> button above to narrow the list.
+      </p>
+    {% endif %}
+  {% else %}
+    <p class="empty-state">No props match this filter.</p>
+  {% endif %}
 {% else %}
   <p class="empty-state">No assets in the library yet.</p>
 {% endif %}

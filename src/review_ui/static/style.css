@@ -713,6 +713,39 @@ h2 { font-size: 1.2rem; margin: 0 0 0.5rem; }
     border-color: var(--blue-dark);
 }
 
+/* Asset-type tabs on the review page (phase-scoped library tabs) */
+.asset-type-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    border-bottom: 2px solid var(--border);
+}
+
+.asset-type-tabs .tab {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+}
+
+.asset-type-tabs .tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-card);
+}
+
+.asset-type-tabs .tab-active {
+    color: var(--text-primary);
+    font-weight: 600;
+    background: var(--bg-card);
+    border-color: var(--border);
+    border-bottom: 2px solid var(--bg-card);
+    margin-bottom: -2px;
+}
+
 /* -------------------------------------------------------------------
    Empty states
    ------------------------------------------------------------------- */

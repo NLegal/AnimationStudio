@@ -21,6 +21,18 @@
       </a>
     {% endif %}
   </div>
+
+  <!-- ============================================================ -->
+  <!--  ASSET-TYPE TABS  (phase-scoped library tabs)                -->
+  <!-- ============================================================ -->
+  <div class="asset-type-tabs">
+    {% for atype in asset_types %}
+      <a href="/review/{{ rec.id }}?asset_type={{ atype }}&batch={{ 'true' if batch_mode else 'false' }}&grid={{ current_grid }}"
+         class="tab {% if atype == asset_type %}tab-active{% endif %}">
+        {{ asset_type_label(atype) | title }}
+      </a>
+    {% endfor %}
+  </div>
 </div>
 
 {% if batch_mode %}

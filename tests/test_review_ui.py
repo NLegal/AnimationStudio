@@ -155,3 +155,73 @@ class TestReviewGridSizes:
             "Batch cards should NOT appear in single-view mode"
         # Should contain candidate cards in single-review mode
         assert 'candidate-card' in response.text or 'empty-state' in response.text
+
+
+# ---------------------------------------------------------------------------
+#  Asset-type tabs on the review page (phase-scoped library tabs)
+# ---------------------------------------------------------------------------
+
+
+class TestReviewAssetTypeTabs:
+    """Review pages expose phase-scoped asset-type tabs (Phase 3 parity)."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        self.client = client
+
+    def test_tabs_rendered_on_review_page(self):
+        """The review page renders an asset-type tab strip."""
+        response = self.client.get("/review/lily-001?asset_type=expression")
+        assert response.status_code == 200
+        assert 'asset-type-tabs' in response.text
+
+    def test_character_tabs_are_phase1_types(self):
+        """Character review pages show character library tabs."""
+        body = self.client.get("/review/lily-001").text
+        for label in ("Expressions", "Poses", "Outfits"):
+            assert label in body, f"missing character tab: {label}"
+
+    def test_prop_tabs_are_phase3_types(self):
+        """Prop review pages show the five Phase 3 asset-type tabs."""
+        from src.review_ui.app import _StubAssetRepo
+        repo = _StubAssetRepo()
+        repo._characters["ball-001"] = {
+            "id": "ball-001",
+            "name": "Bouncy Ball",
+            "category": "asset",
+        }
+        app = create_app(asset_repo=repo)
+        client = TestClient(app)
+        body = client.get("/review/ball-001").text
+        assert 'asset-type-tabs' in body
+        for label in ("References", "Views", "Materials", "Colors", "Lighting"):
+            assert label in body, f"missing prop tab: {label}"
+
+    def test_default_asset_type_follows_entity_category(self):
+        """Without ?asset_type= the page defaults to the entity's primary type."""
+        from src.review_ui.app import _StubAssetRepo
+        repo = _StubAssetRepo()
+        repo._characters["ball-001"] = {
+            "id": "ball-001",
+            "name": "Bouncy Ball",
+            "category": "asset",
+        }
+        app = create_app(asset_repo=repo)
+        client = TestClient(app)
+        body = client.get("/review/ball-001").text
+        # Props default to reference review, not expression.
+        assert "Review: Bouncy Ball &mdash; references" in body
+
+    def test_unknown_asset_type_falls_back_to_primary(self):
+        """An invalid asset_type falls back to the entity's primary type."""
+        from src.review_ui.app import _StubAssetRepo
+        repo = _StubAssetRepo()
+        repo._characters["ball-001"] = {
+            "id": "ball-001",
+            "name": "Bouncy Ball",
+            "category": "asset",
+        }
+        app = create_app(asset_repo=repo)
+        client = TestClient(app)
+        body = client.get("/review/ball-001?asset_type=expression").text
+        assert "Review: Bouncy Ball &mdash; references" in body

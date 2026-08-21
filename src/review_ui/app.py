@@ -172,6 +172,7 @@ _env = jinja2.Environment(
 )
 _env.globals["field"] = _template_field
 _env.globals["asset_type_label"] = lambda t: ASSET_TYPE_LABELS.get(t, t.replace("_", " ") + "s")
+_env.globals["asset_types_for"] = _asset_types_for
 templates = Jinja2Templates(env=_env)
 
 
@@ -600,7 +601,11 @@ def create_app(
     # ------------------------------------------------------------------ #
 
     @app.get("/", response_class=HTMLResponse)
-    async def dashboard(request: Request):
+    async def dashboard(
+        request: Request,
+        props_category: str = Query("", description="Filter the prop library table by category"),
+        props_limit: int = Query(50, ge=1, le=500, description="Max prop rows to render"),
+    ):
         """Dashboard: phase overview cards, review queue, live jobs + log."""
         await _maybe_seed()
         all_rows = _dashboard_rows("all")
@@ -618,6 +623,20 @@ def create_app(
             entry["count"] += 1
             entry["pending"] += p["pending_count"]
         prop_categories = sorted(prop_categories.values(), key=lambda e: -e["count"])
+
+        # Phase 3 entity browser — per-prop rows with View/Review/Generate,
+        # filterable by category (the library holds 1,500+ props, so the
+        # table is capped at ``props_limit`` rows).
+        cat_filter = (props_category or "").strip()
+        if cat_filter:
+            props_rows = [
+                p for p in props
+                if (p.get("bio_data", {}).get("category", "") or "Uncategorized") == cat_filter
+            ]
+        else:
+            props_rows = list(props)
+        props_total = len(props_rows)
+        props_rows = props_rows[:props_limit]
 
         jobs = [
             {
@@ -639,6 +658,10 @@ def create_app(
                 "characters": characters,
                 "environments": envs,
                 "prop_categories": prop_categories,
+                "props_rows": props_rows,
+                "props_total": props_total,
+                "props_limit": props_limit,
+                "props_category": cat_filter,
                 "jobs": jobs,
                 "logs": list(_LOG_BUFFER)[-50:],
                 "overview": _overview_stats(),
@@ -738,7 +761,7 @@ def create_app(
     async def review_page(
         character_id: str,
         request: Request,
-        asset_type: str = Query("expression"),
+        asset_type: str = Query(""),
         batch: bool = Query(False),
         grid: str = Query("2x2"),
     ):
@@ -748,6 +771,15 @@ def create_app(
             return HTMLResponse("Character not found", status_code=404)
 
         rec = _record_dict(character)
+
+        # Phase-scoped asset-type tabs (characters/world/props each get
+        # their own library tabs on the review page).
+        entity_asset_types = _asset_types_for(rec["category"])
+
+        # Default to the entity's primary asset type (expression for
+        # characters, environment for worlds, reference for props).
+        if not asset_type or asset_type not in entity_asset_types:
+            asset_type = entity_asset_types[0]
 
         # Approved reference (used as left-panel comparison)
         approved = repo.find_approved(character_id, asset_type)
@@ -789,7 +821,7 @@ def create_app(
                 "grid_rows": grid_rows,
                 "grid_capacity": grid_capacity,
                 "current_grid": grid,
-                "asset_types": ALL_ASSET_TYPES,
+                "asset_types": entity_asset_types,
             },
         )
 
