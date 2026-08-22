@@ -69,7 +69,7 @@ Task IDs below are the anticipated mapping (Phase 8 has two plans, sequential). 
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Live ACE-Step song generation end-to-end via CLI batch mode (`--generate --backend ace-step --category Bedtime`) produces audible WAV + manifest entry | ROADMAP Phase 8 goal | Requires local ACE-Step Studio service + GPU; CI stays offline | Start ACE-Step locally (`localhost:8001`), set `ACESTEP_API_KEY`, run `python3 scripts/generate_phase5.py --generate --backend ace-step --category Bedtime --topic "sleepy moon"`; confirm WAV under `Audio/Music/Bedtime/` plays and manifest.json gains one entry; extend Audio/Music/README.md live-smoke checklist with this command |
+| Live ACE-Step song generation end-to-end via CLI batch mode (`--generate --backend ace-step --category Bedtime`) produces audible WAV + manifest entry | ROADMAP Phase 8 goal | Requires local ACE-Step Studio service + GPU; CI stays offline | Start ACE-Step locally (`localhost:8001`), set `ACESTEP_API_KEY`, run `python3 scripts/generate_phase5.py --generate --backend ace-step --category Bedtime --topic "sleepy moon"`; confirm the flat-layout file `Audio/Music/bedtime-sleepy-moon-<seed>.wav` plays and manifest.json gains one entry (file layout per RESEARCH D1 / plan 08-01); extend Audio/Music/README.md live-smoke checklist with this command |
 
 ---
 
