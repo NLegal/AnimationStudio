@@ -17,7 +17,7 @@ External LOCAL service at `ACESTEP_BASE_URL` (default `http://localhost:8001`). 
 | orchestrate.generate (client submit→poll→download loop w/ backoff) | INTEGRATE | Default protocol method; convenience for Phase 8 wiring |
 | seed.control (request `seed` field passthrough) | INTEGRATE | Determinism hook required by validation strategy |
 | model.selection (`acestep-v15-turbo` \| `acestep-v15-sft`) | INTEGRATE | Explicit request field in locked contract |
-| negative.prompt (best-effort passthrough where accepted) | INTEGRATE | `AUDIO_NEGATIVE_BASE` + `category_negative()` from bible standards |
+| negative.prompt | OPT-OUT | not a field in the locked REST contract §2 body-field list; `music_negative_prompt()` helper (AUDIO_NEGATIVE_BASE + category negatives from bible standards) retained as documented future-use for Phase 8 / if the API ever adds such a field |
 | error.surface (connection/401/failed/malformed mapping) | INTEGRATE | Typed exception map: BackendUnavailable / NotConfigured / GenerationFailed |
 
 ## Surface 2: Suno (secondary platform — same need, full baseline re-decided)
