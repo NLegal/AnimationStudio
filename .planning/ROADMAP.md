@@ -184,8 +184,12 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 07-01-PLAN.md — Core layer tracer: package scaffold, Pydantic models, MusicGenerationBackend protocol + typed exception taxonomy, category→params mapping (locked research table), stdlib transport seam, deterministic MockBackend, offline test suite
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 07-02-PLAN.md — AceStepBackend REST adapter (fake-transport contract suite), Suno stub + experimental wrapper, get_backend registry with MUSIC_BACKEND env resolution, scripts/generate_phase7.py CLI (--dry-run zero-network), Audio/Music README + manual live-smoke checklist
 
 ### Phase 8: Music Generation Pipeline Wiring
