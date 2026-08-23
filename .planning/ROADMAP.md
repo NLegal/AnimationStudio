@@ -86,7 +86,14 @@ Plans:
   3. LoRA versioning system matches software release conventions (v0.1 → v1.0 → v2.0)
   4. LoRA quality benchmark compares generated images against identity scorer baseline
 
-**Plans**: TBD
+**Plans**: 6 plans
+Plans:
+- [ ] 01c-01-PLAN.md — Dataset curation & builder completion (.txt sidecars, schema-valid TOML, 20–40 bounds, find_curated two-state query)
+- [ ] 01c-02-PLAN.md — Benchmark ↔ identity-engine bridge (D-06 plugin weights, threshold 0.90, coverage-honest gate, IdentityScorerProvider)
+- [ ] 01c-03-PLAN.md — KohyaAdapter Flux contract + first-class dry-run mode
+- [ ] 01c-04-PLAN.md — Version persistence (sidecar JSON store) + promote()
+- [ ] 01c-05-PLAN.md — scripts/train_lora.py offline orchestrator (--dry-run enforced, curate/build/train/benchmark/versions)
+- [ ] 01c-06-PLAN.md — Colab training notebook (Phase 4 pattern) + operator docs
 
 ### Phase 2: World Building & Environment Bible
 
