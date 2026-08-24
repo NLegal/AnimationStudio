@@ -1,7 +1,7 @@
 ---
 phase: 1
 slug: character-universe
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-24
