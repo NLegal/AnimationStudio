@@ -29,9 +29,21 @@ created: 2026-08-24
 | Icon library | none — Unicode glyph prefixes on action buttons (✓ ▲ ✗ ⟳), matching shipped templates |
 | Font | System UI stack: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`; monospace stack for prompts/seeds/model IDs |
 
-All tokens below are **extracted from the already-implemented stylesheet** (`style.css` `:root`,
-lines 10–32). This contract codifies the established language — downstream phases extend it,
-they do not fork it.
+All tokens below are the **canonical target grid**, derived from — not copied verbatim out of —
+the already-implemented stylesheet (`style.css` `:root`, lines 10–32). The shipped CSS contains
+legacy values that fall off this grid (**13 distinct font sizes**, **11× `font-weight: 700`**,
+and multiple off-scale spacing values). Legacy values are tolerated until touched, then converge
+onto the target grid per the **Legacy normalization** tables in `## Spacing Scale` and
+`## Typography`. New rules MUST use target tokens only. Downstream phases extend the target
+grid, they do not fork it.
+
+### Visual hierarchy
+
+Primary review screen focal point: the **candidate/reference imagery pair is the primary
+anchor** — the side-by-side images own visual center stage and receive first fixation. The
+**Brand Score value (Display 24px/600) is the secondary anchor**, read immediately after the
+imagery comparison. Everything else (sub-score bars, metadata panel, action bar) is tertiary:
+no element may compete with the imagery or Brand Score via larger size or heavier weight.
 
 ---
 
@@ -53,11 +65,40 @@ Exceptions: a single half-step of **12px is sanctioned** for form-field gaps and
 (`0.75rem` — used by `.gen-form`, `.action-bar`, `.btn`). It is a multiple of 4 and matches the
 shipped stylesheet; do not introduce any other off-scale value.
 
+### Legacy normalization (spacing)
+
+The shipped stylesheet is **not** fully on this grid: `style.css` contains off-scale spacing
+values (2px, 0.1rem, 0.15rem, 0.2rem, 0.3rem, 0.35rem, 0.4rem, 0.6rem, 0.9rem, 1.1rem,
+1.25rem). These are tolerated legacy, not sanctioned tokens — the table below is the target
+grid, and shipped values converge at next touch:
+
+| Shipped value | px equivalent | Converges to |
+|---------------|---------------|--------------|
+| 2px | 2px | exempt — border/tab-underline width (`border-bottom: 2px`), structural detail, not layout spacing |
+| 0.1rem | 1.6px | xs 4px |
+| 0.15rem | 2.4px | xs 4px |
+| 0.2rem | 3.2px | xs 4px |
+| 0.3rem | 4.8px | xs 4px |
+| 0.35rem | 5.6px | xs 4px |
+| 0.4rem | 6.4px | sm 8px |
+| 0.6rem | 9.6px | sm 8px |
+| 0.9rem | 14.4px | md 16px |
+| 1.1rem | 17.6px | md 16px |
+| 1.25rem | 20px | md 16px |
+
+Already on-grid in shipped CSS (no action): `0.25rem`=xs, `0.5rem`=sm, `0.75rem`=sanctioned
+12px, `1rem`=md, `1.5rem`=lg, `2rem`=xl.
+
+Convergence rule: any spacing rule touched by this phase snaps to its nearest token from the
+table above; untouched rules may keep legacy values. New rules MUST use scale tokens plus the
+sanctioned 12px half-step only.
+
 ---
 
 ## Typography
 
-Exactly 4 sizes, exactly 2 weights:
+Exactly 4 sizes, exactly 2 weights — this is the **canonical target**, not a verbatim
+description of shipped CSS (which uses 13 distinct sizes; see Legacy normalization below):
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
@@ -66,17 +107,38 @@ Exactly 4 sizes, exactly 2 weights:
 | Heading | 20px | 600 | 1.2 |
 | Display | 24px | 600 | 1.2 |
 
-Rules (all sourced from existing implementation):
+Rules:
 - **Label** (12px/600): uppercase micro-labels (`.gen-field label`, table `th`, `.asset-state`),
   sub-score bar labels/values, badges.
 - **Body** (14px/400): all default text, buttons, inputs, toasts. Base `font-size: 14px` on
-  `body` with `line-height: 1.5`.
+  `body` with `line-height: 1.5` (already shipped).
 - **Heading** (20px/600): section headings (`h2`) — e.g. "Reference", "Candidates (N)".
 - **Display** (24px/600): page titles (`h1`) and the Brand Score value.
-- Weight discipline: regular (400) + semibold (600) ONLY. Legacy `font-weight: 700`
-  (navbar brand, Brand Score label/value) normalizes to 600 at next touch — no new 700s.
+- Weight discipline: regular (400) + semibold (600) ONLY — see Legacy normalization for the
+  shipped 700/bold convergence.
 - Prompts, seeds, model IDs, and file paths render in the monospace stack at 14px body size
   (`.prompt-text`, `.metadata-panel code`) with `word-break: break-word`.
+
+### Legacy normalization (typography)
+
+`style.css` ships **13 distinct font sizes** (14px plus 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1,
+1.1, 1.2, 1.3, 1.5, 1.6 rem) and **11× `font-weight: 700`** (+1 `bold`). These are tolerated
+legacy, not sanctioned roles. Convergence mapping — any typography rule touched by this phase
+snaps to its nearest target role:
+
+| Shipped size | px equivalent | Nearest target role |
+|--------------|---------------|---------------------|
+| 0.7–0.8rem | ≈11–13px | Label 12px |
+| 0.85–0.95rem | ≈14–15px | Body 14px |
+| 1–1.1rem | ≈16–18px | Body 14px |
+| 1.2–1.3rem | ≈19–21px | Heading 20px |
+| 1.5–1.6rem | ≈24–26px | Display 24px |
+
+Weights: ALL remaining `font-weight: 700`/`bold` instances normalize to 600 at next touch — no
+new 700s anywhere. Full shipped inventory: `.navbar-brand a`, `.brand-score-label`,
+`.brand-score-value`, `.nav-active`, `.nav-badge`, `.ov-label`, `.ov-value`, `.queue-entity`,
+`.asset-score`, `.level-int`, `.motion-framerate` (700), `.log-level` (`bold`). New rules MUST
+declare only 400 or 600.
 
 ---
 
@@ -94,7 +156,7 @@ blue/yellow/pink/green/orange — source: 01-CONTEXT.md Specifics). Values below
 | Destructive | `#f8c8d8` fill / `#e89ab0` border / `#7a4a4a` text (`--pink` family) | Reject action, failed badges, error toasts, critical drift warnings — destructive/error semantics ONLY |
 
 **Accent reserved for (exhaustive list):**
-1. Primary CTA buttons (`.btn-primary` — "Generate", "Build Prompt")
+1. Primary CTA buttons (`.btn-primary` — "Generate Candidates", "Build Prompt")
 2. Active navigation/tab/batch-grid indicators (`.btn-active`, `.tab-active`)
 3. Sub-score bar fills (`.score-bar-fill` blue gradient)
 4. Inline links (`a`)
@@ -118,16 +180,18 @@ Score color coding: `≥ threshold-good` → green-dark, mid band → orange-dar
 ## Copywriting Contract
 
 Tone: terse internal-tool imperative. Sentence case. Glyph prefix + verb on lifecycle buttons.
-Existing shipped strings are canonical — new screens reuse these patterns verbatim.
+Existing shipped strings are canonical except where this contract explicitly renames them
+(Primary CTA, Error fallback) — new screens reuse these patterns verbatim.
 
 | Element | Copy |
 |---------|------|
-| Primary CTA | "Generate" (dashboard generation panel; the section heading "Generate Assets" carries the noun — source: shipped `dashboard.html`) |
+| Primary CTA | "Generate Candidates" (dashboard generation panel — verb + explicit noun; renames shipped bare "Generate", whose section heading alone carried the noun — source: shipped `dashboard.html`) |
 | Review primary action | "✓ Approve" |
 | Review secondary actions | "▲ Approve & Promote" · "⟳ Regenerate Similar" · "✗ Reject" · "Needs Refinement" (reason input + state transition, per D-17) |
+| Batch compare entry | "Compare" — sixth D-17 lifecycle action; enters multi-candidate batch comparison (2×2/3×3/4×4 grid selection) |
 | Empty state heading | "No candidates awaiting review." (review queue card) · "No characters yet." (character roster) |
 | Empty state body | Queue: "Run a generation job for this asset type, then return here." Roster: "Use the Generate panel or seed the catalog." (source: shipped `dashboard.html`) — rendered in the dashed-border `.empty-state` card, italic muted |
-| Error state | Toast, negative variant: "Network error — action not applied" (offline/request failure) or the server-provided message; fallback when neither exists: "Action failed". Problem is stated, recovery is implicit re-click of the same action (source: shipped `studio.js`) |
+| Error state | Toast, negative variant: "Network error — action not applied" (offline/request failure) or the server-provided message; fallback when neither exists: **"Action failed — nothing was changed. Retry or reload."** Problem stated + state clarified + explicit recovery path (replaces shipped bare "Action failed") (source: shipped `studio.js`) |
 | Success feedback | Server-provided confirmation message in a positive toast, e.g. "Candidate approved" |
 | Destructive confirmation | "✗ Reject": NO modal dialog — inline reason input beside the action labeled "Reason (optional)" (source: shipped `review.html`); rejection applies immediately, writes to the review history/audit trail, and the asset stays in job workspace per D-16. Same lightweight pattern for Regenerate Similar (spends generation budget — success toast confirms dispatch) |
 
