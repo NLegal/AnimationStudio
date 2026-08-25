@@ -10,6 +10,7 @@ no audio hardware (fake transports and monkeypatched seams only).
 
 import io
 import json
+import logging
 import os
 import socket
 import struct
@@ -34,6 +35,8 @@ from src.music_generation import (
     MusicResult,
     MusicStatus,
     NotConfigured,
+    SunoBackend,
+    SunoWrapperBackend,
     get_backend,
 )
 from src.music_generation import backends as mg_backends
@@ -531,15 +534,18 @@ class _RecordingTransport:
 
     Script entries may be: plain values (returned), Exception instances
     (raised), or zero-arg callables (invoked for dynamic responses).
+    When the script is exhausted, ``default`` (if provided) is replayed
+    forever — useful for never-completing job scripts.
     Mirrors the pinned DEFAULT_TRANSPORT surface exactly:
     post_json(url, payload, headers=..., timeout=...),
     get_json(url, headers=..., timeout=...),
     get_bytes(url, headers=..., timeout=...).
     """
 
-    def __init__(self, *responses):
+    def __init__(self, *responses, default=None):
         self.calls: list[_TransportCall] = []
         self._script = list(responses)
+        self._default = default
 
     def _replay(self, method, url, headers, payload, timeout):
         self.calls.append(_TransportCall(
@@ -547,7 +553,14 @@ class _RecordingTransport:
             headers={k.lower(): v for k, v in dict(headers or {}).items()},
             payload=payload, timeout=timeout,
         ))
-        item = self._script.pop(0)
+        if self._script:
+            item = self._script.pop(0)
+        elif self._default is not None:
+            item = self._default
+        else:
+            raise AssertionError(
+                f"scripted transport exhausted; unexpected {method} {url}"
+            )
         if isinstance(item, Exception):
             raise item
         if callable(item):
@@ -855,3 +868,279 @@ class TestAceStepAdapter:
         assert isinstance(ace, AceStepBackend)
         mock = get_backend("mock")
         assert isinstance(mock, MockBackend)
+
+
+class TestErrorMapping:
+    """07-02-02: the LOCKED RESEARCH §2 error map through the real adapter."""
+
+    def _backend(self, transport):
+        return AceStepBackend(api_key="k-error-tests", transport=transport)
+
+    # -- submit-time failures ------------------------------------------------
+
+    def test_url_error_on_submit_maps_to_backend_unavailable(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        backend = self._backend(_RecordingTransport(
+            urllib.error.URLError("connection refused")))
+        with pytest.raises(BackendUnavailable):
+            backend.generate(MusicRequest(category="Bedtime", seed=1))
+
+    def test_http_401_on_submit_maps_to_not_configured(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        backend = self._backend(_RecordingTransport(
+            urllib.error.HTTPError("http://x", 401, "Unauthorized",
+                                   {}, io.BytesIO(b"{}"))))
+        with pytest.raises(NotConfigured):
+            backend.submit(MusicRequest(category="Bedtime", seed=1))
+
+    def test_http_403_on_submit_maps_to_not_configured(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        backend = self._backend(_RecordingTransport(
+            urllib.error.HTTPError("http://x", 403, "Forbidden",
+                                   {}, io.BytesIO(b"{}"))))
+        with pytest.raises(NotConfigured):
+            backend.submit(MusicRequest(category="Bedtime", seed=1))
+
+    @pytest.mark.parametrize("bad_response", [
+        "totally-not-json",          # non-object body
+        {"nope": 1},                 # JSON object missing job_id
+        {"job_id": ""},              # empty job_id
+        {"job_id": None},            # null job_id
+    ])
+    def test_malformed_submit_response_maps_to_generation_failed(
+            self, monkeypatch, bad_response):
+        _clean_music_env(monkeypatch)
+        backend = self._backend(_RecordingTransport(bad_response))
+        with pytest.raises(GenerationFailed, match="[Mm]alformed"):
+            backend.submit(MusicRequest(category="Bedtime", seed=1))
+
+    # -- poll-time failures ----------------------------------------------------
+
+    def test_failed_status_poll_carries_error_and_generate_raises(
+            self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
+        backend = self._backend(_RecordingTransport(
+            {"job_id": "j-fail"},
+            {"status": "failed", "progress": 0.4, "error": "model exploded"},
+        ))
+        status = backend.poll("j-fail")
+        assert status.state == "failed"
+        assert status.error == "model exploded"
+
+    def test_failed_terminal_via_generate_includes_server_text(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        backend = self._backend(_RecordingTransport(
+            {"job_id": "j-f2"},
+            {"status": "failed", "error": "GPU OOM"},
+        ))
+        with pytest.raises(GenerationFailed, match="GPU OOM"):
+            backend.generate(MusicRequest(category="Bedtime", seed=1))
+
+    def test_unknown_status_string_maps_to_generation_failed(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        backend = self._backend(_RecordingTransport({"status": "weird"}))
+        with pytest.raises(GenerationFailed, match="unknown status"):
+            backend.poll("j-x")
+
+    def test_non_dict_poll_body_maps_to_generation_failed(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        backend = self._backend(_RecordingTransport("[1, 2]"))
+        with pytest.raises(GenerationFailed, match="[Mm]alformed"):
+            backend.poll("j-y")
+
+    def test_connection_drop_mid_poll_maps_to_backend_unavailable(
+            self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        backend = self._backend(_RecordingTransport(
+            {"job_id": "j-drop"},
+            {"status": "pending"},
+            urllib.error.URLError("connection reset mid-poll"),
+        ))
+        job_id = backend.submit(MusicRequest(category="Bedtime", seed=1))
+        assert backend.poll(job_id).state == "pending"
+        with pytest.raises(BackendUnavailable):
+            backend.poll(job_id)
+
+        # Same drop surfacing through the full generate() loop.
+        backend = self._backend(_RecordingTransport(
+            {"job_id": "j-drop2"},
+            {"status": "running", "progress": 0.5},
+            urllib.error.URLError("connection reset"),
+        ))
+        with pytest.raises(BackendUnavailable):
+            backend.generate(MusicRequest(category="Bedtime", seed=1))
+
+    def test_deadline_expiry_names_job_id_and_elapsed(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
+        clock_values = iter([100.0, 999.0])   # start, then past the deadline
+        monkeypatch.setattr(mg_backends, "_monotonic",
+                            lambda: next(clock_values))
+
+        backend = self._backend(_RecordingTransport(
+            {"job_id": "j-slow"}, default={"status": "pending"}))
+
+        with pytest.raises(GenerationFailed) as excinfo:
+            backend.generate(MusicRequest(category="Bedtime", seed=1))
+        message = str(excinfo.value)
+        assert "j-slow" in message             # job id named
+        assert "300.0" in message              # timeout budget named
+        assert "899.0" in message              # elapsed time named
+
+    # -- registry environment resolution ---------------------------------------
+
+    def test_get_backend_honors_music_backend_env(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        monkeypatch.setenv("MUSIC_BACKEND", "suno")
+        assert isinstance(get_backend(None), SunoBackend)
+
+        monkeypatch.setenv("MUSIC_BACKEND", "ace-step")
+        assert isinstance(get_backend(), AceStepBackend)
+
+        monkeypatch.setenv("MUSIC_BACKEND", "mock")
+        assert isinstance(get_backend(), MockBackend)
+
+    def test_get_backend_defaults_to_mock_without_env(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        assert isinstance(get_backend(None), MockBackend)
+
+    def test_unknown_name_raises_listing_valid_choices(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        with pytest.raises(MusicBackendError) as excinfo:
+            get_backend("nope")
+        message = str(excinfo.value)
+        for choice in ("ace-step", "suno", "mock"):
+            assert choice in message
+
+    # -- secret hygiene (threat T7-02-I) ----------------------------------------
+
+    def test_token_never_leaks(self, monkeypatch, caplog):
+        """Run the whole matrix; the dummy key appears nowhere."""
+        _clean_music_env(monkeypatch)
+        token = "super-secret-token-42"
+
+        scenarios = [
+            lambda: _RecordingTransport(urllib.error.URLError("down")),
+            lambda: _RecordingTransport(urllib.error.HTTPError(
+                "http://x", 401, "Unauthorized", {}, io.BytesIO(b"{}"))),
+            lambda: _RecordingTransport(urllib.error.HTTPError(
+                "http://x", 403, "Forbidden", {}, io.BytesIO(b"{}"))),
+            lambda: _RecordingTransport(urllib.error.HTTPError(
+                "http://x", 500, "Server Error", {}, io.BytesIO(b"{}"))),
+            lambda: _RecordingTransport("not-a-dict"),
+            lambda: _RecordingTransport({"missing": "job_id"}),
+            lambda: _RecordingTransport(
+                {"job_id": "j"},
+                {"status": "failed", "error": "boom"},
+            ),
+            lambda: _RecordingTransport(
+                {"job_id": "j"},
+                urllib.error.URLError("reset"),
+            ),
+            lambda: _RecordingTransport(
+                urllib.error.HTTPError("http://x", 401, "Unauthorized",
+                                       {}, io.BytesIO(b"{}")),
+            ),   # health probe rejection path
+        ]
+
+        with caplog.at_level(logging.DEBUG):
+            for make_transport in scenarios:
+                request = MusicRequest(category="Bedtime", seed=3)
+                backend = AceStepBackend(api_key=token,
+                                         transport=make_transport())
+                try:
+                    backend.is_configured()
+                except MusicBackendError as exc:
+                    assert token not in repr(exc), "probe leaked token"
+                try:
+                    backend.generate(request)
+                except MusicBackendError as exc:
+                    assert token not in repr(exc), \
+                        f"{type(exc).__name__} leaked token: {exc}"
+
+        for record in caplog.records:
+            assert token not in record.getMessage(), \
+                f"log record leaked token: {record.getMessage()}"
+
+
+class TestSunoStub:
+    """07-02-03: Suno refusal stub + experimental wrapper + registry invariant."""
+
+    LOCKED_CITATION = (
+        "Suno has no official public API (as of Aug 2026); "
+        "see .planning/research/MUSIC-GENERATION.md"
+    )
+    WRAPPER_SUFFIX = "(experimental third-party relay — disabled by default)"
+
+    def test_suno_is_configured_constant_false(self):
+        assert SunoBackend().is_configured() is False
+        assert SunoWrapperBackend().is_configured() is False
+
+    def test_every_entry_point_refuses_with_locked_message(self):
+        backend = SunoBackend()
+        request = MusicRequest(category="Bedtime", seed=1)
+
+        with pytest.raises(NotConfigured) as excinfo:
+            backend.submit(request)
+        assert self.LOCKED_CITATION in str(excinfo.value)
+
+        with pytest.raises(NotConfigured) as excinfo:
+            backend.poll("j-1")
+        assert self.LOCKED_CITATION in str(excinfo.value)
+
+        with pytest.raises(NotConfigured) as excinfo:
+            backend.download("j-1")
+        assert self.LOCKED_CITATION in str(excinfo.value)
+
+        with pytest.raises(NotConfigured) as excinfo:
+            backend.generate(request)          # refuses WITHOUT building requests
+        assert self.LOCKED_CITATION in str(excinfo.value)
+
+    def test_wrapper_flagged_experimental_with_suffix(self):
+        wrapper = SunoWrapperBackend()
+        assert SunoWrapperBackend.EXPERIMENTAL is True
+        assert "experimental" in SunoWrapperBackend.__doc__.lower()
+
+        request = MusicRequest(category="Bedtime", seed=1)
+        for call in (
+            lambda: wrapper.submit(request),
+            lambda: wrapper.poll("j-1"),
+            lambda: wrapper.download("j-1"),
+            lambda: wrapper.generate(request),
+        ):
+            with pytest.raises(NotConfigured) as excinfo:
+                call()
+            message = str(excinfo.value)
+            assert self.LOCKED_CITATION in message
+            assert self.WRAPPER_SUFFIX in message
+
+    def test_registry_never_resolves_wrapper(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        resolved = get_backend("suno")
+        assert isinstance(resolved, SunoBackend)
+        assert not isinstance(resolved, SunoWrapperBackend)
+
+        for bad_name in ("sunowrapper", "SunoWrapperBackend", "wrapper"):
+            with pytest.raises(MusicBackendError):
+                get_backend(bad_name)
+
+        monkeypatch.setenv("MUSIC_BACKEND", "suno")
+        resolved = get_backend(None)
+        assert isinstance(resolved, SunoBackend)
+        assert not isinstance(resolved, SunoWrapperBackend)
+
+    def test_protocol_conformance_without_inheritance_from_protocol(self):
+        for cls in (SunoBackend, SunoWrapperBackend):
+            assert issubclass(cls, object)      # plain classes
+            assert MusicGenerationBackend not in cls.__mro__
+            assert isinstance(cls(), MusicGenerationBackend)
+
+    def test_suno_module_contains_no_http_code(self):
+        """Constraint C3/C4: nothing to connect to — no HTTP imports at all."""
+        import pathlib
+        import src.music_generation.suno as suno_module
+        source = pathlib.Path(suno_module.__file__).read_text(encoding="utf-8")
+        for forbidden in ("import requests", "urllib", "http.client",
+                          "socket", "_post_json", "_get_json", "_get_bytes"):
+            assert forbidden not in source
