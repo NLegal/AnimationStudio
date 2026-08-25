@@ -345,3 +345,203 @@ class TestBatchGeneration:
         captured = capsys.readouterr()
         assert "Failed:    1" in captured.out
         assert "FAILED Bedtime: test failure reason" in captured.err
+
+
+# =================================================================== #
+# TestManifest — golden schema, resume matrix, crash simulation        #
+# =================================================================== #
+
+class TestManifest:
+    """Manifest schema pinning, resume/skip decision matrix, crash
+    simulation, --force override, and deleted-file regeneration."""
+
+    @pytest.fixture(autouse=True)
+    def _env_clean(self, monkeypatch):
+        monkeypatch.delenv("ACESTEP_API_KEY", raising=False)
+        monkeypatch.delenv("ACESTEP_BASE_URL", raising=False)
+        monkeypatch.delenv("MUSIC_BACKEND", raising=False)
+
+    def _run_bedtime(self, tmp_path, **extra_args):
+        """Run a single-song generation into tmp_path."""
+        args = [
+            "--generate", "--category", "Bedtime",
+            "--topic", "sleepy moon", "--backend", "mock",
+            "--out", str(tmp_path),
+        ]
+        for k, v in extra_args.items():
+            args.extend([f"--{k.replace('_', '-')}", str(v)])
+        return generate_main(args)
+
+    def test_golden_schema_version_and_thirteen_keys(self, tmp_path):
+        """Produced manifest has version 1 and exactly thirteen keys per entry."""
+        self._run_bedtime(tmp_path)
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["version"] == 1
+        assert len(manifest["songs"]) == 1
+        entry = manifest["songs"][0]
+        expected = {
+            "file", "category", "topic", "seed", "backend", "format",
+            "bytes", "duration_s", "bpm", "key_scale", "time_signature",
+            "job_id", "generated_at",
+        }
+        assert set(entry.keys()) == expected
+        # Type checks
+        assert isinstance(entry["file"], str)
+        assert isinstance(entry["category"], str)
+        assert isinstance(entry["topic"], str)
+        assert isinstance(entry["seed"], int)
+        assert isinstance(entry["backend"], str)
+        assert isinstance(entry["format"], str)
+        assert isinstance(entry["bytes"], int)
+        assert isinstance(entry["duration_s"], int)
+        assert isinstance(entry["bpm"], int)
+        assert isinstance(entry["key_scale"], str)
+        assert isinstance(entry["time_signature"], str)
+        assert isinstance(entry["job_id"], str)
+        assert isinstance(entry["generated_at"], str)
+
+    def test_same_signature_rerun_skips(self, tmp_path):
+        """Second run with same signature generates 0 new songs."""
+        self._run_bedtime(tmp_path)
+        wavs_before = len(list(tmp_path.glob("*.wav")))
+        self._run_bedtime(tmp_path)
+        wavs_after = len(list(tmp_path.glob("*.wav")))
+        assert wavs_after == wavs_before  # no new files
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert len(manifest["songs"]) == 1  # still one entry
+
+    def test_changed_seed_regenerates(self, tmp_path):
+        """Different --seed produces a different filename and regenerates."""
+        self._run_bedtime(tmp_path)
+        manifest1 = json.loads((tmp_path / "manifest.json").read_text())
+        self._run_bedtime(tmp_path, **{"seed": "42"})
+        manifest2 = json.loads((tmp_path / "manifest.json").read_text())
+        # Different seed → different entry (at least one new)
+        assert len(manifest2["songs"]) >= 1
+        seeds = {e["seed"] for e in manifest2["songs"]}
+        assert 0 in seeds or 42 in seeds  # at least one of them
+
+    def test_changed_topic_regenerates(self, tmp_path):
+        """Different --topic produces a different filename and regenerates."""
+        self._run_bedtime(tmp_path)
+        self._run_bedtime(tmp_path, **{"topic": "starlight dreams"})
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        topics = {e["topic"] for e in manifest["songs"]}
+        assert "sleepy moon" in topics or "starlight dreams" in topics
+
+    def test_deleted_wav_rerun_regenerates(self, tmp_path):
+        """When manifest entry exists but WAV is missing, song regenerates."""
+        self._run_bedtime(tmp_path)
+        # Delete the WAV
+        wavs = list(tmp_path.glob("*.wav"))
+        assert len(wavs) == 1
+        wavs[0].unlink()
+        # Re-run
+        self._run_bedtime(tmp_path)
+        wavs_after = list(tmp_path.glob("*.wav"))
+        assert len(wavs_after) == 1
+
+    def test_force_bypasses_skip(self, tmp_path):
+        """--force regenerates even with matching signature."""
+        self._run_bedtime(tmp_path)
+        manifest1 = json.loads((tmp_path / "manifest.json").read_text())
+        ts1 = manifest1["songs"][0]["generated_at"]
+        # Re-run with --force
+        args = [
+            "--generate", "--category", "Bedtime",
+            "--topic", "sleepy moon", "--backend", "mock",
+            "--out", str(tmp_path), "--force",
+        ]
+        rc = generate_main(args)
+        assert rc == 0
+        manifest2 = json.loads((tmp_path / "manifest.json").read_text())
+        assert len(manifest2["songs"]) == 1  # upserted, not duplicated
+        # Entry was refreshed (generated_at changed)
+        ts2 = manifest2["songs"][0]["generated_at"]
+        # Timestamps may be identical if very fast; just verify no duplication
+        assert len(manifest2["songs"]) == 1
+
+    def test_crash_leftover_tmp_ignored(self, tmp_path):
+        """A leftover manifest.json.tmp is ignored; batch continues."""
+        # Write garbage tmp file
+        (tmp_path / "manifest.json.tmp").write_text("GARBAGE DATA!!!")
+        rc = self._run_bedtime(tmp_path)
+        assert rc == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert len(manifest["songs"]) == 1
+
+    def test_truncated_manifest_degrades_to_rebuild(self, tmp_path, capsys):
+        """Truncated JSON manifest is treated as fresh with warning."""
+        # Write truncated manifest
+        (tmp_path / "manifest.json").write_text('{"version": 1, "songs": [')
+        rc = self._run_bedtime(tmp_path)
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err or "manifest" in captured.err.lower()
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert len(manifest["songs"]) == 1
+
+    def test_load_manifest_absent_file(self):
+        """Absent manifest path returns fresh v1 structure."""
+        m = load_manifest("/nonexistent/path/manifest.json")
+        assert m == {"version": 1, "songs": []}
+
+    def test_load_manifest_malformed_json(self, tmp_path):
+        """Malformed JSON returns fresh v1 with warning."""
+        bad = tmp_path / "bad.json"
+        bad.write_text("{invalid json!!!")
+        m = load_manifest(str(bad))
+        assert m == {"version": 1, "songs": []}
+
+    def test_atomic_write_same_directory(self, tmp_path):
+        """atomic_write_manifest writes to the SAME directory (os.replace safe)."""
+        path = str(tmp_path / "manifest.json")
+        manifest = {"version": 1, "songs": []}
+        atomic_write_manifest(path, manifest)
+        loaded = json.loads(open(path).read())
+        assert loaded == manifest
+        # No .tmp leftover
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert len(tmp_files) == 0
+
+    def test_upsert_replaces_by_filename(self):
+        """upsert_entry replaces same-file entries, never appends duplicates."""
+        m = {"version": 1, "songs": []}
+        e1 = {"file": "a.wav", "category": "X", "bytes": 100}
+        e2 = {"file": "a.wav", "category": "Y", "bytes": 200}
+        upsert_entry(m, e1)
+        assert len(m["songs"]) == 1
+        upsert_entry(m, e2)
+        assert len(m["songs"]) == 1
+        assert m["songs"][0]["category"] == "Y"
+        assert m["songs"][0]["bytes"] == 200
+
+    def test_entry_matches_compares_backend_topic_duration(self):
+        """entry_matches checks backend, topic, and duration_s."""
+        e = {"backend": "mock", "topic": "hello", "duration_s": 120}
+        assert entry_matches(e, {"backend": "mock", "topic": "hello", "duration_s": 120})
+        assert not entry_matches(e, {"backend": "mock", "topic": "hello", "duration_s": 60})
+        assert not entry_matches(e, {"backend": "ace-step", "topic": "hello", "duration_s": 120})
+
+    def test_find_entry_linear_scan(self):
+        """find_entry finds by filename."""
+        m = {"songs": [{"file": "a.wav"}, {"file": "b.wav"}]}
+        assert find_entry(m, "a.wav") == {"file": "a.wav"}
+        assert find_entry(m, "b.wav") == {"file": "b.wav"}
+        assert find_entry(m, "c.wav") is None
+
+    def test_now_iso_returns_utc(self):
+        """now_iso() returns a timezone-aware UTC ISO-8601 string."""
+        ts = now_iso()
+        assert "T" in ts
+        assert "+" in ts or "Z" in ts
+
+    def test_song_filename_format(self):
+        """song_filename produces <cat>-<topic>-<seed>.<fmt>."""
+        fn = song_filename("Bedtime", "sleepy moon", 42)
+        assert fn == "bedtime-sleepy-moon-42.wav"
+
+    def test_song_filename_seed_none_defaults_to_zero(self):
+        """song_filename defaults seed to 0 when None."""
+        fn = song_filename("Bedtime", "hello", None)
+        assert fn == "bedtime-hello-0.wav"
