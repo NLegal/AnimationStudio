@@ -921,7 +921,6 @@ class TestErrorMapping:
         _clean_music_env(monkeypatch)
         monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
         backend = self._backend(_RecordingTransport(
-            {"job_id": "j-fail"},
             {"status": "failed", "progress": 0.4, "error": "model exploded"},
         ))
         status = backend.poll("j-fail")
@@ -1020,28 +1019,29 @@ class TestErrorMapping:
         _clean_music_env(monkeypatch)
         token = "super-secret-token-42"
 
+        unauthorized = urllib.error.HTTPError(
+            "http://x", 401, "Unauthorized", {}, io.BytesIO(b"{}"))
+        forbidden = urllib.error.HTTPError(
+            "http://x", 403, "Forbidden", {}, io.BytesIO(b"{}"))
+        server_error = urllib.error.HTTPError(
+            "http://x", 500, "Server Error", {}, io.BytesIO(b"{}"))
+        failed_body = {"status": "failed", "error": "boom"}
+
+        # Each scenario replays its failure forever (default=) so the same
+        # script can serve is_configured() AND generate() without exhausting.
         scenarios = [
-            lambda: _RecordingTransport(urllib.error.URLError("down")),
-            lambda: _RecordingTransport(urllib.error.HTTPError(
-                "http://x", 401, "Unauthorized", {}, io.BytesIO(b"{}"))),
-            lambda: _RecordingTransport(urllib.error.HTTPError(
-                "http://x", 403, "Forbidden", {}, io.BytesIO(b"{}"))),
-            lambda: _RecordingTransport(urllib.error.HTTPError(
-                "http://x", 500, "Server Error", {}, io.BytesIO(b"{}"))),
-            lambda: _RecordingTransport("not-a-dict"),
-            lambda: _RecordingTransport({"missing": "job_id"}),
-            lambda: _RecordingTransport(
-                {"job_id": "j"},
-                {"status": "failed", "error": "boom"},
-            ),
-            lambda: _RecordingTransport(
-                {"job_id": "j"},
-                urllib.error.URLError("reset"),
-            ),
-            lambda: _RecordingTransport(
-                urllib.error.HTTPError("http://x", 401, "Unauthorized",
-                                       {}, io.BytesIO(b"{}")),
-            ),   # health probe rejection path
+            lambda: _RecordingTransport(urllib.error.URLError("down"),
+                                        default=urllib.error.URLError("down")),
+            lambda: _RecordingTransport(unauthorized, default=unauthorized),
+            lambda: _RecordingTransport(forbidden, default=forbidden),
+            lambda: _RecordingTransport(server_error, default=server_error),
+            lambda: _RecordingTransport("not-a-dict", default="not-a-dict"),
+            lambda: _RecordingTransport({"missing": "job_id"},
+                                        default={"missing": "job_id"}),
+            lambda: _RecordingTransport({"job_id": "j"}, failed_body,
+                                        default=failed_body),
+            lambda: _RecordingTransport({"job_id": "j"},
+                                        default=urllib.error.URLError("reset")),
         ]
 
         with caplog.at_level(logging.DEBUG):

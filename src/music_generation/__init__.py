@@ -4,9 +4,9 @@ Provider-agnostic music generation layer: typed request/status/result
 models, the runtime-checkable ``MusicGenerationBackend`` protocol, the
 typed exception taxonomy, the category → music-parameter mapping anchored
 on the Phase 5 audio bible standards, a stdlib-only transport seam, the
-real ACE-Step REST adapter plus a deterministic offline mock, and the
-``get_backend`` registry (Suno refusal stub + experimental wrapper land
-later in plan 07-02).
+real ACE-Step REST adapter, the refusing Suno stub (plus the
+experimental, default-disabled wrapper), a deterministic offline mock,
+and the ``get_backend`` registry.
 
 Constraints honored by this package: no visual-asset generation, no audio
 rendering (mock emits tiny deterministic PCM data structures only), no
@@ -25,6 +25,7 @@ from .backends import (
 )
 from .mock import MockBackend
 from .models import MusicRequest, MusicResult, MusicStatus
+from .suno import SunoBackend, SunoWrapperBackend
 
 __all__ = [
     "MusicRequest",
@@ -37,5 +38,7 @@ __all__ = [
     "GenerationFailed",
     "MockBackend",
     "AceStepBackend",
+    "SunoBackend",
+    "SunoWrapperBackend",
     "get_backend",
 ]
