@@ -1144,3 +1144,128 @@ class TestSunoStub:
         for forbidden in ("import requests", "urllib", "http.client",
                           "socket", "_post_json", "_get_json", "_get_bytes"):
             assert forbidden not in source
+
+
+class TestPhase7Cli:
+    """07-02-04: scripts/generate_phase7.py — dry-run proves zero dials."""
+
+    @pytest.fixture
+    def cli(self):
+        """Load the script module in-process (bootstrap runs harmlessly)."""
+        import importlib.util
+        script_path = os.path.join(ROOT, "scripts", "generate_phase7.py")
+        spec = importlib.util.spec_from_file_location("generate_phase7",
+                                                      script_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def _install_no_dial_guard(self, monkeypatch):
+        """Fail loud if ANY transport seam is touched (constraint C3)."""
+
+        def _boom(*args, **kwargs):
+            raise AssertionError(
+                f"network seam dial attempted: {args} {kwargs}")
+
+        for name in ("_post_json", "_get_json", "_get_bytes", "_urlopen"):
+            monkeypatch.setattr(mg_backends, name, _boom)
+        # DEFAULT_TRANSPORT binds the original functions at import time;
+        # guard its pinned attributes too so no path can sneak through.
+        monkeypatch.setattr(mg_backends.DEFAULT_TRANSPORT, "post_json", _boom)
+        monkeypatch.setattr(mg_backends.DEFAULT_TRANSPORT, "get_json", _boom)
+        monkeypatch.setattr(mg_backends.DEFAULT_TRANSPORT, "get_bytes", _boom)
+
+    def test_dry_run_prints_request_json_zero_dials(
+            self, cli, monkeypatch, capsys):
+        _clean_music_env(monkeypatch)
+        self._install_no_dial_guard(monkeypatch)
+
+        rc = cli.main(["--dry-run", "--category", "Bedtime",
+                       "--topic", "sleepy moon", "--seed", "7"])
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["category"] == "Bedtime"
+        assert payload["duration_s"] == 120
+        assert payload["topic"] == "sleepy moon"
+        assert payload["seed"] == 7
+        assert "choir" in payload["vocals"]
+
+    def test_dry_run_needs_no_credentials(self, cli, monkeypatch, capsys):
+        _clean_music_env(monkeypatch)   # ACESTEP_API_KEY deliberately unset
+        self._install_no_dial_guard(monkeypatch)
+
+        rc = cli.main(["--dry-run", "--category", "Alphabet"])
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["category"] == "Alphabet"
+
+    def test_dry_run_unknown_category_still_exits_zero(
+            self, cli, monkeypatch, capsys):
+        _clean_music_env(monkeypatch)
+        self._install_no_dial_guard(monkeypatch)
+
+        rc = cli.main(["--dry-run", "--category", "Spaceship"])
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["duration_s"] == 60   # generic fallback row
+
+    def test_real_mode_mock_writes_wav_and_summary(
+            self, cli, monkeypatch, capsys, tmp_path):
+        _clean_music_env(monkeypatch)
+        out_dir = tmp_path / "music"
+        out_dir_str = str(out_dir)
+
+        rc = cli.main(["--backend", "mock", "--category", "Bedtime",
+                       "--topic", "sleepy moon", "--seed", "9",
+                       "--out", out_dir_str])
+
+        assert rc == 0
+        wav_path = out_dir / "bedtime-sleepy-moon-9.wav"
+        assert wav_path.exists()
+        audio = wav_path.read_bytes()
+        assert audio.startswith(b"RIFF")
+        with wave.open(io.BytesIO(audio)) as handle:
+            assert handle.getnchannels() == 1
+
+        output = capsys.readouterr().out
+        assert "mock" in output
+        assert "mock-" in output                 # job id
+        assert str(len(audio)) in output         # byte count
+        assert str(wav_path) in output           # output path
+
+    def test_backend_default_comes_from_music_backend_env(
+            self, cli, monkeypatch, capsys, tmp_path):
+        _clean_music_env(monkeypatch)
+        monkeypatch.setenv("MUSIC_BACKEND", "mock")
+
+        rc = cli.main(["--category", "Animals", "--topic", "duck pond",
+                       "--seed", "3", "--out", str(tmp_path / "x")])
+
+        assert rc == 0
+        assert (tmp_path / "x" / "animals-duck-pond-3.wav").exists()
+
+    def test_real_mode_suno_refusal_exits_one_on_stderr(
+            self, cli, monkeypatch, capsys):
+        _clean_music_env(monkeypatch)
+
+        rc = cli.main(["--backend", "suno", "--category", "Bedtime"])
+
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert "no official public API" in captured.err
+        assert "Traceback" not in captured.err
+        assert "Traceback" not in captured.out
+
+    def test_unknown_backend_exits_nonzero_with_choice_list(
+            self, cli, monkeypatch, capsys):
+        _clean_music_env(monkeypatch)
+
+        rc = cli.main(["--backend", "nope"])
+
+        captured = capsys.readouterr()
+        assert rc == 1                            # handled failure, no crash
+        for choice in ("ace-step", "suno", "mock"):
+            assert choice in captured.err

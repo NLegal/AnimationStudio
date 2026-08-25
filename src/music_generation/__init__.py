@@ -21,6 +21,7 @@ from .backends import (
     MusicBackendError,
     MusicGenerationBackend,
     NotConfigured,
+    build_music_request,
     get_backend,
 )
 from .mock import MockBackend
@@ -41,4 +42,5 @@ __all__ = [
     "SunoBackend",
     "SunoWrapperBackend",
     "get_backend",
+    "build_music_request",
 ]
