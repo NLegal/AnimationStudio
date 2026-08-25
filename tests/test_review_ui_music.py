@@ -1,11 +1,13 @@
-"""Tests for the Review UI music page, generation jobs, and API polling.
+"""Tests for the Review UI music page, generation jobs, prompt preview,
+and API polling.
 
-Covers ``GET /music``, ``POST /music/generate``, ``GET /api/music/jobs`` and
-the suno-degradation path.  Uses ``MockBackend`` and ``tmp_path`` output dirs
-so every assertion runs fully offline with zero network I/O.
+Covers ``GET /music``, ``POST /music/prompt``, ``POST /music/generate``,
+``GET /api/music/jobs`` and the suno-degradation path.  Uses ``MockBackend``
+and ``tmp_path`` output dirs so every assertion runs fully offline with zero
+network I/O.
 
 Constraint guards:
-- C2: no sqlite3 in tests — music routes never touch catalog.db
+- C2: no sqlite3 in code — music routes never touch catalog.db
 - C3: fail-loud transport guards installed on the Phase 7 seam
 - C5: suno selection yields a failed job, never HTTP 500
 """
@@ -213,3 +215,112 @@ class TestMusicGenerate:
         job = jobs[0]
         for key in ("id", "status"):
             assert key in job, f"Missing key {key!r} in job payload"
+
+
+# =========================================================================== #
+# TestMusicPrompt — POST /music/prompt (pure preview, no side effects)         #
+# =========================================================================== #
+
+class TestMusicPrompt:
+    def test_prompt_preview_bedtime_golden_values(self, client):
+        """Bedtime: 66 BPM / F major / 3/4 / duration_s 120."""
+        resp = client.post("/music/prompt", data={
+            "category": "Bedtime",
+            "topic": "sleepy moon",
+        })
+        assert resp.status_code == 200
+        body = resp.text
+        # Caption contains the keyword "lullaby"
+        assert "lullaby" in body.lower()
+        # Params
+        assert "66" in body
+        assert "F major" in body
+        assert "3/4" in body
+        assert "120" in body
+
+    def test_prompt_preview_caption_is_bible_conformant(self, client):
+        """Caption comes from build_music_prompt — not hand-rolled."""
+        resp = client.post("/music/prompt", data={
+            "category": "Bedtime",
+            "topic": "sleepy moon",
+        })
+        body = resp.text
+        # build_music_prompt for Bedtime uses the MUSIC_PROMPT_TEMPLATES entry
+        # which starts with "A gentle preschool lullaby"
+        assert "gentle" in body.lower() or "lullaby" in body.lower()
+
+    def test_prompt_preview_negative_prompt_nonempty(self, client):
+        """Negative prompt from music_negative_prompt is non-empty."""
+        resp = client.post("/music/prompt", data={
+            "category": "Bedtime",
+            "topic": "test",
+        })
+        body = resp.text
+        assert "prompt-negative" in body
+        # AUDIO_NEGATIVE_BASE includes "harsh"
+        assert "harsh" in body.lower()
+
+    def test_prompt_preview_request_json_present(self, client):
+        """Request JSON is rendered in a <pre> block."""
+        resp = client.post("/music/prompt", data={
+            "category": "Bedtime",
+            "topic": "sleepy moon",
+        })
+        body = resp.text
+        assert "<pre" in body
+        assert "duration_s" in body
+        assert "120" in body
+
+    def test_prompt_preview_sticky_form_category(self, client):
+        """Category select preserves submitted value after POST."""
+        resp = client.post("/music/prompt", data={
+            "category": "Bedtime",
+            "topic": "sleepy moon",
+        })
+        body = resp.text
+        assert '<option value="Bedtime" selected' in body
+
+    def test_prompt_preview_sticky_form_topic(self, client):
+        """Topic input preserves submitted value after POST."""
+        resp = client.post("/music/prompt", data={
+            "category": "Bedtime",
+            "topic": "sleepy moon",
+        })
+        body = resp.text
+        assert 'value="sleepy moon"' in body
+
+    def test_prompt_preview_blank_topic_default(self, client):
+        """Blank topic defaults to '<category.lower()> fun'."""
+        resp = client.post("/music/prompt", data={
+            "category": "Alphabet",
+            "topic": "",
+        })
+        body = resp.text
+        # The default topic should be "alphabet fun" — check it appears in request JSON
+        assert "alphabet fun" in body.lower()
+
+    def test_prompt_preview_purity_no_transport(self, client):
+        """Purity proof: fail-loud guards never trip during preview."""
+        # If we got here without AssertionError from _no_transport, the guards
+        # are untripped.  Run a full preview cycle to prove it.
+        resp = client.post("/music/prompt", data={
+            "category": "Bedtime",
+            "topic": "test",
+        })
+        assert resp.status_code == 200
+
+    def test_prompt_preview_unknown_category_graceful(self, client):
+        """Unknown category renders generic fallback params — no 500."""
+        resp = client.post("/music/prompt", data={
+            "category": "ZzzBogus",
+            "topic": "test",
+        })
+        assert resp.status_code == 200
+        body = resp.text
+        # Should still render the preview section
+        assert "prompt-result" in body or "prompt_negative" in body.lower() or "Song Prompt" in body
+
+    def test_prompt_result_section_not_shown_initially(self, client):
+        """GET /music has no prompt-result panel until submitted."""
+        body = client.get("/music").text
+        assert "prompt-result" not in body

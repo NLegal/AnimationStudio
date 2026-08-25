@@ -1058,6 +1058,45 @@ def create_app(
             request, "music.html", _music_page_context()
         )
 
+    @app.post("/music/prompt")
+    async def music_prompt_preview(
+        request: Request,
+        category: str = Form("Alphabet"),
+        topic: str = Form(""),
+    ):
+        """Pure preview: compute bible-conformant prompt, negative, and params."""
+        import json as _json
+
+        from src.audio_bible.prompts import build_music_prompt, category_negative
+        from src.music_generation.backends import resolve_music_params
+
+        topic = topic.strip()
+        if not topic:
+            topic = f"{category.lower()} fun"
+
+        caption = build_music_prompt(category, topic)
+        negative = category_negative(category)
+        params = resolve_music_params(category)
+
+        request_json = {
+            "prompt": caption,
+            "negative_prompt": negative,
+            "duration_s": params.duration_s,
+            "bpm": params.bpm,
+            "key_scale": params.key_scale,
+            "time_signature": params.time_signature,
+        }
+
+        ctx = _music_page_context()
+        ctx["preview"] = {
+            "caption": caption,
+            "negative": negative,
+            "params": params,
+            "request_json": _json.dumps(request_json, indent=2),
+        }
+        ctx["form_values"] = {"category": category, "topic": topic}
+        return templates.TemplateResponse(request, "music.html", ctx)
+
     @app.post("/music/generate")
     async def music_generate(
         request: Request,
