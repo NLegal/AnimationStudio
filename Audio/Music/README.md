@@ -81,3 +81,9 @@ service contract.
 4. Confirm the job logs show a completed status and an audible WAV appears
    under `Audio/Music/`.
 5. Delete or keep the generated artifact per operator preference.
+6. (Optional) Batch generation through the pipeline wiring (Plan 08-01):
+   ```bash
+   python scripts/generate_phase5.py --generate --backend ace-step --category Bedtime --topic "sleepy moon"
+   ```
+   Confirm the WAV appears under `Audio/Music/` and `manifest.json` gains one entry.
+   **Never executed in CI — requires the local ACE-Step service.**

@@ -32,6 +32,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.audio_bible import AudioBible, AudioProductionSystem, quality_checklist
 
+# Imported at module level so tests can monkeypatch it (Phase 8 plan requirement).
+from src.music_generation import MusicBackendError, build_music_request, get_backend  # noqa: E402
+
 
 # =================================================================== #
 # Generation-mode constants and helpers                                #
@@ -175,8 +178,6 @@ def generate_songs(
     Returns a list of ``(category, error_message)`` failures.  Empty list
     means all songs succeeded.
     """
-    from src.music_generation import MusicBackendError, build_music_request, get_backend
-
     name = BACKEND_ALIASES.get((backend_name or "").lower(), backend_name or "mock")
     backend = get_backend(name)
 
