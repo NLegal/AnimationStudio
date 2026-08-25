@@ -3,8 +3,8 @@ phase: 7
 slug: music-generation-backend-integration
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
-status: draft
-nyquist_compliant: false
+status: validated
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-08-21
 ---
@@ -40,16 +40,16 @@ created: 2026-08-21
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 07-01-01 | 01 | 1 | TBD | — | N/A | unit | `python -m pytest tests/test_music_generation.py -x -q` | ❌ W0 (created in task) | ⬜ pending |
-| 07-01-02 | 01 | 1 | TBD | — | N/A | unit | `python -m pytest tests/test_music_generation.py::TestCategoryMapping -q` | ❌ W0 | ⬜ pending |
-| 07-01-03 | 01 | 1 | TBD | — | N/A | unit (determinism) | `python -m pytest tests/test_music_generation.py::TestMockBackend -q` | ❌ W0 | ⬜ pending |
-| 07-02-01 | 02 | 2 | TBD | T7-01 | Bearer token read from env only; never logged/serialized | contract (fake transport) | `python -m pytest tests/test_music_generation.py::TestAceStepAdapter -q` | ❌ W0 | ⬜ pending |
-| 07-02-02 | 02 | 2 | TBD | T7-02 | No network in tests; errors mapped to typed exceptions | contract | `python -m pytest tests/test_music_generation.py::TestErrorMapping -q` | ❌ W0 | ⬜ pending |
-| 07-02-03 | 02 | 2 | TBD | — | Suno stub refuses all operations | unit | `python -m pytest tests/test_music_generation.py::TestSunoStub -q` | ❌ W0 | ⬜ pending |
-| 07-02-04 | 02 | 2 | TBD | — | CLI --dry-run performs zero network I/O | unit | `python -m pytest tests/test_music_generation.py::TestPhase7Cli -q` | ❌ W0 | ⬜ pending |
+| 07-01-01 | 01 | 1 | P01-T1 MockBackend deterministic byte-identical same-seed WAV offline | — | N/A (no secrets in mock) | unit | `python -m pytest tests/test_music_generation.py::TestMockBackend -x -q` | ✅ (created in task) | ✅ green |
+| 07-01-02 | 01 | 1 | P01-T3 Category parameters resolve per locked RESEARCH §3 table | — | N/A | unit | `python -m pytest tests/test_music_generation.py::TestCategoryMapping -q` | ✅ | ✅ green |
+| 07-01-03 | 01 | 1 | P01-T2 Protocol runtime-checkable (isinstance, no inheritance) + P01-T5 tests green offline <30s, zero network I/O | — | N/A | unit (determinism) | `python -m pytest tests/test_music_generation.py::TestMockBackend -q && python -m pytest tests/test_music_generation.py -q` | ✅ | ✅ green |
+| 07-02-01 | 02 | 2 | P02-T2 AceStep REST contract: Bearer auth (ctor>env), caption≤512, lyrics≤4096, payload golden values | T7-01 / T7-02 | Bearer token read from env/constructor only; never logged/serialized; header values absent from exception messages | contract (fake transport) | `python -m pytest tests/test_music_generation.py::TestAceStepAdapter -q` | ✅ | ✅ green |
+| 07-02-02 | 02 | 2 | P02-T3 Locked error map end-to-end: connection→BackendUnavailable, 401/403→NotConfigured, failed/malformed→GenerationFailed; P02-T1 get_backend registry env resolution | T7-01 / T7-02 | No network in tests; errors mapped to typed exceptions; token never leaks (test_token_never_leaks) | contract | `python -m pytest tests/test_music_generation.py::TestErrorMapping -q` | ✅ | ✅ green |
+| 07-02-03 | 02 | 2 | P02-T4 SunoBackend is_configured False, all ops raise NotConfigured; wrapper experimental + unreachable via registry | — | Suno stub refuses all operations; zero HTTP code in module | unit | `python -m pytest tests/test_music_generation.py::TestSunoStub -q` | ✅ | ✅ green |
+| 07-02-04 | 02 | 2 | P02-T5 generate_phase7.py --dry-run prints request JSON, zero network I/O, exit 0 | — | CLI --dry-run performs zero network I/O (fail-loud guards on all transport seams) | unit (smoke) | `python -m pytest tests/test_music_generation.py::TestPhase7Cli -q` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
-*Requirement IDs are TBD (no REQUIREMENTS mapping for Phase 7); success criteria come from the ROADMAP Phase 7 goal.*
+*Requirement IDs sourced from PLAN must_haves (no REQUIREMENTS.md mapping for Phase 7); success criteria come from ROADMAP Phase 7 goal.*
 
 ---
 
@@ -72,11 +72,37 @@ monkeypatches requiring no extra fixtures beyond what Plan 01 creates inside
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** validated 2026-08-25
+
+---
+
+## Validation Audit 2026-08-25
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 7/7 |
+| Escalated | 0 |
+
+All 7 verification map rows have corresponding automated test classes in
+`tests/test_music_generation.py` (86 tests total, all passing offline in ~3.5 s).
+Requirement IDs populated from PLAN must_haves; threat references added for rows
+07-02-01 (T7-01/T7-02 — bearer auth handling) and 07-02-02 (T7-01/T7-02 — error
+map + token leak prevention). Manual-only verification (live ACE-Step smoke)
+retained as documented checklist in `Audio/Music/README.md`.
+
+Constraint gates verified:
+- C1 — no image terms in `src/music_generation/` or `scripts/generate_phase7.py`
+- C2 — no `sqlite3` imports; `catalog.db` md5 `acfb604a75657e99b2682ce3c73ec65b` unchanged
+- C3 — all tests use fake transports; no network I/O possible in suite
+- C4 — stdlib-only transport (`import requests` grep-clean)
+
+VERIFICATION.md score: 10/10 truths verified, 9/9 artifacts verified, 6/6
+key links verified, 2/2 requirements (MUSC-01, MUSC-02) satisfied.
