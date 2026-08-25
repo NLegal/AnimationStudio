@@ -14,7 +14,9 @@ import os
 import socket
 import struct
 import urllib.error
+import urllib.parse
 import wave
+from dataclasses import dataclass
 
 import pytest
 from pydantic import ValidationError
@@ -22,6 +24,7 @@ from pydantic import ValidationError
 from src.audio_bible import AUDIO_NEGATIVE_BASE, category_negative
 from src.audio_bible.prompts import build_music_prompt
 from src.music_generation import (
+    AceStepBackend,
     BackendUnavailable,
     GenerationFailed,
     MockBackend,
@@ -31,6 +34,7 @@ from src.music_generation import (
     MusicResult,
     MusicStatus,
     NotConfigured,
+    get_backend,
 )
 from src.music_generation import backends as mg_backends
 from src.music_generation.backends import (
@@ -504,3 +508,347 @@ class TestGenerateOrchestration:
 
         with pytest.raises(GenerationFailed, match="model exploded"):
             backend.generate(MusicRequest(category="Bedtime", seed=7))
+
+
+# ---------------------------------------------------------------------------
+# Plan 07-02 — real adapters, registry, and CLI (offline contract tests)     #
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _TransportCall:
+    """One recorded transport invocation (url/method/headers/payload/timeout)."""
+
+    url: str
+    method: str
+    headers: dict
+    payload: object
+    timeout: object
+
+
+class _RecordingTransport:
+    """Scripted fake transport — records every call, replays responses.
+
+    Script entries may be: plain values (returned), Exception instances
+    (raised), or zero-arg callables (invoked for dynamic responses).
+    Mirrors the pinned DEFAULT_TRANSPORT surface exactly:
+    post_json(url, payload, headers=..., timeout=...),
+    get_json(url, headers=..., timeout=...),
+    get_bytes(url, headers=..., timeout=...).
+    """
+
+    def __init__(self, *responses):
+        self.calls: list[_TransportCall] = []
+        self._script = list(responses)
+
+    def _replay(self, method, url, headers, payload, timeout):
+        self.calls.append(_TransportCall(
+            url=url, method=method,
+            headers={k.lower(): v for k, v in dict(headers or {}).items()},
+            payload=payload, timeout=timeout,
+        ))
+        item = self._script.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        if callable(item):
+            return item()
+        return item
+
+    def post_json(self, url, payload, headers=None, timeout=None):
+        return self._replay("POST", url, headers, payload, timeout)
+
+    def get_json(self, url, headers=None, timeout=None):
+        return self._replay("GET", url, headers, None, timeout)
+
+    def get_bytes(self, url, headers=None, timeout=None):
+        return self._replay("GET", url, headers, None, timeout)
+
+    # -- recording accessors ------------------------------------------------
+
+    def posts(self) -> list[_TransportCall]:
+        return [c for c in self.calls if c.method == "POST"]
+
+    def gets(self) -> list[_TransportCall]:
+        return [c for c in self.calls if c.method == "GET"]
+
+
+def _clean_music_env(monkeypatch):
+    """Env isolation for every test that builds adapters (ACESTEP_*/MUSIC_BACKEND)."""
+    for var in ("ACESTEP_API_KEY", "ACESTEP_BASE_URL", "MUSIC_BACKEND"):
+        monkeypatch.delenv(var, raising=False)
+
+
+class TestAceStepAdapter:
+    """Tracer 07-02-01: AceStepBackend happy path over scripted fake transport."""
+
+    BASE = "http://localhost:8001"
+    AUDIO = b"RIFF\x24\x00\x00\x00WAVEfmt" + b"\xab" * 40
+
+    def _backend(self, **kwargs):
+        transport = kwargs.pop("transport", None) or _RecordingTransport()
+        backend = AceStepBackend(transport=transport, **kwargs)
+        return backend, transport
+
+    def _submit_script(self, job_id="j-abc"):
+        return _RecordingTransport({"job_id": job_id})
+
+    # -- protocol conformance ----------------------------------------------
+
+    def test_isinstance_protocol_without_inheritance(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        backend, _ = self._backend(api_key="k")
+        assert isinstance(backend, MusicGenerationBackend)
+        assert MusicGenerationBackend not in AceStepBackend.__mro__
+
+    # -- end-to-end happy path ----------------------------------------------
+
+    def test_end_to_end_scripted_happy_path(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
+
+        transport = _RecordingTransport(
+            {"job_id": "j-abc"},
+            {"status": "pending", "progress": 0.1},
+            {"status": "running", "progress": 0.5},
+            {"status": "completed", "progress": 1.0,
+             "audio_path": "/generated/song one.wav"},
+            self.AUDIO,
+        )
+        backend = AceStepBackend(api_key="k-test", base_url=self.BASE,
+                                 transport=transport)
+
+        seen_states: list[str] = []
+        real_poll = backend.poll
+
+        def spy_poll(job_id):
+            status = real_poll(job_id)
+            seen_states.append(status.state)
+            return status
+
+        backend.poll = spy_poll  # type: ignore[method-assign]
+
+        request = MusicRequest(category="Bedtime", topic="sleepy moon", seed=7)
+        result = backend.generate(request)
+
+        # Exactly one POST to the locked submit endpoint.
+        posts = transport.posts()
+        assert len(posts) == 1
+        assert posts[0].url == f"{self.BASE}/v1/music/generate"
+
+        # Job polls hit /v1/jobs/j-abc until completed (three-state script).
+        job_gets = [c for c in transport.gets()
+                    if c.url == f"{self.BASE}/v1/jobs/j-abc"]
+        assert len(job_gets) >= 2
+
+        # Exactly one download GET with the URL-encoded audio path.
+        downloads = [c for c in transport.gets()
+                     if c.url.startswith(f"{self.BASE}/v1/audio?")]
+        assert len(downloads) == 1
+        expected_path = urllib.parse.quote("/generated/song one.wav",
+                                           safe="")
+        assert downloads[0].url == f"{self.BASE}/v1/audio?path={expected_path}"
+
+        # States surfaced in script order; result carries scripted bytes.
+        assert seen_states == ["pending", "running", "completed"]
+        assert result.audio == self.AUDIO
+        assert result.backend == "ace-step"
+        assert result.seed == 7          # effective seed echoed back
+        assert result.job_id == "j-abc"
+        assert result.format == "wav"
+
+    def test_bearer_header_from_constructor_arg(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = self._submit_script()
+        backend = AceStepBackend(api_key="ctor-key", transport=transport)
+        backend.submit(MusicRequest(category="Bedtime", seed=1))
+        post = transport.posts()[0]
+        assert post.headers["authorization"] == "Bearer ctor-key"
+        assert post.headers["content-type"] == "application/json"
+
+    def test_bearer_header_from_env_when_no_constructor_arg(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        monkeypatch.setenv("ACESTEP_API_KEY", "env-key")
+        transport = self._submit_script()
+        backend = AceStepBackend(transport=transport)
+        backend.submit(MusicRequest(category="Bedtime", seed=1))
+        assert transport.posts()[0].headers["authorization"] == "Bearer env-key"
+
+    def test_submit_payload_golden_bedtime(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = self._submit_script()
+        backend = AceStepBackend(api_key="k", transport=transport)
+        request = MusicRequest(category="Bedtime", topic="sleepy moon", seed=7)
+        backend.submit(request)
+
+        payload = transport.posts()[0].payload
+        expected_caption = build_music_prompt(
+            "Bedtime", "sleepy moon",
+            vocals="female lead vocal, children's choir")[:512]
+
+        assert payload["caption"] == expected_caption
+        assert len(payload["caption"]) <= 512
+        assert "lullaby" in payload["caption"].lower()
+
+        # Bedtime scaffold markers joined with newlines.
+        assert payload["lyrics"] == "\n".join([
+            "[instrumental intro]", "[verse]", "[chorus]", "[verse]", "[outro]",
+        ])
+        assert len(payload["lyrics"]) <= 4096
+
+        assert payload["audio_duration"] == 120      # request.duration_s
+        assert payload["bpm"] == 66                  # resolve_music_params
+        assert payload["key_scale"] == "F major"
+        assert payload["time_signature"] == "3/4"
+        assert isinstance(payload["seed"], int)
+        assert payload["seed"] == 7
+        assert payload["thinking"] is False
+        assert payload["model"] == "acestep-v15-turbo"
+
+    def test_lyrics_override_used_and_capped_at_4096(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = self._submit_script()
+        backend = AceStepBackend(api_key="k", transport=transport)
+        request = MusicRequest(category="Bedtime", seed=1,
+                               lyrics_override="y" * 5000)
+        backend.submit(request)
+        payload = transport.posts()[0].payload
+        assert payload["lyrics"] == "y" * 4096
+
+    def test_caption_truncated_hard_at_512(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        import src.music_generation.ace_step as ace_step_module
+        monkeypatch.setattr(ace_step_module, "build_music_prompt",
+                            lambda *args, **kwargs: "z" * 700)
+        transport = self._submit_script()
+        backend = AceStepBackend(api_key="k", transport=transport)
+        backend.submit(MusicRequest(category="Bedtime", seed=1))
+        assert len(transport.posts()[0].payload["caption"]) == 512
+
+    def test_seed_defaults_to_zero_when_unset(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = self._submit_script()
+        backend = AceStepBackend(api_key="k", transport=transport)
+        result = backend.generate(MusicRequest(category="Numbers"))
+        assert transport.posts()[0].payload["seed"] == 0
+        assert result.seed == 0
+
+    # -- configuration resolution -------------------------------------------
+
+    def test_submit_without_key_raises_not_configured_zero_calls(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = _RecordingTransport()   # nothing scripted: any call fails loud
+        backend = AceStepBackend(transport=transport)
+        with pytest.raises(NotConfigured):
+            backend.submit(MusicRequest(category="Bedtime", seed=1))
+        assert transport.calls == []
+
+    def test_invalid_model_name_rejected(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        with pytest.raises(ValueError, match="acestep"):
+            AceStepBackend(api_key="k", model="bogus-model")
+
+    def test_sft_model_selected(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = self._submit_script()
+        backend = AceStepBackend(api_key="k", model="acestep-v15-sft",
+                                 transport=transport)
+        backend.submit(MusicRequest(category="Bedtime", seed=1))
+        assert transport.posts()[0].payload["model"] == "acestep-v15-sft"
+
+    def test_base_url_resolution_order_and_default(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        default_backend, _ = self._backend(api_key="k")
+        assert default_backend.base_url == "http://localhost:8001"
+
+        monkeypatch.setenv("ACESTEP_BASE_URL", "http://127.0.0.1:9999/")
+        env_backend, _ = self._backend(api_key="k")
+        assert env_backend.base_url == "http://127.0.0.1:9999"
+
+        arg_backend, _ = self._backend(
+            api_key="k", base_url="http://10.0.0.5:8000//")
+        assert arg_backend.base_url == "http://10.0.0.5:8000"
+
+    # -- health probe ---------------------------------------------------------
+
+    def test_is_configured_true_when_health_probe_ok(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = _RecordingTransport({"status": "ok"})
+        backend = AceStepBackend(api_key="k", transport=transport)
+        assert backend.is_configured() is True
+        probe = transport.gets()[0]
+        assert probe.url == f"{self.BASE}/v1/jobs/health"
+        assert probe.timeout == (5.0, 5.0)   # short connect budget per RESEARCH §5
+
+    def test_is_configured_falls_back_to_root_on_404(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = _RecordingTransport(
+            urllib.error.HTTPError(f"{self.BASE}/v1/jobs/health", 404,
+                                   "Not Found", {}, io.BytesIO(b"{}")),
+            {"app": "ace-step"},
+        )
+        backend = AceStepBackend(api_key="k", transport=transport)
+        assert backend.is_configured() is True
+        assert transport.gets()[1].url == f"{self.BASE}/"
+
+    def test_is_configured_false_on_connection_failure(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = _RecordingTransport(urllib.error.URLError("conn refused"))
+        backend = AceStepBackend(api_key="k", transport=transport)
+        assert backend.is_configured() is False
+
+    def test_is_configured_false_on_auth_rejection(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = _RecordingTransport(
+            urllib.error.HTTPError(f"{self.BASE}/v1/jobs/health", 401,
+                                   "Unauthorized", {}, io.BytesIO(b"{}")),
+        )
+        backend = AceStepBackend(api_key="k", transport=transport)
+        assert backend.is_configured() is False
+
+    def test_is_configured_false_without_key_no_probe(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = _RecordingTransport()   # any probe would fail loudly
+        backend = AceStepBackend(transport=transport)
+        assert backend.is_configured() is False
+        assert transport.calls == []
+
+    # -- poll/download semantics ----------------------------------------------
+
+    def test_download_performs_one_poll_if_path_unknown(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = _RecordingTransport(
+            {"status": "completed", "progress": 1.0,
+             "audio_path": "/generated/song.wav"},
+            self.AUDIO,
+        )
+        backend = AceStepBackend(api_key="k", transport=transport)
+        assert backend.download("j-1") == self.AUDIO
+        assert transport.gets()[0].url == f"{self.BASE}/v1/jobs/j-1"
+
+    def test_download_encodes_special_query_characters(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        raw_path = "/a b/c.wav?x=1"
+        transport = _RecordingTransport(
+            {"status": "completed", "path": raw_path},
+            self.AUDIO,
+        )
+        backend = AceStepBackend(api_key="k", transport=transport)
+        backend.download("j-2")
+        encoded = urllib.parse.quote(raw_path, safe="")
+        assert transport.gets()[1].url == f"{self.BASE}/v1/audio?path={encoded}"
+
+    def test_download_without_any_audio_path_raises(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        transport = _RecordingTransport(
+            {"status": "completed", "progress": 1.0},   # no path key at all
+        )
+        backend = AceStepBackend(api_key="k", transport=transport)
+        with pytest.raises(GenerationFailed):
+            backend.download("j-3")
+
+    def test_registry_resolves_ace_step_and_mock(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        ace = get_backend("ace-step", api_key="k")
+        assert isinstance(ace, AceStepBackend)
+        mock = get_backend("mock")
+        assert isinstance(mock, MockBackend)
