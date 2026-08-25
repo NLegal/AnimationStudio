@@ -16,12 +16,13 @@ database access, no audio rendering anywhere in this package.
 """
 
 import json
+import os
 import socket
 import time
 import urllib.error
 import urllib.request
 from types import SimpleNamespace
-from typing import Optional, Protocol, runtime_checkable
+from typing import Callable, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -421,3 +422,62 @@ DEFAULT_TRANSPORT = SimpleNamespace(
     get_json=_get_json,
     get_bytes=_get_bytes,
 )
+
+
+# --------------------------------------------------------------------------- #
+# Backend registry + factory (plan 07-02)                                     #
+#                                                                             #
+# Hooks import adapter modules LAZILY inside get_backend to avoid circular     #
+# imports: ace_step/suno themselves import names from this module, so a        #
+# top-level import here would deadlock package initialization.                 #
+# --------------------------------------------------------------------------- #
+
+
+def _import_ace_step() -> type:
+    from .ace_step import AceStepBackend
+
+    return AceStepBackend
+
+
+def _import_suno() -> type:
+    from .suno import SunoBackend
+
+    return SunoBackend
+
+
+def _import_mock() -> type:
+    from .mock import MockBackend
+
+    return MockBackend
+
+
+# The experimental SunoWrapperBackend is deliberately ABSENT: registry
+# resolution can never yield the default-disabled wrapper (COVERAGE.md
+# Surface 2 assumption-delta invariant).
+_BACKENDS: dict[str, Callable[[], type]] = {
+    "ace-step": _import_ace_step,
+    "suno": _import_suno,
+    "mock": _import_mock,
+}
+
+
+def get_backend(name: Optional[str] = None, **kwargs):
+    """Construct a music backend instance by name.
+
+    Resolution: an explicit ``name`` wins; ``None`` falls back to the
+    ``MUSIC_BACKEND`` environment variable and then to the safe offline
+    default ``"mock"``. Unknown names raise ``MusicBackendError`` listing
+    the three valid choices.
+    """
+    resolved = name if name is not None else os.environ.get("MUSIC_BACKEND", "mock")
+    key = str(resolved).strip().lower()
+    hook = _BACKENDS.get(key)
+    if hook is None:
+        valid = ", ".join(sorted(_BACKENDS))
+        raise MusicBackendError(
+            f"Unknown music backend {resolved!r}. Valid backends: {valid}"
+        )
+    backend_cls = hook()
+    if key == "suno":
+        return backend_cls()
+    return backend_cls(**kwargs)

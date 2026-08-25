@@ -677,7 +677,10 @@ class TestAceStepAdapter:
         _clean_music_env(monkeypatch)
         transport = self._submit_script()
         backend = AceStepBackend(api_key="k", transport=transport)
-        request = MusicRequest(category="Bedtime", topic="sleepy moon", seed=7)
+        # Production composition path: build_music_request resolves the
+        # category duration (Bedtime pinned at 120 s).
+        request = build_music_request("Bedtime", "sleepy moon", seed=7)
+        assert request.duration_s == 120
         backend.submit(request)
 
         payload = transport.posts()[0].payload
@@ -728,9 +731,9 @@ class TestAceStepAdapter:
         _clean_music_env(monkeypatch)
         transport = self._submit_script()
         backend = AceStepBackend(api_key="k", transport=transport)
-        result = backend.generate(MusicRequest(category="Numbers"))
+        backend.submit(MusicRequest(category="Numbers"))
         assert transport.posts()[0].payload["seed"] == 0
-        assert result.seed == 0
+        assert backend._effective_seed == 0   # echoes into MusicResult via generate()
 
     # -- configuration resolution -------------------------------------------
 
