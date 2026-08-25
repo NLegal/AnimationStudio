@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Music Generation — Phase 5{% endblock %}
+
+{% block content %}
+
+<div class="entity-header">
+  <a href="/" class="btn btn-sm">Back to Dashboard</a>
+  <h1>Music Generation</h1>
+  <p class="character-meta">
+    <strong>Phase 5</strong> &bull;
+    Audio Bible &bull;
+    24 Song Categories &bull;
+    ACE-Step / Mock backend
+  </p>
+</div>
+
+<!-- ============================================================ -->
+<!--  CATEGORY PARAMS TABLE                                        -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Song Categories &amp; Standards ({{ category_params | length }})</h2>
+  {% if category_params %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Tempo (BPM)</th>
+          <th>Key</th>
+          <th>Time Sig</th>
+          <th>Duration (s)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in category_params %}
+        <tr>
+          <td><strong>{{ cat.name }}</strong></td>
+          <td>{{ cat.bpm }}</td>
+          <td>{{ cat.key_scale }}</td>
+          <td>{{ cat.time_signature }}</td>
+          <td>{{ cat.duration_s }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No song categories loaded.</p>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  PROMPT BUILDER (pure preview — no network, no DB)            -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Song Prompt Builder</h2>
+  <p class="gen-hint">
+    Compose a bible-conformant song prompt from the audio bible.
+    Preview shows the caption, negative prompt, and resolved parameters.
+    Nothing is generated or stored here.
+  </p>
+  <form action="/music/prompt" method="post" class="prompt-builder-form">
+    <div class="prompt-fields">
+      <label>Category
+        <select name="category">
+          {% for cat in categories %}
+            <option value="{{ cat }}" {% if form_values.get('category', 'Alphabet') == cat %}selected{% endif %}>{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Topic
+        <input type="text" name="topic" value="{{ form_values.get('topic', '') }}"
+               placeholder="e.g. sleepy moon, counting sheep">
+      </label>
+    </div>
+    <button type="submit" class="btn btn-primary">Build Prompt</button>
+  </form>
+  {% if preview %}
+    <div class="prompt-result">
+      <h3>Song Prompt Preview</h3>
+      <h4>Caption</h4>
+      <p class="prompt-text">{{ preview.caption }}</p>
+      <h4>Negative prompt</h4>
+      <p class="prompt-text prompt-negative">{{ preview.negative }}</p>
+      <h4>Parameters</h4>
+      <p class="prompt-text">
+        BPM: <strong>{{ preview.params.bpm }}</strong> &bull;
+        Key: <strong>{{ preview.params.key_scale }}</strong> &bull;
+        Time: <strong>{{ preview.params.time_signature }}</strong> &bull;
+        Duration: <strong>{{ preview.params.duration_s }}s</strong>
+      </p>
+      <h4>Request JSON</h4>
+      <pre class="prompt-text">{{ preview.request_json }}</pre>
+    </div>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!--  SINGLE-SONG GENERATE FORM                                   -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Generate Song</h2>
+  <p class="gen-hint">
+    Submit a single song for background generation.
+    Uses the selected backend; the mock backend writes a deterministic WAV instantly.
+  </p>
+  <form action="/music/generate" method="post" class="prompt-builder-form">
+    <div class="prompt-fields">
+      <label>Category
+        <select name="category">
+          {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Topic
+        <input type="text" name="topic" value="" placeholder="e.g. sleepy moon">
+      </label>
+      <label>Backend
+        <select name="backend">
+          <option value="">env default (mock)</option>
+          <option value="ace-step">Ace-Step</option>
+          <option value="suno">Suno (refuses)</option>
+          <option value="mock">Mock</option>
+        </select>
+      </label>
+    </div>
+    <button type="submit" class="btn btn-primary">Generate Song</button>
+  </form>
+</section>
+
+<!-- ============================================================ -->
+<!--  RECENT MUSIC JOBS                                           -->
+<!-- ============================================================ -->
+<section class="panel">
+  <h2>Recent Music Jobs</h2>
+  {% if recent_music_jobs %}
+    <table class="dashboard-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Status</th>
+          <th>Category</th>
+          <th>Error</th>
+          <th>File</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in recent_music_jobs %}
+        <tr>
+          <td><code>{{ job.id }}</code></td>
+          <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
+          <td>{{ job.category }}</td>
+          <td>{{ job.error }}</td>
+          <td>{{ job.file }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty-state">No music jobs yet. Submit a song using the form above.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

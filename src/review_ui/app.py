@@ -239,6 +239,8 @@ def create_app(
     world_dir: str = str(_PROJECT_ROOT / "World"),
     assets_dir: str = str(_PROJECT_ROOT / "Assets"),
     persist_generated_images: bool = False,
+    music_backend=None,
+    music_dir: Optional[str] = None,
 ) -> FastAPI:
     """Application factory with optional dependency injection.
 
@@ -265,6 +267,10 @@ def create_app(
             and image serving.
         persist_generated_images: Write images to disk when the generate panel
             runs (default: off).
+        music_backend: Optional music generation backend (``MusicGenerationBackend``).
+            Falls back to lazy ``get_backend(None)`` on first music route hit.
+        music_dir: Directory for music output files (WAVs + manifest.json).
+            Defaults to ``Audio/Music`` under the project root.
 
     Returns:
         Configured FastAPI application.
@@ -306,6 +312,9 @@ def create_app(
     repo = asset_repo or _StubAssetRepo()
     char_repo = character_repo or repo
     jq = job_queue or JobQueue()
+
+    # Music output directory (C2: never under repo root's catalog.db)
+    _music_out = music_dir or str(_PROJECT_ROOT / "Audio" / "Music")
 
     # Lazy batch runner built on first generate request (avoids importing
     # heavy dependencies at import time).
@@ -997,6 +1006,170 @@ def create_app(
             request, "motion.html",
             _motion_page_context(prompt_result=result, form_values=values),
         )
+
+    # ------------------------------------------------------------------ #
+    #  Music Generation (Phase 8 — browse / prompt preview / single-song) #
+    # ------------------------------------------------------------------ #
+
+    def _music_page_context(preview=None, form_values=None):
+        """Build the Phase 5 Music Generation browse-page context."""
+        from src.audio_bible import AudioBible
+        from src.music_generation.backends import resolve_music_params
+
+        bible = AudioBible()
+        categories = bible.list_song_categories()
+        category_params = []
+        for cat in categories:
+            params = resolve_music_params(cat)
+            category_params.append({
+                "name": cat,
+                "bpm": params.bpm,
+                "key_scale": params.key_scale,
+                "time_signature": params.time_signature,
+                "duration_s": params.duration_s,
+            })
+
+        recent_music_jobs = [
+            {
+                "id": j.id,
+                "status": j.status,
+                "category": j.config.get("category", ""),
+                "topic": j.config.get("topic", ""),
+                "error": j.config.get("error", ""),
+                "file": j.config.get("file", ""),
+            }
+            for j in jq.list_jobs()
+            if j.job_type == "music"
+        ]
+
+        return {
+            "page": "music",
+            "category_params": category_params,
+            "categories": categories,
+            "preview": preview or {},
+            "form_values": form_values or {},
+            "recent_music_jobs": recent_music_jobs,
+        }
+
+    @app.get("/music", response_class=HTMLResponse)
+    async def music_page(request: Request):
+        """Phase 5 — Music Generation browser and job launcher."""
+        return templates.TemplateResponse(
+            request, "music.html", _music_page_context()
+        )
+
+    @app.post("/music/generate")
+    async def music_generate(
+        request: Request,
+        background_tasks: BackgroundTasks,
+        category: str = Form("Alphabet"),
+        topic: str = Form(""),
+        backend: str = Form(""),
+    ):
+        """Queue a single song generation job and redirect back."""
+        job = jq.create_job(
+            character_id="music",
+            job_type="music",
+            config={"category": category, "topic": topic, "backend": backend},
+        )
+        jq.update_status(job.id, "running")
+        background_tasks.add_task(
+            _run_music_job, job.id, category, topic, backend,
+        )
+        logger.info(
+            "Music job queued: category=%s topic=%s backend=%s",
+            category, topic, backend,
+        )
+        return RedirectResponse(url=_get_referer(request), status_code=303)
+
+    def _run_music_job(job_id, category, topic, backend_name):
+        """Background worker: generate one song and write WAV + manifest entry."""
+        import os as _os
+
+        from src.music_generation import MusicBackendError, build_music_request, get_backend
+
+        # Manifest helpers from scripts/generate_phase5 (shared schema, C2)
+        from scripts.generate_phase5 import (
+            atomic_write_manifest,
+            load_manifest,
+            song_filename,
+            upsert_entry,
+        )
+
+        try:
+            if backend_name:
+                backend = get_backend(backend_name)
+            elif music_backend is not None:
+                backend = music_backend
+            else:
+                backend = get_backend(None)
+            request = build_music_request(category, topic)
+            result = backend.generate(request)
+
+            fname = song_filename(category, topic, result.seed, result.format)
+            fpath = _os.path.join(_music_out, fname)
+            _os.makedirs(_music_out, exist_ok=True)
+            with open(fpath, "wb") as fh:
+                fh.write(result.audio)
+
+            manifest_path = _os.path.join(_music_out, "manifest.json")
+            manifest = load_manifest(manifest_path)
+            upsert_entry(manifest, {
+                "file": fname,
+                "category": category,
+                "topic": request.topic,
+                "seed": result.seed,
+                "backend": result.backend,
+                "format": result.format,
+                "bytes": len(result.audio),
+                "duration_s": request.duration_s,
+                "bpm": 0,
+                "key_scale": "",
+                "time_signature": "",
+                "job_id": result.job_id,
+                "generated_at": "",
+            })
+            atomic_write_manifest(manifest_path, manifest)
+
+            # Fill in music params
+            from src.music_generation.backends import resolve_music_params
+            params = resolve_music_params(category)
+            entry = manifest.get("songs", [{}])[-1]
+            entry["bpm"] = params.bpm
+            entry["key_scale"] = params.key_scale
+            entry["time_signature"] = params.time_signature
+            atomic_write_manifest(manifest_path, manifest)
+
+            jq.update_status(job_id, "completed")
+            # Store file reference in job config
+            job = jq.get_job(job_id)
+            if job is not None:
+                job.config["file"] = fname
+
+            logger.info("Music job %s completed: %s", job_id, fname)
+
+        except MusicBackendError as exc:
+            logger.error("Music job %s failed: %s", job_id, exc)
+            job = jq.get_job(job_id)
+            if job is not None:
+                job.config["error"] = str(exc)
+            jq.update_status(job_id, "failed")
+
+    @app.get("/api/music/jobs")
+    async def api_music_jobs():
+        """JSON status list for music generation jobs."""
+        jobs = []
+        for j in jq.list_jobs():
+            if j.job_type != "music":
+                continue
+            jobs.append({
+                "id": j.id,
+                "status": j.status,
+                "category": j.config.get("category", ""),
+                "error": j.config.get("error", ""),
+                "file": j.config.get("file", ""),
+            })
+        return {"jobs": jobs}
 
     # ------------------------------------------------------------------ #
     #  Generation & seeding  (POST /generate, POST /seed)
