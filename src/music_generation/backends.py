@@ -15,8 +15,12 @@ Constraint reminders: stdlib ``urllib.request`` only (no new deps), no
 database access, no audio rendering anywhere in this package.
 """
 
+import json
+import socket
 import time
+import urllib.error
 import urllib.request
+from types import SimpleNamespace
 from typing import Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel
@@ -110,18 +114,35 @@ class MusicGenerationBackend(Protocol):
         timeout_s: float = 300.0,
         poll_interval_s: float = 2.0,
     ) -> MusicResult:
-        """Convenience submit->poll->download loop.
+        """Convenience submit->poll->download loop with bounded waiting.
 
-        Minimal-but-correct orchestration in this task: poll on a fixed
-        cadence until a terminal state, raise ``GenerationFailed`` on a
-        terminal failed state. Backoff doubling, deadline enforcement,
-        and the ``_monotonic`` seam land with the transport hardening.
+        Poll cadence: ``_sleep`` between attempts, doubling each retry
+        (base -> x8 cap), until a terminal state or the monotonic deadline
+        (``timeout_s``, default 300 s) passes. Deadline expiry and terminal
+        failed states raise ``GenerationFailed`` (job id + elapsed seconds /
+        server error text respectively). All delays route through the
+        ``_sleep`` seam; all clock reads through the ``_monotonic`` seam —
+        tests patch both and never really wait.
         """
+        started = _monotonic()
+        deadline = started + timeout_s
         job_id = self.submit(request)
+
+        delay = poll_interval_s
+        cap = poll_interval_s * 8
         status = self.poll(job_id)
         while status.state not in ("completed", "failed"):
-            _sleep(poll_interval_s)
+            now = _monotonic()
+            if now >= deadline:
+                elapsed = now - started
+                raise GenerationFailed(
+                    f"Job '{job_id}' did not complete within {timeout_s}s "
+                    f"(elapsed {elapsed:.1f}s)"
+                )
+            _sleep(delay)
+            delay = min(delay * 2, cap)
             status = self.poll(job_id)
+
         if status.state == "failed":
             raise GenerationFailed(
                 f"Job '{job_id}' failed: {status.error or 'unknown error'}"
@@ -263,8 +284,13 @@ def music_negative_prompt(category: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Module seams — every delay/network flow must route through these names      #
+# Transport seam — every delay/network flow must route through these names     #
+# (stdlib urllib only per constraint C4; single choke point for the RESEARCH   #
+# §2 error map, reused unchanged by plan 07-02 adapters)                       #
 # --------------------------------------------------------------------------- #
+
+# Explicit (connect_s, read_s) timeout tuple per RESEARCH §5.
+_TRANSPORT_TIMEOUT = (5, 30)
 
 
 def _sleep(seconds: float) -> None:
@@ -272,4 +298,126 @@ def _sleep(seconds: float) -> None:
     time.sleep(seconds)
 
 
-_urlopen = urllib.request.urlopen
+def _monotonic() -> float:
+    """Clock seam for deadline math: tests patch this to fast-forward time."""
+    return time.monotonic()
+
+
+def _urlopen(request: urllib.request.Request, timeout=None):
+    """Network seam wrapping stdlib ``urllib.request.urlopen``.
+
+    ``timeout`` may be a ``(connect_s, read_s)`` tuple — preserved at the
+    seam so fakes/tests can assert the full contract — flattened here to
+    the single socket timeout stdlib urlopen supports (conservative sum
+    of both budgets). Plain numbers pass through unchanged.
+    """
+    if isinstance(timeout, (int, float)):
+        flat = float(timeout)
+    else:
+        connect_s, read_s = timeout
+        flat = float(connect_s) + float(read_s)
+    return urllib.request.urlopen(request, timeout=flat)
+
+
+def _http_error_to_typed(exc: urllib.error.HTTPError) -> MusicBackendError:
+    """Map an HTTP error status to the typed taxonomy (RESEARCH §2).
+
+    Header values (including Authorization) are never embedded in
+    exception messages — threat T7-01-I.
+    """
+    code = getattr(exc, "code", None)
+    if code in (401, 403):
+        return NotConfigured(
+            f"Music backend rejected credentials (HTTP {code})"
+        )
+    return GenerationFailed(f"Music backend returned HTTP {code}")
+
+
+def _decode_json_object(raw: bytes) -> dict:
+    """Strictly decode a JSON object body; anything else is a failure."""
+    try:
+        parsed = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise GenerationFailed(
+            "Malformed JSON body from music backend"
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise GenerationFailed(
+            "Unexpected JSON shape from music backend (expected object)"
+        )
+    return parsed
+
+
+def _post_json(
+    url: str,
+    payload: dict,
+    headers: Optional[dict[str, str]] = None,
+    timeout=_TRANSPORT_TIMEOUT,
+) -> dict:
+    """POST a JSON payload and decode the JSON object response."""
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json", **(headers or {})},
+    )
+    try:
+        with _urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+    except urllib.error.HTTPError as exc:
+        raise _http_error_to_typed(exc) from exc
+    except (urllib.error.URLError, socket.timeout, TimeoutError, OSError) as exc:
+        raise BackendUnavailable(
+            f"Music backend unreachable ({exc.__class__.__name__})"
+        ) from exc
+    return _decode_json_object(raw)
+
+
+def _get_json(
+    url: str,
+    headers: Optional[dict[str, str]] = None,
+    timeout=_TRANSPORT_TIMEOUT,
+) -> dict:
+    """GET a JSON object response."""
+    request = urllib.request.Request(
+        url, method="GET", headers=dict(headers or {}),
+    )
+    try:
+        with _urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+    except urllib.error.HTTPError as exc:
+        raise _http_error_to_typed(exc) from exc
+    except (urllib.error.URLError, socket.timeout, TimeoutError, OSError) as exc:
+        raise BackendUnavailable(
+            f"Music backend unreachable ({exc.__class__.__name__})"
+        ) from exc
+    return _decode_json_object(raw)
+
+
+def _get_bytes(
+    url: str,
+    headers: Optional[dict[str, str]] = None,
+    timeout=_TRANSPORT_TIMEOUT,
+) -> bytes:
+    """GET raw binary bytes (audio download)."""
+    request = urllib.request.Request(
+        url, method="GET", headers=dict(headers or {}),
+    )
+    try:
+        with _urlopen(request, timeout=timeout) as response:
+            return response.read()
+    except urllib.error.HTTPError as exc:
+        raise _http_error_to_typed(exc) from exc
+    except (urllib.error.URLError, socket.timeout, TimeoutError, OSError) as exc:
+        raise BackendUnavailable(
+            f"Music backend unreachable ({exc.__class__.__name__})"
+        ) from exc
+
+
+# Pinned attribute names: plan 07-02 adapters consume these exactly as
+# self._transport.post_json / self._transport.get_json / self._transport.get_bytes
+DEFAULT_TRANSPORT = SimpleNamespace(
+    post_json=_post_json,
+    get_json=_get_json,
+    get_bytes=_get_bytes,
+)

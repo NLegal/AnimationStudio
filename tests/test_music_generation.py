@@ -9,8 +9,11 @@ no audio hardware (fake transports and monkeypatched seams only).
 """
 
 import io
+import json
 import os
+import socket
 import struct
+import urllib.error
 import wave
 
 import pytest
@@ -29,9 +32,14 @@ from src.music_generation import (
     MusicStatus,
     NotConfigured,
 )
+from src.music_generation import backends as mg_backends
 from src.music_generation.backends import (
     CATEGORY_MUSIC_PARAMS,
+    DEFAULT_TRANSPORT,
     CategoryMusicParams,
+    _get_bytes,
+    _get_json,
+    _post_json,
     build_music_request,
     music_negative_prompt,
     resolve_music_params,
@@ -122,11 +130,6 @@ class TestMockBackend:
         final = backend.poll(job_id)
         assert final.state == "completed"
         assert final.progress == 1.0
-
-    def test_exception_taxonomy(self):
-        for exc_cls in (NotConfigured, BackendUnavailable, GenerationFailed):
-            assert issubclass(exc_cls, MusicBackendError)
-            assert issubclass(exc_cls, Exception)
 
     def test_wav_structure_is_valid(self):
         req = MusicRequest(category="Animals", topic="duck pond", seed=99)
@@ -260,3 +263,244 @@ class TestCategoryMapping:
         negative = music_negative_prompt("Bedtime")
         assert negative == category_negative("Bedtime", include_base=True)
         assert AUDIO_NEGATIVE_BASE in negative
+
+
+class _FakeResponse:
+    """Minimal urllib response stand-in (read()/status/headers/context mgr)."""
+
+    def __init__(self, payload=b"", status=200, headers=None):
+        self._payload = payload if isinstance(payload, bytes) else payload.encode()
+        self.status = status
+        self.headers = headers or {}
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+
+def _install_fake_urlopen(monkeypatch, responses, calls):
+    """Route every helper call through a recording fake seam."""
+
+    def fake_urlopen(request, timeout=None):
+        calls.append({
+            "url": request.get_full_url(),
+            "method": request.get_method(),
+            "headers": {k.lower(): v for k, v in request.header_items()},
+            "data": request.data,
+            "timeout": timeout,
+        })
+        if isinstance(responses[0], Exception):
+            raise responses.pop(0)
+        return responses.pop(0)
+
+    monkeypatch.setattr(mg_backends, "_urlopen", fake_urlopen)
+
+
+class TestProtocolAndExceptions:
+    """Exception taxonomy + runtime-checkable protocol conformance."""
+
+    def test_exception_taxonomy(self):
+        for exc_cls in (NotConfigured, BackendUnavailable, GenerationFailed):
+            assert issubclass(exc_cls, MusicBackendError)
+            assert issubclass(exc_cls, Exception)
+
+    def test_mock_backend_isinstance_without_inheritance(self):
+        backend = MockBackend()
+        assert isinstance(backend, MusicGenerationBackend)
+        # Structural conformance only — MockBackend must NOT inherit from
+        # the protocol. issubclass() against a @runtime_checkable Protocol
+        # is itself structural (member presence), so the no-inheritance
+        # guarantee is asserted via the MRO.
+        assert MusicGenerationBackend not in MockBackend.__mro__
+
+
+class TestTransportSeam:
+    """_post_json/_get_json/_get_bytes route through the _urlopen seam.
+
+    Fakes intercept every call — no direct network syscalls possible
+    (constraint C3).
+    """
+
+    HEADERS = {"Authorization": "Bearer secret-token"}
+
+    def test_post_json_passes_full_request_shape(self, monkeypatch):
+        calls: list[dict] = []
+        _install_fake_urlopen(
+            monkeypatch,
+            [_FakeResponse(json.dumps({"job_id": "j-1"}).encode())],
+            calls,
+        )
+
+        result = _post_json(
+            "http://localhost:8001/v1/music/generate",
+            {"caption": "song", "bpm": 66},
+            headers=self.HEADERS,
+        )
+
+        assert result == {"job_id": "j-1"}
+        assert len(calls) == 1
+        call = calls[0]
+        assert call["url"] == "http://localhost:8001/v1/music/generate"
+        assert call["method"] == "POST"
+        assert call["timeout"] == (5, 30)
+        assert call["headers"]["authorization"] == "Bearer secret-token"
+        assert call["headers"]["content-type"] == "application/json"
+        assert json.loads(call["data"].decode()) == {
+            "caption": "song", "bpm": 66,
+        }
+
+    def test_get_json_passes_full_request_shape(self, monkeypatch):
+        calls: list[dict] = []
+        _install_fake_urlopen(
+            monkeypatch,
+            [_FakeResponse(json.dumps({"state": "running", "progress": 0.5}).encode())],
+            calls,
+        )
+
+        result = _get_json("http://localhost:8001/v1/jobs/j-1",
+                           headers=self.HEADERS)
+
+        assert result == {"state": "running", "progress": 0.5}
+        call = calls[0]
+        assert call["url"] == "http://localhost:8001/v1/jobs/j-1"
+        assert call["method"] == "GET"
+        assert call["timeout"] == (5, 30)
+        assert call["headers"]["authorization"] == "Bearer secret-token"
+        assert call["data"] is None
+
+    def test_get_bytes_returns_binary_passthrough(self, monkeypatch):
+        calls: list[dict] = []
+        payload = b"RIFF\x24\x00\x00\x00WAVEfmt" + b"\x00" * 16
+        _install_fake_urlopen(monkeypatch, [_FakeResponse(payload)], calls)
+
+        result = _get_bytes("http://localhost:8001/v1/audio?path=a.wav",
+                            headers=self.HEADERS)
+
+        assert result == payload
+        assert calls[0]["method"] == "GET"
+        assert calls[0]["timeout"] == (5, 30)
+
+    def test_http_401_maps_to_not_configured(self, monkeypatch):
+        _install_fake_urlopen(
+            monkeypatch,
+            [urllib.error.HTTPError(
+                "http://x", 401, "Unauthorized", {}, io.BytesIO(b"{}"))],
+            [],
+        )
+        with pytest.raises(NotConfigured):
+            _get_json("http://x/v1/jobs/j-1")
+
+    def test_http_403_maps_to_not_configured(self, monkeypatch):
+        _install_fake_urlopen(
+            monkeypatch,
+            [urllib.error.HTTPError(
+                "http://x", 403, "Forbidden", {}, io.BytesIO(b"{}"))],
+            [],
+        )
+        with pytest.raises(NotConfigured):
+            _post_json("http://x/v1/music/generate", {})
+
+    def test_http_500_maps_to_generation_failed(self, monkeypatch):
+        _install_fake_urlopen(
+            monkeypatch,
+            [urllib.error.HTTPError(
+                "http://x", 500, "Server Error", {}, io.BytesIO(b"{}"))],
+            [],
+        )
+        with pytest.raises(GenerationFailed):
+            _get_json("http://x/v1/jobs/j-1")
+
+    def test_connection_errors_map_to_backend_unavailable(self, monkeypatch):
+        for exc in (
+            urllib.error.URLError("connection refused"),
+            socket.timeout("timed out"),
+            OSError("network down"),
+        ):
+            calls: list[dict] = []
+            _install_fake_urlopen(monkeypatch, [exc], calls)
+            with pytest.raises(BackendUnavailable):
+                _get_json("http://down-host/v1/jobs/j-1")
+
+    def test_malformed_json_body_maps_to_generation_failed(self, monkeypatch):
+        _install_fake_urlopen(monkeypatch, [_FakeResponse(b"not-json{")], [])
+        with pytest.raises(GenerationFailed, match="[Mm]alformed"):
+            _get_json("http://x/v1/jobs/j-1")
+
+    def test_non_object_json_body_maps_to_generation_failed(self, monkeypatch):
+        _install_fake_urlopen(monkeypatch, [_FakeResponse(b"[1, 2]")], [])
+        with pytest.raises(GenerationFailed):
+            _get_json("http://x/v1/jobs/j-1")
+
+    def test_default_transport_exposes_pinned_attribute_names(self):
+        # Pinned exactly like this: plan 07-02 adapters consume these as
+        # self._transport.post_json / get_json / get_bytes.
+        assert DEFAULT_TRANSPORT.post_json is mg_backends._post_json
+        assert DEFAULT_TRANSPORT.get_json is mg_backends._get_json
+        assert DEFAULT_TRANSPORT.get_bytes is mg_backends._get_bytes
+
+    def test_exception_messages_never_embed_header_values(self, monkeypatch):
+        # Threat T7-01-I: Authorization values must never leak into errors.
+        _install_fake_urlopen(
+            monkeypatch,
+            [urllib.error.HTTPError(
+                "http://x", 401, "Unauthorized", {}, io.BytesIO(b"{}"))],
+            [],
+        )
+        with pytest.raises(NotConfigured) as excinfo:
+            _get_json("http://x/v1/jobs/j-1",
+                      headers={"Authorization": "Bearer secret-token"})
+        assert "secret-token" not in str(excinfo.value)
+
+
+class TestGenerateOrchestration:
+    """generate() backoff/deadline hardening via patched seams only."""
+
+    def test_backoff_sequence_starts_1s_then_2s(self, monkeypatch):
+        sleeps: list[float] = []
+        monkeypatch.setattr(mg_backends, "_sleep",
+                            lambda seconds: sleeps.append(seconds))
+        backend = MockBackend(states_before_complete=2)
+
+        result = backend.generate(
+            MusicRequest(category="Bedtime", seed=7), poll_interval_s=1.0)
+
+        assert isinstance(result, MusicResult)
+        assert result.seed == 7
+        # Doubling sequence 1 -> 2 -> 4 -> 8 capped at x8 of the base interval.
+        assert sleeps == [1.0, 2.0]
+
+    def test_deadline_expiry_raises_fast_with_job_id_and_elapsed(
+            self, monkeypatch):
+        monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
+        clock_values = iter([100.0, 401.0])   # start, then past deadline
+        monkeypatch.setattr(mg_backends, "_monotonic",
+                            lambda: next(clock_values))
+
+        backend = MockBackend()
+        monkeypatch.setattr(
+            backend, "poll",
+            lambda job_id: MusicStatus(state="pending", progress=0.1),
+        )
+
+        with pytest.raises(GenerationFailed) as excinfo:
+            backend.generate(MusicRequest(category="Bedtime", seed=7))
+        message = str(excinfo.value)
+        assert "mock-" in message                    # job id present
+        assert "300.0" in message                    # timeout budget named
+        assert "301.0" in message                    # elapsed seconds named
+
+    def test_terminal_failed_poll_carries_server_error_text(self, monkeypatch):
+        backend = MockBackend()
+        monkeypatch.setattr(
+            backend, "poll",
+            lambda job_id: MusicStatus(state="failed", progress=0.4,
+                                       error="model exploded"),
+        )
+
+        with pytest.raises(GenerationFailed, match="model exploded"):
+            backend.generate(MusicRequest(category="Bedtime", seed=7))
