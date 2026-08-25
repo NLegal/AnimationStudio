@@ -205,7 +205,7 @@ Plans:
 **Goal:** Wire the backends into the studio: extend `scripts/generate_phase5.py` with a real generation mode (`--backend acestep|suno|mock --generate`, batch song requests from the 24 categories, song manifest JSON + files under `Audio/Music/`), add Review UI hooks for music prompt preview/generation jobs, create `colab/AnimationStudio_Colab_Phase5.ipynb` (offline ACE-Step run, mirroring the Phase 4 notebook pattern), and update PHASE5_STATUS.md.
 **Requirements**: TBD
 **Depends on:** Phase 7
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 
 Plans:
 **Wave 1**
@@ -214,4 +214,4 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 08-02-PLAN.md — Review UI music hooks (GET /music page + nav link, POST /music/prompt pure preview, POST /music/generate single-song BackgroundTasks jobs reusing script-tier manifest helpers, GET /api/music/jobs polling, music_backend DI kwarg) + tests/test_review_ui_music.py + colab/AnimationStudio_Colab_Phase5.ipynb + PHASE5_STATUS.md update
+- [x] 08-02-PLAN.md — Review UI music hooks (GET /music page + nav link, POST /music/prompt pure preview, POST /music/generate single-song BackgroundTasks jobs reusing script-tier manifest helpers, GET /api/music/jobs polling, music_backend DI kwarg) + tests/test_review_ui_music.py + colab/AnimationStudio_Colab_Phase5.ipynb + PHASE5_STATUS.md update
