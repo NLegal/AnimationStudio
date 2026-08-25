@@ -1124,6 +1124,7 @@ def create_app(
     def _run_music_job(job_id, category, topic, backend_name):
         """Background worker: generate one song and write WAV + manifest entry."""
         import os as _os
+        import traceback as _tb
 
         from src.music_generation import MusicBackendError, build_music_request, get_backend
 
@@ -1131,6 +1132,7 @@ def create_app(
         from scripts.generate_phase5 import (
             atomic_write_manifest,
             load_manifest,
+            now_iso,
             song_filename,
             upsert_entry,
         )
@@ -1151,6 +1153,11 @@ def create_app(
             with open(fpath, "wb") as fh:
                 fh.write(result.audio)
 
+            # Resolve music params BEFORE the first manifest write to avoid
+            # a transient window with empty/zero metadata (WR-01).
+            from src.music_generation.backends import resolve_music_params
+            params = resolve_music_params(category)
+
             manifest_path = _os.path.join(_music_out, "manifest.json")
             manifest = load_manifest(manifest_path)
             upsert_entry(manifest, {
@@ -1162,21 +1169,12 @@ def create_app(
                 "format": result.format,
                 "bytes": len(result.audio),
                 "duration_s": request.duration_s,
-                "bpm": 0,
-                "key_scale": "",
-                "time_signature": "",
+                "bpm": params.bpm,
+                "key_scale": params.key_scale,
+                "time_signature": params.time_signature,
                 "job_id": result.job_id,
-                "generated_at": "",
+                "generated_at": now_iso(),
             })
-            atomic_write_manifest(manifest_path, manifest)
-
-            # Fill in music params
-            from src.music_generation.backends import resolve_music_params
-            params = resolve_music_params(category)
-            entry = manifest.get("songs", [{}])[-1]
-            entry["bpm"] = params.bpm
-            entry["key_scale"] = params.key_scale
-            entry["time_signature"] = params.time_signature
             atomic_write_manifest(manifest_path, manifest)
 
             jq.update_status(job_id, "completed")
@@ -1192,6 +1190,12 @@ def create_app(
             job = jq.get_job(job_id)
             if job is not None:
                 job.config["error"] = str(exc)
+            jq.update_status(job_id, "failed")
+        except Exception as exc:
+            logger.exception("Music job %s failed unexpectedly: %s", job_id, exc)
+            job = jq.get_job(job_id)
+            if job is not None:
+                job.config["error"] = f"{type(exc).__name__}: {exc}"
             jq.update_status(job_id, "failed")
 
     @app.get("/api/music/jobs")
