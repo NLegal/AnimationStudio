@@ -88,6 +88,7 @@ Plans:
 
 **Plans**: 6 plans
 Plans:
+
 - [ ] 01c-01-PLAN.md — Dataset curation & builder completion (.txt sidecars, schema-valid TOML, 20–40 bounds, find_curated two-state query)
 - [ ] 01c-02-PLAN.md — Benchmark ↔ identity-engine bridge (D-06 plugin weights, threshold 0.90, coverage-honest gate, IdentityScorerProvider)
 - [ ] 01c-03-PLAN.md — KohyaAdapter Flux contract + first-class dry-run mode
@@ -188,12 +189,12 @@ Plans:
 **Goal:** Implement a provider-agnostic music-generation backend layer (`src/music_generation/`) on top of the Phase 5 audio-bible standards: a `MusicGenerationBackend` protocol, a fully working **ACE-Step 1.5 local-API adapter** (async job submit/poll/download against `localhost:8001`, mapping song categories → caption/BPM/key/duration/lyric-structure per `.planning/research/MUSIC-GENERATION.md`), a **Suno adapter stub** that raises NotConfigured until an official API exists (optional third-party wrapper adapter clearly flagged), and a deterministic **mock backend** for tests. No audio generated in CI/tests; `catalog.db` untouched.
 **Requirements**: TBD
 **Depends on:** Audio bible standards (`src/audio_bible/` — complete)
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Core layer tracer: package scaffold, Pydantic models, MusicGenerationBackend protocol + typed exception taxonomy, category→params mapping (locked research table), stdlib transport seam, deterministic MockBackend, offline test suite
+- [x] 07-01-PLAN.md — Core layer tracer: package scaffold, Pydantic models, MusicGenerationBackend protocol + typed exception taxonomy, category→params mapping (locked research table), stdlib transport seam, deterministic MockBackend, offline test suite
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
