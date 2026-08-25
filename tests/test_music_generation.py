@@ -16,6 +16,8 @@ import wave
 import pytest
 from pydantic import ValidationError
 
+from src.audio_bible import AUDIO_NEGATIVE_BASE, category_negative
+from src.audio_bible.prompts import build_music_prompt
 from src.music_generation import (
     BackendUnavailable,
     GenerationFailed,
@@ -26,6 +28,13 @@ from src.music_generation import (
     MusicResult,
     MusicStatus,
     NotConfigured,
+)
+from src.music_generation.backends import (
+    CATEGORY_MUSIC_PARAMS,
+    CategoryMusicParams,
+    build_music_request,
+    music_negative_prompt,
+    resolve_music_params,
 )
 
 
@@ -157,3 +166,97 @@ class TestMockBackend:
             MusicRequest(category="Numbers")).seed == 5
         assert MockBackend().generate(
             MusicRequest(category="Numbers")).seed == 0
+
+
+class TestCategoryMapping:
+    """Golden-value assertions on the LOCKED RESEARCH §3 table.
+
+    Style mirrors tests/test_audio_bible.py::TestMusicBrief.
+    """
+
+    def test_bedtime_golden_values(self):
+        params = resolve_music_params("Bedtime")
+        assert params.bpm == 66
+        assert params.key_scale == "F major"
+        assert params.time_signature == "3/4"
+        assert params.duration_s == 120
+        assert params.lyric_structure.startswith("[instrumental intro]")
+        assert params.caption_keyword == "lullaby"
+
+    def test_all_category_rows_match_research_table(self):
+        expected = {
+            "Alphabet": (110, "C major", "4/4",
+                         "[verse][chorus][verse][chorus]", "alphabet", 75),
+            "Numbers": (116, "D major", "4/4",
+                        "[verse][chorus][verse][chorus]", "counting", 75),
+            "Colors": (108, "G major", "4/4",
+                       "[verse][chorus][bridge][chorus]", "colors", 60),
+            "Animals": (120, "C major", "4/4",
+                        "[verse][chorus][verse][chorus]", "animal", 80),
+        }
+        for category, (bpm, key_scale, time_signature,
+                       lyric_structure, caption_keyword, duration_s) in expected.items():
+            params = resolve_music_params(category)
+            label = f"{category}: "
+            assert params.bpm == bpm, label + "bpm"
+            assert params.key_scale == key_scale, label + "key"
+            assert params.time_signature == time_signature, label + "time signature"
+            assert params.lyric_structure == lyric_structure, label + "scaffold"
+            assert params.caption_keyword == caption_keyword, label + "keyword"
+            assert params.duration_s == duration_s, label + "duration"
+
+    def test_table_holds_exactly_five_named_rows(self):
+        assert set(CATEGORY_MUSIC_PARAMS) == {
+            "Alphabet", "Numbers", "Colors", "Animals", "Bedtime",
+        }
+
+    def test_case_insensitive_lookup(self):
+        assert resolve_music_params("bedtime") == resolve_music_params("Bedtime")
+        assert resolve_music_params(" BEDTIME ") == resolve_music_params("Bedtime")
+        assert isinstance(resolve_music_params("BeDtImE"), CategoryMusicParams)
+
+    def test_unknown_category_falls_back_to_generic_row(self):
+        params = resolve_music_params("Spaceship")
+        assert params.bpm == 110
+        assert params.key_scale == "C major"
+        assert params.time_signature == "4/4"
+        assert params.duration_s == 60
+        assert params.lyric_structure == "[verse][chorus][verse][chorus]"
+        assert params.caption_keyword == "spaceship"   # slug-derived
+
+    def test_resolved_rows_are_copies_not_table_cells(self):
+        # Mutating a resolved row must never corrupt the shared table.
+        params = resolve_music_params("Alphabet")
+        params.bpm = 999
+        assert resolve_music_params("Alphabet").bpm == 110
+
+    def test_build_music_request_resolves_duration_and_seed(self):
+        request = build_music_request(category="Bedtime",
+                                      topic="sleepy moon", seed=42)
+        assert isinstance(request, MusicRequest)
+        assert request.category == "Bedtime"
+        assert request.topic == "sleepy moon"
+        assert request.duration_s == 120           # Bedtime pinned at 120 s
+        assert request.seed == 42
+        assert request.vocals == "female lead vocal, children's choir"
+
+    def test_build_music_request_explicit_duration_overrides_category(self):
+        request = build_music_request(category="Bedtime", topic="moon",
+                                      seed=1, duration_s=90)
+        assert request.duration_s == 90            # explicit wins over 120
+
+    def test_build_music_request_generic_duration_for_unknown(self):
+        request = build_music_request(category="Spaceship", seed=2)
+        assert request.duration_s == 60            # generic fallback default
+
+    def test_caption_property_via_bible_builder(self):
+        for category in ("Alphabet", "Numbers", "Colors", "Animals", "Bedtime"):
+            params = resolve_music_params(category)
+            caption = build_music_prompt(category, topic="test topic")
+            assert len(caption) <= 512, category
+            assert params.caption_keyword in caption.lower(), category
+
+    def test_music_negative_prompt_delegates_to_bible(self):
+        negative = music_negative_prompt("Bedtime")
+        assert negative == category_negative("Bedtime", include_base=True)
+        assert AUDIO_NEGATIVE_BASE in negative
