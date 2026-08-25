@@ -189,7 +189,7 @@ Plans:
 **Goal:** Implement a provider-agnostic music-generation backend layer (`src/music_generation/`) on top of the Phase 5 audio-bible standards: a `MusicGenerationBackend` protocol, a fully working **ACE-Step 1.5 local-API adapter** (async job submit/poll/download against `localhost:8001`, mapping song categories → caption/BPM/key/duration/lyric-structure per `.planning/research/MUSIC-GENERATION.md`), a **Suno adapter stub** that raises NotConfigured until an official API exists (optional third-party wrapper adapter clearly flagged), and a deterministic **mock backend** for tests. No audio generated in CI/tests; `catalog.db` untouched.
 **Requirements**: TBD
 **Depends on:** Audio bible standards (`src/audio_bible/` — complete)
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 **Wave 1**
@@ -205,12 +205,12 @@ Plans:
 **Goal:** Wire the backends into the studio: extend `scripts/generate_phase5.py` with a real generation mode (`--backend acestep|suno|mock --generate`, batch song requests from the 24 categories, song manifest JSON + files under `Audio/Music/`), add Review UI hooks for music prompt preview/generation jobs, create `colab/AnimationStudio_Colab_Phase5.ipynb` (offline ACE-Step run, mirroring the Phase 4 notebook pattern), and update PHASE5_STATUS.md.
 **Requirements**: TBD
 **Depends on:** Phase 7
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — Script + manifest core: extend scripts/generate_phase5.py with `--generate` mode (backend alias normalization, 24-category batch, `<category>-<topic-slug>-<seed>` file layout, crash-safe atomic manifest with resume-skip by request signature), tests/test_generate_phase5.py (TestGenerationMode / TestBatchGeneration / TestManifest), Audio/Music/README.md live-smoke line
+- [x] 08-01-PLAN.md — Script + manifest core: extend scripts/generate_phase5.py with `--generate` mode (backend alias normalization, 24-category batch, `<category>-<topic-slug>-<seed>` file layout, crash-safe atomic manifest with resume-skip by request signature), tests/test_generate_phase5.py (TestGenerationMode / TestBatchGeneration / TestManifest), Audio/Music/README.md live-smoke line
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
