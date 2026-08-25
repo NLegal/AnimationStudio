@@ -96,7 +96,8 @@ def load_manifest(path: str) -> dict:
     if not os.path.exists(path):
         return {"version": _MANIFEST_VERSION, "songs": []}
     try:
-        data = json.loads(open(path, encoding="utf-8").read())
+        with open(path, encoding="utf-8") as fh:
+            data = json.loads(fh.read())
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         print(f"WARNING: manifest corrupted at {path}, rebuilding ({exc})",
               file=sys.stderr)
