@@ -189,7 +189,7 @@ Plans:
 **Goal:** Implement a provider-agnostic music-generation backend layer (`src/music_generation/`) on top of the Phase 5 audio-bible standards: a `MusicGenerationBackend` protocol, a fully working **ACE-Step 1.5 local-API adapter** (async job submit/poll/download against `localhost:8001`, mapping song categories → caption/BPM/key/duration/lyric-structure per `.planning/research/MUSIC-GENERATION.md`), a **Suno adapter stub** that raises NotConfigured until an official API exists (optional third-party wrapper adapter clearly flagged), and a deterministic **mock backend** for tests. No audio generated in CI/tests; `catalog.db` untouched.
 **Requirements**: TBD
 **Depends on:** Audio bible standards (`src/audio_bible/` — complete)
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 
 Plans:
 **Wave 1**
@@ -198,7 +198,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md — AceStepBackend REST adapter (fake-transport contract suite), Suno stub + experimental wrapper, get_backend registry with MUSIC_BACKEND env resolution, scripts/generate_phase7.py CLI (--dry-run zero-network), Audio/Music README + manual live-smoke checklist
+- [x] 07-02-PLAN.md — AceStepBackend REST adapter (fake-transport contract suite), Suno stub + experimental wrapper, get_backend registry with MUSIC_BACKEND env resolution, scripts/generate_phase7.py CLI (--dry-run zero-network), Audio/Music README + manual live-smoke checklist
 
 ### Phase 8: Music Generation Pipeline Wiring
 
