@@ -1,7 +1,7 @@
 # Phase 5 Status — Audio Bible & Music Production System
 
 > Verified against `PHASE5.md` deliverables and quality checklist.
-> Date: 2026-08-03
+> Date: 2026-08-25
 
 ## Deliverables
 
@@ -18,6 +18,10 @@
 | Mixing and mastering guidelines | ✅ | Dialogue-priority mix rules (`Mixes/MIXING_STANDARDS.md`); mastering chain with −14 LUFS / −1.0 dBTP / 48 kHz targets (`Mixes/MASTERING_GUIDE.md`). |
 | Localization-ready audio workflow | ✅ | 6 localization standards (`Localization/LOCALIZATION_GUIDE.md`), 6 target languages (en/es/fr/de/zh/ja), stem-based vocal replacement workflow. |
 | Prompt templates for music and voice generation | ✅ | `PromptTemplates/music-prompts.md` — category templates for 8 song types + generic structure; voice prompts mapped from profiles; base + 7 per-category negative blocks in `NegativePrompts/AUDIO_NEGATIVES.md`. |
+| Generation mode script (`--generate`) | ✅ | `scripts/generate_phase5.py` — `--generate --backend ace-step|mock` iterates categories, writes WAVs + `Audio/Music/manifest.json` with 13-key entries; acestep→ace-step alias; idempotent resume. |
+| Review UI music hooks | ✅ | `src/review_ui/app.py` — GET `/music` browse, POST `/music/prompt` pure preview, POST `/music/generate` single-song background job + `GET /api/music/jobs` polling. |
+| Colab Phase 5 notebook | ✅ | `colab/AnimationStudio_Colab_Phase5.ipynb` — 10 cells: settings (RUN_REAL_GENERATION + ACESTEP_MODEL), clone+install, 24-category preview, ACE-Step service (GPU path), generate, tests, manifest review, sync, next steps. |
+| `Audio/Music/manifest.json` artifact inventory | ✅ | Shared 13-key manifest written by both CLI and UI worker; tracks file, category, topic, seed, backend, format, bytes, duration_s, bpm, key_scale, time_signature, job_id, generated_at. |
 
 ## Quality Checklist (per audio asset — enforced by `AudioProductionSystem`)
 
@@ -52,19 +56,26 @@
 # Regenerate the Phase 5 report (doc consistency + sample episode validation)
 python scripts/generate_phase5.py
 
-# Run the Phase 5 test suite
-python -m pytest tests/test_audio_bible.py -q
+# Offline mock generation (no audio service needed — writes deterministic WAVs)
+python scripts/generate_phase5.py --generate --backend mock --out Audio/Music
+
+# Live smoke (requires local ACE-Step service on localhost:8001)
+# See Audio/Music/README.md for setup instructions.
+# python scripts/generate_phase5.py --generate --backend ace-step --category Bedtime --topic "sleepy moon"
+
+# Run the Phase 5 test suites
+python -m pytest tests/test_audio_bible.py tests/test_music_generation.py tests/test_generate_phase5.py tests/test_review_ui_music.py -q
 
 # Full suite
-python -m pytest -q   # 1422 passing
+python -m pytest -q   # ~1550 passing (5 pre-existing story-engine failures unrelated to Phase 5)
 ```
 
 ## Notes / Caveats
 
 - All standards are encoded as pure, deterministic Python (no DB/generation
   backend required) — the bible is fully reproducible offline. Audio generation
-  (Suno / ACE-Step / Kokoro / XTTS v2 / Piper) is called by the production
-  system's consumers; the bible resolves prompts and validates results.
+  is wired through `get_backend()` with mock default and ace-step local-service
+  option; Suno is included but refuses pending an official API.
 - `check_docs()` verifies **26 concrete fact tokens** against the markdown
   bibles in `Audio/` (tempo band, structure sections, engine names, profile
   fields, SFX/foley/ambience assets, loudness target, lip-sync and localization
@@ -79,6 +90,21 @@ python -m pytest -q   # 1422 passing
   pre-existing canonical docs.
 - Song planning integrates the Phase 2/5-era `SongEngine` (story_engine):
   `plan_song_with_engine()` maps its song types to bible categories.
-- Like earlier phases, this phase delivers standards + working pipeline wiring,
-  not rendered audio files; audio rendering is left to the AI platforms with
-  prompts built by this package.
+
+## Music Generation Wiring (Phase 8)
+
+Phase 8 wires the Phase 7 `src/music_generation/` backends into three tiers:
+
+| Tier | Surface | Scope | Backend selection |
+|------|---------|-------|-------------------|
+| CLI batch | `scripts/generate_phase5.py --generate` | All 24 categories | `--backend ace-step\|mock\|suno`; alias normalization (acestep→ace-step) |
+| Review UI | `POST /music/generate` | Single song per submit | Form dropdown; `GET /api/music/jobs` for status polling |
+| Colab notebook | `colab/AnimationStudio_Colab_Phase5.ipynb` | All categories or subset | `RUN_REAL_GENERATION` toggle gates ace-step vs mock |
+
+All three tiers share `scripts/generate_phase5.py` manifest helpers
+(`load_manifest`, `upsert_entry`, `atomic_write_manifest`, `song_filename`)
+and write into `Audio/Music/manifest.json` with a 13-key entry schema.
+
+**Test evidence:** `tests/test_review_ui_music.py` — 25 tests
+(TestMusicPage 7 + TestMusicPrompt 10 + TestMusicGenerate 8);
+`tests/test_generate_phase5.py` — generation mode + manifest + batch loop.
