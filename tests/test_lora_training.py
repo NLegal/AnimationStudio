@@ -595,6 +595,233 @@ class TestVersionRegistry:
 
 
 # =========================================================================
+# JsonVersionStore tests (01c-04: sidecar persistence)
+# =========================================================================
+
+class TestJsonVersionStore:
+    """JsonVersionStore round-trip, tolerant parse, and atomic writes."""
+
+    def test_save_and_load_round_trip(self, tmp_path):
+        """save() writes JSON; load() returns matching record dicts."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "registry.json")
+        records = [
+            {
+                "id": "rec-1",
+                "character_id": "lily-bunny",
+                "version": "v0.1",
+                "file_path": "/tmp/lily_v0.1.safetensors",
+                "training_config": {"lr": 0.0001},
+                "benchmark_scores": {"character_consistency": 0.85},
+                "trained_at": "2026-08-26T12:00:00",
+                "promoted": False,
+            },
+            {
+                "id": "rec-2",
+                "character_id": "lily-bunny",
+                "version": "v1.0",
+                "file_path": "/tmp/lily_v1.0.safetensors",
+                "training_config": None,
+                "benchmark_scores": None,
+                "trained_at": "2026-08-27T12:00:00",
+                "promoted": True,
+            },
+        ]
+        store.save(records)
+        loaded = store.load()
+        assert len(loaded) == 2
+        assert loaded[0]["character_id"] == "lily-bunny"
+        assert loaded[0]["version"] == "v0.1"
+        assert loaded[0]["training_config"] == {"lr": 0.0001}
+        assert loaded[0]["benchmark_scores"] == {"character_consistency": 0.85}
+        assert loaded[1]["promoted"] is True
+
+    def test_load_missing_file_returns_empty(self, tmp_path):
+        """load() on nonexistent file returns empty list."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "nope.json")
+        assert store.load() == []
+
+    def test_load_corrupt_record_skips_others(self, tmp_path):
+        """load() skips unparsable records instead of failing wholesale."""
+        from src.training_engine.version_store import JsonVersionStore
+        import json
+        store = JsonVersionStore(tmp_path / "corrupt.json")
+        # Manually write a file with one valid and one corrupt entry
+        store_path = tmp_path / "corrupt.json"
+        store_path.write_text(json.dumps([
+            {"character_id": "ok", "version": "v0.1",
+             "file_path": "/tmp/ok.safetensors",
+             "trained_at": "2026-08-26T12:00:00", "promoted": False,
+             "id": "r1", "training_config": None, "benchmark_scores": None},
+            "not-a-dict",  # corrupt entry
+        ], indent=2), encoding="utf-8")
+        loaded = store.load()
+        assert len(loaded) == 1
+        assert loaded[0]["character_id"] == "ok"
+
+    def test_save_atomic_on_crash(self, tmp_path):
+        """save() uses atomic write (temp + replace) — corrupt store file is skipped."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "atomic.json")
+        # Overwrite with garbage — load should still return empty
+        (tmp_path / "atomic.json").write_text("{{{not json", encoding="utf-8")
+        loaded = store.load()
+        assert loaded == []
+
+    def test_load_returns_lora_models_schema_fields(self, tmp_path):
+        """Loaded dicts have exactly the lora_models column names."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "schema.json")
+        store.save([{
+            "id": "x1",
+            "character_id": "test",
+            "version": "v0.1",
+            "file_path": "/tmp/x.safetensors",
+            "training_config": None,
+            "benchmark_scores": None,
+            "trained_at": "2026-08-26T12:00:00",
+            "promoted": False,
+        }])
+        loaded = store.load()
+        expected_keys = {
+            "id", "character_id", "version", "file_path",
+            "training_config", "benchmark_scores", "trained_at", "promoted",
+        }
+        assert set(loaded[0].keys()) == expected_keys
+
+
+# =========================================================================
+# VersionRegistry persistence tests (01c-04: store-backed registry)
+# =========================================================================
+
+class TestVersionRegistryPersistence:
+    """VersionRegistry with JsonVersionStore: hydration, persistence, idempotent register."""
+
+    def test_registry_with_store_hydrates_on_construct(self, tmp_path):
+        """Registry constructed with store hydrates from existing store file."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "reg.json")
+        store.save([
+            {"id": "r1", "character_id": "lily", "version": "v0.1",
+             "file_path": "/tmp/lily_v0.1.safetensors",
+             "training_config": None, "benchmark_scores": None,
+             "trained_at": "2026-08-26T12:00:00", "promoted": False},
+            {"id": "r2", "character_id": "lily", "version": "v0.2",
+             "file_path": "/tmp/lily_v0.2.safetensors",
+             "training_config": None, "benchmark_scores": None,
+             "trained_at": "2026-08-27T12:00:00", "promoted": False},
+        ])
+        registry = VersionRegistry(store=store)
+        versions = registry.get_versions("lily")
+        assert len(versions) == 2
+        assert str(versions[0].version) == "v0.2"
+        assert str(versions[1].version) == "v0.1"
+
+    def test_registry_persists_on_register(self, tmp_path):
+        """register() on a store-backed registry persists to disk."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "reg.json")
+        registry = VersionRegistry(store=store)
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/lily_v0.1.safetensors",
+        )
+        # Create new registry from same store — should see the record
+        registry2 = VersionRegistry(store=store)
+        versions = registry2.get_versions("lily")
+        assert len(versions) == 1
+        assert str(versions[0].version) == "v0.1"
+
+    def test_round_trip_preserves_all_fields(self, tmp_path):
+        """Register → persist → reload preserves all VersionRecord fields."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "round.json")
+        registry = VersionRegistry(store=store)
+        now = datetime(2026, 8, 26, 12, 0, 0)
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/lily_v0.1.safetensors",
+            training_config={"lr": 0.0001, "epochs": 10},
+            benchmark_scores={"character_consistency": 0.88},
+            trained_at=now,
+        )
+        registry2 = VersionRegistry(store=store)
+        rec = registry2.get_latest("lily")
+        assert rec is not None
+        assert rec.training_config == {"lr": 0.0001, "epochs": 10}
+        assert rec.benchmark_scores == {"character_consistency": 0.88}
+        assert rec.promoted is False
+
+    def test_idempotent_register_replaces_existing(self, tmp_path):
+        """Registering same (character_id, version) replaces the prior record."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "idem.json")
+        registry = VersionRegistry(store=store)
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/old_v0.1.safetensors",
+            benchmark_scores={"score": 0.70},
+        )
+        # Re-register same pair with updated file_path and scores
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/new_v0.1.safetensors",
+            benchmark_scores={"score": 0.85},
+        )
+        versions = registry.get_versions("lily")
+        assert len(versions) == 1, f"Expected 1 record, got {len(versions)}"
+        assert versions[0].file_path == "/tmp/new_v0.1.safetensors"
+        assert versions[0].benchmark_scores == {"score": 0.85}
+
+    def test_default_registry_no_store_stays_in_memory(self, tmp_path):
+        """VersionRegistry() with no store remains in-memory only (no filesystem writes)."""
+        registry = VersionRegistry()
+        registry.register(
+            character_id="test",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/test.safetensors",
+        )
+        # No store file should exist
+        assert not (tmp_path / "nonexistent.json").exists()
+
+    def test_load_registry_factory(self, tmp_path):
+        """load_registry(store_path) returns hydrated registry."""
+        from src.training_engine.version_store import JsonVersionStore, load_registry
+        store = JsonVersionStore(tmp_path / "factory.json")
+        store.save([
+            {"id": "r1", "character_id": "char1", "version": "v0.1",
+             "file_path": "/tmp/char1_v0.1.safetensors",
+             "training_config": None, "benchmark_scores": None,
+             "trained_at": "2026-08-26T12:00:00", "promoted": False},
+        ])
+        registry = load_registry(tmp_path / "factory.json")
+        assert isinstance(registry, VersionRegistry)
+        assert len(registry.get_versions("char1")) == 1
+
+    def test_corrupt_store_hydrates_valid_records(self, tmp_path):
+        """Registry with a partially corrupt store skips bad entries."""
+        from src.training_engine.version_store import JsonVersionStore
+        import json
+        store_path = tmp_path / "partial.json"
+        store_path.write_text(json.dumps([
+            {"id": "r1", "character_id": "ok", "version": "v0.1",
+             "file_path": "/tmp/ok.safetensors",
+             "training_config": None, "benchmark_scores": None,
+             "trained_at": "2026-08-26T12:00:00", "promoted": False},
+            {"corrupted": True},  # missing required fields
+        ], indent=2), encoding="utf-8")
+        store = JsonVersionStore(store_path)
+        registry = VersionRegistry(store=store)
+        versions = registry.get_versions("ok")
+        assert len(versions) == 1
+
+
+# =========================================================================
 # LoRABenchmark tests
 # =========================================================================
 
