@@ -89,7 +89,7 @@ Plans:
 **Plans**: 6 plans
 Plans:
 
-- [ ] 01c-01-PLAN.md — Dataset curation & builder completion (.txt sidecars, schema-valid TOML, 20–40 bounds, find_curated two-state query)
+- [x] 01c-01-PLAN.md — Dataset curation & builder completion (.txt sidecars, schema-valid TOML, 20–40 bounds, find_curated two-state query)
 - [ ] 01c-02-PLAN.md — Benchmark ↔ identity-engine bridge (D-06 plugin weights, threshold 0.90, coverage-honest gate, IdentityScorerProvider)
 - [ ] 01c-03-PLAN.md — KohyaAdapter Flux contract + first-class dry-run mode
 - [ ] 01c-04-PLAN.md — Version persistence (sidecar JSON store) + promote()
@@ -177,7 +177,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Character System Infrastructure & Bible Foundation | 5/5 | Complete | 2026-07-28 |
 | 1b. Character Asset Production | 5/5 | In Progress|  |
-| 1c. Character Training System | 0/0 | Not started | - |
+| 1c. Character Training System | 1/6 | 17% | Plan 01c-01 complete |
 | 2. World Building & Environment Bible | 0/0 | Not started | - |
 | 3. Story & Music Pipeline | 0/0 | Not started | - |
 | 4. Visual Generation Pipeline | 0/0 | Not started | - |
@@ -205,7 +205,7 @@ Plans:
 **Goal:** Wire the backends into the studio: extend `scripts/generate_phase5.py` with a real generation mode (`--backend acestep|suno|mock --generate`, batch song requests from the 24 categories, song manifest JSON + files under `Audio/Music/`), add Review UI hooks for music prompt preview/generation jobs, create `colab/AnimationStudio_Colab_Phase5.ipynb` (offline ACE-Step run, mirroring the Phase 4 notebook pattern), and update PHASE5_STATUS.md.
 **Requirements**: TBD
 **Depends on:** Phase 7
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 **Wave 1**

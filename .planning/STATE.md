@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 08
-current_phase_name: Music Generation Pipeline Wiring
+current_phase: "01c-character-training-system"
+current_phase_name: Character Training System
 status: in_progress
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-08-25T16:30:00.000Z"
-last_activity: 2026-08-25
-last_activity_desc: Phase 8 Plan 02 complete (Review UI music wiring + Colab notebook + PHASE5_STATUS docs)
+stopped_at: Completed 01c-01-PLAN.md
+last_updated: "2026-08-26T15:49:44Z"
+last_activity: 2026-08-26
+last_activity_desc: Plan 01c-01 complete — find_curated query + DatasetBuilder correctness
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 20
+  total_plans: 21
   completed_plans: 15
 ---
 
@@ -27,32 +27,35 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 
 ## Current Position
 
-Phase: 08 — Music Generation Pipeline Wiring
-Plan: 01 complete (08-01), 02 complete (08-02)
-Status: in_progress
-Last activity: 2026-08-25 — Phase 8 Plan 02 complete (Review UI music wiring + Colab notebook + PHASE5_STATUS docs)
+Phase: 01c — Character Training System
+Plan: 01 complete, next is 02 or 03 depending on orchestrator
+Status: Plan 01c-01 complete — ready for next plan
+Last activity: 2026-08-26 — Plan 01c-01 complete
 
-Progress: [████████░░] 75%
+Progress: [█████████░] 81%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 3
-- Average duration: 47min
-- Total execution time: 47min
+- Total plans completed: 6
+- Average duration: 88min
+- Total execution time: 527min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-character-universe | 1 | 47min | 47min |
-| 7 | 2 | - | - |
+| 01b-character-asset-production | 1 | 45m | 45m |
+| 01c-character-training-system | 1 | 165m | 165m |
+| 07 | 2 | - | - |
+| 08 | 2 | - | - |
 
 **Recent Trend:**
 
-- Last 1 plans: 47min (01-01)
-- Trend: 47min
+- Last 1 plans: 165min (01c-01)
+- Trend: 165min
 
 *Updated after each plan completion*
 **Per-Plan Metrics:**
@@ -64,6 +67,7 @@ Progress: [████████░░] 75%
 | Phase 07 P01 | 2h 51m | 3 tasks | 5 files |
 | Phase 07 P02 | 2h 2m | 3 tasks | 7 files |
 | Phase 08 P01 | 76min | 3 tasks | 3 files |
+| Phase 01c-character-training-system P01 | 165m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -95,6 +99,9 @@ Recent decisions affecting current work:
 - [Phase ?]: get_backend imported at module level for testability across plans
 - [Phase ?]: Manifest helpers at module level in generate_phase5.py for Plan 08-02 cross-plan import
 - [Phase ?]: entry_matches is pure dict comparison; file existence in caller skip-logic
+- Plan 01c-01: find_curated returns list[AssetModel] ordered by brand_score DESC for deterministic caller deduplication
+- Plan 01c-01: Bounds enforcement in DatasetBuilder.build(), not adapter — adapter passes min_images=0
+- Plan 01c-01: Baselines copy limited to 10 reference images matching LoRABenchmark._load_baseline_images convention
 
 ### Pending Todos
 
@@ -112,8 +119,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-25T12:03:20.841Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-08-26T15:49:44Z
+Stopped at: Completed 01c-01-PLAN.md
 Resume file: None
 
 ## Accumulated Context
