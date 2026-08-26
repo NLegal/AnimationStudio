@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: "01c-character-training-system"
 current_phase_name: Character Training System
 status: in_progress
-stopped_at: Completed 01c-01-PLAN.md
-last_updated: "2026-08-26T15:49:44Z"
+stopped_at: Completed 01c-02-PLAN.md
+last_updated: "2026-08-26T18:43:22Z"
 last_activity: 2026-08-26
-last_activity_desc: Plan 01c-01 complete — find_curated query + DatasetBuilder correctness
+last_activity_desc: Plan 01c-02 complete — benchmark ↔ identity engine integration, IdentityScorerProvider adapter
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 21
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -28,19 +28,19 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 ## Current Position
 
 Phase: 01c — Character Training System
-Plan: 01 complete, next is 02 or 03 depending on orchestrator
-Status: Plan 01c-01 complete — ready for next plan
-Last activity: 2026-08-26 — Plan 01c-01 complete
+Plan: 01+02 complete, next is 03 or 04 depending on orchestrator
+Status: Plan 01c-02 complete — ready for next plan
+Last activity: 2026-08-26 — Plan 01c-02 complete
 
-Progress: [█████████░] 81%
+Progress: [████████░░] 82%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
-- Average duration: 88min
-- Total execution time: 527min
+- Total plans completed: 7
+- Average duration: 87min
+- Total execution time: 646min
 
 **By Phase:**
 
@@ -48,14 +48,14 @@ Progress: [█████████░] 81%
 |-------|-------|-------|----------|
 | 01-character-universe | 1 | 47min | 47min |
 | 01b-character-asset-production | 1 | 45m | 45m |
-| 01c-character-training-system | 1 | 165m | 165m |
+| 01c-character-training-system | 2 | 270m | 135m |
 | 07 | 2 | - | - |
 | 08 | 2 | - | - |
 
 **Recent Trend:**
 
-- Last 1 plans: 165min (01c-01)
-- Trend: 165min
+- Last 1 plans: 118min (01c-02)
+- Trend: 118min
 
 *Updated after each plan completion*
 **Per-Plan Metrics:**
@@ -68,6 +68,7 @@ Progress: [█████████░] 81%
 | Phase 07 P02 | 2h 2m | 3 tasks | 7 files |
 | Phase 08 P01 | 76min | 3 tasks | 3 files |
 | Phase 01c-character-training-system P01 | 165m | 2 tasks | 5 files |
+| Phase 01c-character-training-system P02 | 118m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - Plan 01c-01: find_curated returns list[AssetModel] ordered by brand_score DESC for deterministic caller deduplication
 - Plan 01c-01: Bounds enforcement in DatasetBuilder.build(), not adapter — adapter passes min_images=0
 - Plan 01c-01: Baselines copy limited to 10 reference images matching LoRABenchmark._load_baseline_images convention
+- Plan 01c-02: Benchmark weights mirror D-06 plugin registry exactly (not BrandScore.WEIGHTS which includes unscoreable technical_quality)
+- Plan 01c-02: Pass gate requires weight_coverage >= 1.0 — partial plugin coverage always fails even if partial average is high
+- Plan 01c-02: IdentityScorerProvider uses dependency injection with light=True default for offline safety
 
 ### Pending Todos
 
@@ -119,8 +123,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-26T15:49:44Z
-Stopped at: Completed 01c-01-PLAN.md
+Last session: 2026-08-26T18:43:22Z
+Stopped at: Completed 01c-02-PLAN.md
 Resume file: None
 
 ## Accumulated Context
