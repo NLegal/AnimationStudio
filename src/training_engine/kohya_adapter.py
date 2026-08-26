@@ -334,11 +334,16 @@ class KohyaAdapter(TrainingBackend):
         return config.dataset_path.resolve()
 
     def _build_command(self, config: TrainingConfig) -> list[str]:
-        """Build the subprocess argument list for Kohya SS training.
+        """Build the subprocess argument list for Kohya SS Flux training.
 
         Returns a list of strings suitable for ``subprocess.run()``
         (never uses ``shell=True``).  All paths are resolved before being
         added to the list.
+
+        The command is prefixed with ``accelerate launch`` to use the
+        accelerate launcher, which is required for Flux training via
+        sd-scripts.  Image resolution is configured in the dataset TOML,
+        not via a command-line argument.
         """
         model_lower = config.base_model.lower()
         if "sdxl" in model_lower or "stable-diffusion-xl" in model_lower:
@@ -349,31 +354,91 @@ class KohyaAdapter(TrainingBackend):
         script_path = Path(self.kohya_path).resolve() / "sd-scripts" / script
         output_name = f"{config.character_id}_{config.version}"
 
+        # Prefix with accelerate launch (Flux requires accelerate launcher)
         cmd: list[str] = [
-            sys.executable,
+            "accelerate",
+            "launch",
+            "--num_cpu_threads_per_process", "1",
             str(script_path),
-            "--pretrained_model_name_or_path", config.base_model,
+        ]
+
+        # Pretrained model path
+        cmd.extend(["--pretrained_model_name_or_path", config.base_model])
+
+        # Companion model files (Flux-specific: clip_l, t5xxl, vae)
+        # Only emit when configured — never produce empty-string arguments.
+        if config.clip_l_path:
+            cmd.extend(["--clip_l", config.clip_l_path])
+        if config.t5xxl_path:
+            cmd.extend(["--t5xxl", config.t5xxl_path])
+        if config.ae_path:
+            cmd.extend(["--ae", config.ae_path])
+
+        # Dataset and output
+        cmd.extend([
             "--dataset_config", str(self._dataset_config_path(config)),
             "--output_dir", str(config.output_path.resolve()),
+            "--output_name", output_name,
+        ])
+
+        # Save format
+        cmd.extend(["--save_model_as", "safetensors"])
+
+        # Network (LoRA Flux) — auto-upgrade to lora_flux for Flux models
+        network_module = config.network_module
+        if "flux" in script:
+            network_module = "networks.lora_flux"
+        cmd.extend([
+            "--network_module", network_module,
+            "--network_dim", str(config.lora_rank),
+            "--network_alpha", str(config.lora_alpha),
+        ])
+
+        # Learning rate and optimizer
+        cmd.extend([
             "--learning_rate", str(config.learning_rate),
-            "--train_batch_size", str(config.batch_size),
+            "--optimizer_type", config.optimizer_type,
+            "--lr_scheduler", config.scheduler,
             "--max_train_epochs", str(config.num_epochs),
+        ])
+
+        # Training hyperparameters
+        cmd.extend([
+            "--train_batch_size", str(config.batch_size),
             "--mixed_precision", config.mixed_precision,
             "--save_precision", "bf16",
             "--seed", str(config.seed),
+        ])
+
+        # Flux precision and memory flags
+        cmd.extend([
+            "--gradient_checkpointing",
+            "--sdpa",
+            "--fp8_base",
+            "--blocks_to_swap", str(config.blocks_to_swap),
+        ])
+
+        # Latent and text-encoder output caching
+        cmd.extend([
             "--cache_latents",
             "--cache_latents_to_disk",
-            "--optimizer_type", config.optimizer_type,
-            "--lr_scheduler", config.scheduler,
-            "--network_module", config.network_module,
-            "--network_dim", str(config.lora_rank),
-            "--network_alpha", str(config.lora_alpha),
-            "--output_name", output_name,
-        ]
+            "--cache_text_encoder_outputs",
+            "--cache_text_encoder_outputs_to_disk",
+        ])
 
-        # Resolution is passed as width x height
+        # Flux sampling parameters
         cmd.extend([
-            "--max_data_loader_n_workers", "8",
+            "--guidance_scale", "1.0",
+            "--timestep_sampling", "flux_shift",
+            "--model_prediction_type", "raw",
+        ])
+
+        # Caption dropout (previously dead config field — now forwarded)
+        cmd.extend(["--caption_dropout_rate", str(config.caption_dropout_rate)])
+
+        # Colab-safe dataloader workers (2 instead of 8)
+        cmd.extend([
+            "--max_data_loader_n_workers", "2",
             "--persistent_data_loader_workers",
         ])
 
