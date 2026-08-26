@@ -91,7 +91,7 @@ Plans:
 
 - [x] 01c-01-PLAN.md — Dataset curation & builder completion (.txt sidecars, schema-valid TOML, 20–40 bounds, find_curated two-state query)
 - [x] 01c-02-PLAN.md — Benchmark ↔ identity-engine bridge (D-06 plugin weights, threshold 0.90, coverage-honest gate, IdentityScorerProvider)
-- [ ] 01c-03-PLAN.md — KohyaAdapter Flux contract + first-class dry-run mode
+- [x] 01c-03-PLAN.md — KohyaAdapter Flux contract + first-class dry-run mode
 - [ ] 01c-04-PLAN.md — Version persistence (sidecar JSON store) + promote()
 - [ ] 01c-05-PLAN.md — scripts/train_lora.py offline orchestrator (--dry-run enforced, curate/build/train/benchmark/versions)
 - [ ] 01c-06-PLAN.md — Colab training notebook (Phase 4 pattern) + operator docs
@@ -177,7 +177,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Character System Infrastructure & Bible Foundation | 5/5 | Complete | 2026-07-28 |
 | 1b. Character Asset Production | 5/5 | In Progress|  |
-| 1c. Character Training System | 2/6 | 33% | Plans 01c-01, 01c-02 complete |
+| 1c. Character Training System | 3/6 | 50% | Plans 01c-01, 01c-02, 01c-03 complete |
 | 2. World Building & Environment Bible | 0/0 | Not started | - |
 | 3. Story & Music Pipeline | 0/0 | Not started | - |
 | 4. Visual Generation Pipeline | 0/0 | Not started | - |
