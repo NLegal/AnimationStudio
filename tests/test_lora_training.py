@@ -707,8 +707,9 @@ class TestMockScorerProvider:
         scorer = MockScorerProvider(seed=42)
         scores = scorer.score_identity(img)
         expected_dims = {
-            "dino_similarity", "clip_alignment", "color_consistency",
-            "pose_accuracy", "expression_match", "style_consistency",
+            "character_consistency", "prompt_accuracy", "color_harmony",
+            "facial_appeal", "silhouette_recognizability", "child_friendliness",
+            "style_consistency",
         }
         assert set(scores.keys()) == expected_dims
 
@@ -728,6 +729,199 @@ class TestMockScorerProvider:
         r1 = s1.score_identity(img)
         r2 = s2.score_identity(img)
         assert r1 == r2
+
+
+# =========================================================================
+# Benchmark alignment tests (01c-02: weight table, threshold, coverage)
+# =========================================================================
+
+class _FixedProvider:
+    """Deterministic scorer returning exactly the given scores dict."""
+
+    def __init__(self, scores: dict[str, float]) -> None:
+        self._scores = scores
+
+    def score_identity(self, image_path, reference_path=None, character_id=None):
+        return dict(self._scores)
+
+
+class TestBenchmarkAlignment:
+    """Weight table matches identity-engine plugin registry; threshold 0.90."""
+
+    def test_weight_table_matches_plugin_names(self):
+        """_BENCHMARK_WEIGHTS keys are the identity-engine plugin names."""
+        from src.training_engine.benchmark import _BENCHMARK_WEIGHTS
+        expected_keys = {
+            "character_consistency", "prompt_accuracy", "color_harmony",
+            "facial_appeal", "silhouette_recognizability", "child_friendliness",
+            "style_consistency",
+        }
+        assert set(_BENCHMARK_WEIGHTS.keys()) == expected_keys
+
+    def test_weights_sum_to_one(self):
+        """All benchmark weights sum to 1.00 exactly."""
+        from src.training_engine.benchmark import _BENCHMARK_WEIGHTS
+        total = sum(_BENCHMARK_WEIGHTS.values())
+        assert abs(total - 1.0) < 1e-9, f"Weights sum to {total}, expected 1.0"
+
+    def test_drift_guard_plugin_weights_match_benchmark(self):
+        """Each light-mode plugin's name/weight appears in the benchmark table."""
+        from src.identity_engine import IdentityScorer
+        from src.training_engine.benchmark import _BENCHMARK_WEIGHTS
+        scorer = IdentityScorer(light=True)
+        for plugin in scorer.plugins:
+            assert plugin.name in _BENCHMARK_WEIGHTS, (
+                f"Plugin '{plugin.name}' not in _BENCHMARK_WEIGHTS"
+            )
+            assert abs(plugin.weight - _BENCHMARK_WEIGHTS[plugin.name]) < 1e-9, (
+                f"Plugin '{plugin.name}' weight {plugin.weight} != "
+                f"benchmark weight {_BENCHMARK_WEIGHTS[plugin.name]}"
+            )
+
+    def test_threshold_default_is_090(self):
+        """BenchmarkConfig.similarity_threshold defaults to 0.90."""
+        from src.training_engine.benchmark import BenchmarkConfig
+        cfg = BenchmarkConfig()
+        assert cfg.similarity_threshold == 0.90
+
+
+class TestBenchmarkComposite:
+    """Composite math and pass-gate logic after weight alignment."""
+
+    def test_composite_full_coverage_known_values(self, tmp_path):
+        """Frozen fixture provider: composite equals hand-computed weighted avg."""
+        from src.training_engine.benchmark import (
+            LoRABenchmark, BenchmarkConfig, _BENCHMARK_WEIGHTS,
+        )
+        img = tmp_path / "test.png"
+        img.write_text("fake")
+        lora = tmp_path / "lily_v1.0.safetensors"
+        lora.write_text("fake-lora")
+
+        fixed_scores = {
+            "character_consistency": 0.95,
+            "prompt_accuracy": 0.90,
+            "color_harmony": 0.88,
+            "facial_appeal": 0.92,
+            "silhouette_recognizability": 0.85,
+            "child_friendliness": 0.80,
+            "style_consistency": 0.91,
+        }
+        expected_composite = sum(
+            fixed_scores[k] * w for k, w in _BENCHMARK_WEIGHTS.items()
+        )
+
+        provider = _FixedProvider(fixed_scores)
+        config = BenchmarkConfig(similarity_threshold=0.90)
+        benchmark = LoRABenchmark(scorer_provider=provider, config=config)
+        result = benchmark.evaluate(
+            lora_path=lora, character_id="test", test_images=[img],
+        )
+
+        assert abs(result.composite_score - round(expected_composite, 4)) < 1e-4
+        assert result.passed is True
+        # All 7 dimensions present
+        assert len(result.dimensions) == 7
+
+    def test_partial_coverage_excludes_missing_dims(self, tmp_path):
+        """Missing dims excluded from both numerator and denominator; coverage < 1.0."""
+        from src.training_engine.benchmark import (
+            LoRABenchmark, BenchmarkConfig, _BENCHMARK_WEIGHTS,
+        )
+        img = tmp_path / "test.png"
+        img.write_text("fake")
+        lora = tmp_path / "lily_v1.0.safetensors"
+        lora.write_text("fake-lora")
+
+        # Missing character_consistency (0.40) and prompt_accuracy (0.20)
+        partial_scores = {
+            "color_harmony": 0.95,
+            "facial_appeal": 0.95,
+            "silhouette_recognizability": 0.95,
+            "child_friendliness": 0.95,
+            "style_consistency": 0.95,
+        }
+        total_canonical = sum(_BENCHMARK_WEIGHTS.values())
+        matched_weight = sum(
+            _BENCHMARK_WEIGHTS[k] for k in partial_scores if k in _BENCHMARK_WEIGHTS
+        )
+
+        provider = _FixedProvider(partial_scores)
+        config = BenchmarkConfig(similarity_threshold=0.90)
+        benchmark = LoRABenchmark(scorer_provider=provider, config=config)
+        result = benchmark.evaluate(
+            lora_path=lora, character_id="test", test_images=[img],
+        )
+
+        # Composite is weighted avg of PRESENT dims only
+        expected_composite = sum(
+            partial_scores[k] * _BENCHMARK_WEIGHTS[k]
+            for k in partial_scores
+        ) / matched_weight
+        assert abs(result.composite_score - round(expected_composite, 4)) < 1e-4
+        # Weight coverage is partial
+        assert hasattr(result, "weight_coverage")
+        assert abs(result.weight_coverage - matched_weight / total_canonical) < 1e-9
+        # Gate requires full coverage — partial always fails
+        assert result.passed is False
+
+    def test_boundary_composite_below_threshold_fails(self, tmp_path):
+        """Composite exactly 0.8999 with full coverage → passed=False."""
+        from src.training_engine.benchmark import (
+            LoRABenchmark, BenchmarkConfig, _BENCHMARK_WEIGHTS,
+        )
+        img = tmp_path / "test.png"
+        img.write_text("fake")
+        lora = tmp_path / "lily_v1.0.safetensors"
+        lora.write_text("fake-lora")
+
+        # All dims at 0.8999 → composite = 0.8999 < 0.90 threshold
+        fixed_scores = {k: 0.8999 for k in _BENCHMARK_WEIGHTS}
+        provider = _FixedProvider(fixed_scores)
+        config = BenchmarkConfig(similarity_threshold=0.90)
+        benchmark = LoRABenchmark(scorer_provider=provider, config=config)
+        result = benchmark.evaluate(
+            lora_path=lora, character_id="test", test_images=[img],
+        )
+
+        assert abs(result.composite_score - 0.8999) < 1e-4
+        assert result.passed is False
+        assert abs(result.weight_coverage - 1.0) < 1e-9
+
+    def test_boundary_composite_at_threshold_passes(self, tmp_path):
+        """Composite exactly 0.90 with full coverage → passed=True."""
+        from src.training_engine.benchmark import (
+            LoRABenchmark, BenchmarkConfig, _BENCHMARK_WEIGHTS,
+        )
+        img = tmp_path / "test.png"
+        img.write_text("fake")
+        lora = tmp_path / "lily_v1.0.safetensors"
+        lora.write_text("fake-lora")
+
+        fixed_scores = {k: 0.90 for k in _BENCHMARK_WEIGHTS}
+        provider = _FixedProvider(fixed_scores)
+        config = BenchmarkConfig(similarity_threshold=0.90)
+        benchmark = LoRABenchmark(scorer_provider=provider, config=config)
+        result = benchmark.evaluate(
+            lora_path=lora, character_id="test", test_images=[img],
+        )
+
+        assert abs(result.composite_score - 0.90) < 1e-4
+        assert result.passed is True
+
+    def test_mock_provider_determinism_with_new_keys(self, tmp_path):
+        """MockScorerProvider with canonical keys: identical seeds → identical dicts."""
+        img = tmp_path / "test.png"
+        img.write_text("fake")
+        s1 = MockScorerProvider(seed=99)
+        s2 = MockScorerProvider(seed=99)
+        r1 = s1.score_identity(img)
+        r2 = s2.score_identity(img)
+        assert r1 == r2
+        # Different seed → different values
+        s3 = MockScorerProvider(seed=100)
+        r3 = s3.score_identity(img)
+        assert r3 != r1
 
 
 # =========================================================================
