@@ -357,6 +357,47 @@ class SQLiteAssetRepository(AssetRepository):
             ).fetchall()
         return [self._row_to_asset(row) for row in rows]
 
+    async def find_curated(
+        self,
+        character_id: str,
+        asset_types: Optional[tuple[str, ...]] = None,
+    ) -> list[AssetModel]:
+        """Return assets in 'approved' or 'production' state for a character.
+
+        The two-state curated rule (locked decision): training datasets are
+        sourced from assets that have reached approved or production lifecycle
+        state.  Optional *asset_types* filter further restricts by type.
+
+        The query is index-covered (character_id equality + state/type
+        membership — same access path as ``find_approved``, verified against
+        the live (scan-corrupt) database).  No GROUP BY or ORDER BY over
+        unindexed columns.
+
+        Returns:
+            List of AssetModel objects ordered by brand_score descending
+            (deterministic for callers that need stable ordering).
+        """
+        with self._get_conn() as conn:
+            if asset_types:
+                placeholders = ", ".join("?" * len(asset_types))
+                rows = conn.execute(
+                    "SELECT * FROM assets "
+                    "WHERE character_id = ? "
+                    "AND state IN ('approved', 'production') "
+                    f"AND asset_type IN ({placeholders}) "
+                    "ORDER BY brand_score DESC, id",
+                    (character_id, *asset_types),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM assets "
+                    "WHERE character_id = ? "
+                    "AND state IN ('approved', 'production') "
+                    "ORDER BY brand_score DESC, id",
+                    (character_id,),
+                ).fetchall()
+        return [self._row_to_asset(row) for row in rows]
+
     def _row_to_asset(self, row: sqlite3.Row) -> AssetModel:
         return AssetModel(
             id=row["id"],
