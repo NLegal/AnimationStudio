@@ -162,6 +162,252 @@ class TestDatasetBuilder:
         assert "resolution" in toml_text
         assert "dataset_config.toml" in str(result.config_file)
 
+    def test_sidecar_txt_per_image(self, tmp_path):
+        """Every train image gets a .txt sidecar starting with the trigger word."""
+        img = tmp_path / "train_src.png"
+        img.write_text("fake-image")
+        builder = DatasetBuilder()
+        entries = [
+            DatasetEntry(
+                image_path=img,
+                caption="Lily Bunny, happy expression",
+                asset_type="expression",
+            ),
+        ]
+        config = DatasetConfig(
+            output_dir=tmp_path / "sidecar_test",
+            validation_split=0.0,
+            caption_prefix="lily bunny",
+        )
+        result = builder.build(entries, config)
+
+        train_dir = result.output_dir / "train"
+        txt_files = list(train_dir.glob("*.txt"))
+        assert len(txt_files) == 1
+        sidecar = txt_files[0]
+        # Sidecar body must start with the trigger-word prefix
+        body = sidecar.read_text(encoding="utf-8")
+        assert body.startswith("lily bunny"), f"Sidecar body must start with trigger word: {body!r}"
+        # Each train image has a matching sidecar
+        img_files = list(train_dir.glob("*.png"))
+        assert len(img_files) == 1
+        assert sidecar.stem == img_files[0].stem
+
+    def test_toml_valid_with_tomllib(self, tmp_path):
+        """Generated TOML parses with tomllib and contains only documented keys."""
+        import tomllib
+        img = tmp_path / "valid.png"
+        img.write_text("fake")
+        builder = DatasetBuilder()
+        entries = [DatasetEntry(image_path=img, caption="test caption")]
+        config = DatasetConfig(
+            output_dir=tmp_path / "toml_valid",
+            validation_split=0.1,
+            resolution=512,
+        )
+        result = builder.build(entries, config)
+
+        toml_path = result.config_file
+        with open(toml_path, "rb") as f:
+            parsed = tomllib.load(f)
+
+        # [general] — only documented keys
+        general_keys = set(parsed["general"].keys())
+        allowed_general = {
+            "shuffle_caption", "caption_extension", "keep_tokens",
+            "enable_bucket", "min_bucket_reso", "max_bucket_reso",
+        }
+        assert general_keys == allowed_general, f"Unexpected general keys: {general_keys - allowed_general}"
+
+        assert parsed["general"]["shuffle_caption"] is True
+        assert parsed["general"]["caption_extension"] == ".txt"
+        assert parsed["general"]["keep_tokens"] == 1
+
+        # [[datasets]] — exactly one dataset
+        datasets = parsed["datasets"]
+        assert isinstance(datasets, list)
+        assert len(datasets) == 1
+        ds = datasets[0]
+        assert ds["resolution"] == 512
+        assert ds["batch_size"] == 1
+        assert "validation_split" in ds
+        assert "validation_seed" in ds
+
+        # [[datasets.subsets]] — exactly one, train only
+        subsets = ds["subsets"]
+        assert isinstance(subsets, list)
+        assert len(subsets) == 1
+        subset = subsets[0]
+        assert "image_dir" in subset
+        assert "train" in str(subset["image_dir"])
+        assert "num_repeats" in subset
+
+        # No val/ in any subset — val images must not be trained on
+        toml_text = toml_path.read_text()
+        val_subset_line = [l for l in toml_text.split("\n") if "val" in l.lower() and "subset" in l.lower()]
+        assert len(val_subset_line) == 0, f"val/ found in subsets: {val_subset_line}"
+
+    def test_bounds_below_min_raises_value_error(self, tmp_path):
+        """build() raises ValueError when entries are below min_images."""
+        # Create only 3 images — below the min_images=20 default
+        for i in range(3):
+            (tmp_path / f"img_{i}.png").write_text(f"fake-{i}")
+        entries = [
+            DatasetEntry(
+                image_path=tmp_path / f"img_{i}.png",
+                caption=f"test {i}",
+                asset_type="reference",
+            )
+            for i in range(3)
+        ]
+        builder = DatasetBuilder()
+        config = DatasetConfig(output_dir=tmp_path / "small", validation_split=0.0)
+
+        with pytest.raises(ValueError, match="below minimum"):
+            builder.build(entries, config)
+
+    def test_bounds_above_max_truncates(self, tmp_path):
+        """build() truncates to max_images and warns when entries exceed max."""
+        import warnings as _warnings
+        # Create 50 images — above the max_images=40 default
+        for i in range(50):
+            (tmp_path / f"img_{i}.png").write_text(f"fake-{i}")
+        entries = [
+            DatasetEntry(
+                image_path=tmp_path / f"img_{i}.png",
+                caption=f"test {i}",
+                asset_type="expression",
+            )
+            for i in range(50)
+        ]
+        builder = DatasetBuilder()
+        config = DatasetConfig(output_dir=tmp_path / "large", validation_split=0.0)
+
+        with _warnings.catch_warnings(record=True) as w:
+            _warnings.simplefilter("always")
+            result = builder.build(entries, config)
+            # Should have capped at max_images (40)
+            assert result.num_images <= 40
+            # Should have emitted a truncation warning
+            cap_warnings = [x for x in w if "cap" in str(x.message).lower() or "max" in str(x.message).lower() or "truncat" in str(x.message).lower()]
+            assert len(cap_warnings) >= 1, f"Expected truncation warning, got: {[str(x.message) for x in w]}"
+
+    def test_bounds_custom_limits(self, tmp_path):
+        """build() respects custom min_images and max_images."""
+        for i in range(5):
+            (tmp_path / f"img_{i}.png").write_text(f"fake-{i}")
+        entries = [
+            DatasetEntry(
+                image_path=tmp_path / f"img_{i}.png",
+                caption=f"test {i}",
+            )
+            for i in range(5)
+        ]
+        builder = DatasetBuilder()
+        config = DatasetConfig(
+            output_dir=tmp_path / "custom",
+            validation_split=0.0,
+            min_images=3,
+            max_images=10,
+        )
+        # 5 images, min=3, max=10 — should succeed
+        result = builder.build(entries, config)
+        assert result.num_images == 5
+
+        # Below custom min
+        small_entries = entries[:2]
+        config2 = DatasetConfig(
+            output_dir=tmp_path / "custom2",
+            validation_split=0.0,
+            min_images=3,
+            max_images=10,
+        )
+        with pytest.raises(ValueError, match="below minimum"):
+            builder.build(small_entries, config2)
+
+    def test_baselines_copy(self, tmp_path):
+        """Reference-type entries are copied to baselines/{character_id}/."""
+        # Create source images
+        for i in range(3):
+            (tmp_path / f"ref_{i}.png").write_text(f"ref-{i}")
+        entries = [
+            DatasetEntry(
+                image_path=tmp_path / f"ref_{i}.png",
+                caption=f"reference {i}",
+                asset_type="reference",
+            )
+            for i in range(3)
+        ]
+        builder = DatasetBuilder()
+        config = DatasetConfig(
+            output_dir=tmp_path / "baseline_test",
+            validation_split=0.0,
+            character_id="lily-bunny",
+        )
+        result = builder.build(entries, config)
+
+        baselines_dir = result.output_dir / "baselines" / "lily-bunny"
+        assert baselines_dir.exists(), f"baselines dir should exist: {baselines_dir}"
+        copied = list(baselines_dir.iterdir())
+        assert len(copied) == 3
+
+    def test_baselines_capped_at_10(self, tmp_path):
+        """Baselines copies at most 10 reference images."""
+        for i in range(15):
+            (tmp_path / f"ref_{i}.png").write_text(f"ref-{i}")
+        entries = [
+            DatasetEntry(
+                image_path=tmp_path / f"ref_{i}.png",
+                caption=f"reference {i}",
+                asset_type="reference",
+            )
+            for i in range(15)
+        ]
+        builder = DatasetBuilder()
+        config = DatasetConfig(
+            output_dir=tmp_path / "baseline_cap",
+            validation_split=0.0,
+            character_id="lily-bunny",
+        )
+        result = builder.build(entries, config)
+        baselines_dir = result.output_dir / "baselines" / "lily-bunny"
+        assert baselines_dir.exists()
+        copied = list(baselines_dir.iterdir())
+        assert len(copied) == 10
+
+    def test_baselines_skips_non_reference(self, tmp_path):
+        """Only reference-type entries go to baselines; others are ignored."""
+        for i in range(3):
+            (tmp_path / f"img_{i}.png").write_text(f"img-{i}")
+        entries = [
+            DatasetEntry(
+                image_path=tmp_path / "img_0.png",
+                caption="ref",
+                asset_type="reference",
+            ),
+            DatasetEntry(
+                image_path=tmp_path / "img_1.png",
+                caption="expr",
+                asset_type="expression",
+            ),
+            DatasetEntry(
+                image_path=tmp_path / "img_2.png",
+                caption="pose",
+                asset_type="pose",
+            ),
+        ]
+        builder = DatasetBuilder()
+        config = DatasetConfig(
+            output_dir=tmp_path / "baseline_types",
+            validation_split=0.0,
+            character_id="test-char",
+        )
+        result = builder.build(entries, config)
+        baselines_dir = result.output_dir / "baselines" / "test-char"
+        assert baselines_dir.exists()
+        copied = list(baselines_dir.iterdir())
+        assert len(copied) == 1  # Only the reference image
+
 
 # =========================================================================
 # LoRAVersion tests
