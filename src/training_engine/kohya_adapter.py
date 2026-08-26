@@ -243,6 +243,8 @@ class KohyaAdapter(TrainingBackend):
             output_dir=output_dir,
             resolution=resolution,
             validation_split=validation_split,
+            min_images=0,
+            max_images=999999,
         )
         result = builder.build(entries, ds_config)
         return result.config_file

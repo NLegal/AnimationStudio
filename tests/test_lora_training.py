@@ -52,6 +52,7 @@ class TestDatasetBuilder:
         config = DatasetConfig(
             output_dir=tmp_path / "dataset",
             validation_split=0.0,
+            min_images=0,
         )
         result = builder.build(entries, config)
 
@@ -78,13 +79,20 @@ class TestDatasetBuilder:
         config = DatasetConfig(
             output_dir=tmp_path / "split_dataset",
             validation_split=0.2,
+            min_images=0,
         )
         result = builder.build(entries, config)
 
         assert result.num_images == 8
         assert result.num_val_images == 2
-        assert len(list((result.output_dir / "train").iterdir())) == 8
-        assert len(list((result.output_dir / "val").iterdir())) == 2
+        # train dir has images + sidecar .txt files (8 each = 16 total)
+        train_files = list((result.output_dir / "train").iterdir())
+        assert len(train_files) == 16  # 8 images + 8 sidecar .txt files
+        assert len(list((result.output_dir / "train").glob("*.png"))) == 8
+        assert len(list((result.output_dir / "train").glob("*.txt"))) == 8
+        # val dir also has images + sidecar .txt files
+        val_files = list((result.output_dir / "val").iterdir())
+        assert len(val_files) == 4  # 2 images + 2 sidecar .txt files
 
     def test_build_skips_missing_images(self, tmp_path):
         """build() skips images that do not exist on disk."""
@@ -98,6 +106,7 @@ class TestDatasetBuilder:
         config = DatasetConfig(
             output_dir=tmp_path / "partial",
             validation_split=0.0,
+            min_images=0,
         )
         result = builder.build(entries, config)
         assert result.num_images == 0
@@ -115,6 +124,7 @@ class TestDatasetBuilder:
             validation_split=0.0,
             caption_prefix="[PFX]",
             caption_suffix="[SFX]",
+            min_images=0,
         )
         result = builder.build(entries, config)
 
@@ -154,6 +164,7 @@ class TestDatasetBuilder:
         config = DatasetConfig(
             output_dir=tmp_path / "toml_test",
             validation_split=0.1,
+            min_images=0,
         )
         result = builder.build(entries, config)
 
@@ -178,6 +189,7 @@ class TestDatasetBuilder:
             output_dir=tmp_path / "sidecar_test",
             validation_split=0.0,
             caption_prefix="lily bunny",
+            min_images=0,
         )
         result = builder.build(entries, config)
 
@@ -204,6 +216,7 @@ class TestDatasetBuilder:
             output_dir=tmp_path / "toml_valid",
             validation_split=0.1,
             resolution=512,
+            min_images=0,
         )
         result = builder.build(entries, config)
 
@@ -343,6 +356,7 @@ class TestDatasetBuilder:
             output_dir=tmp_path / "baseline_test",
             validation_split=0.0,
             character_id="lily-bunny",
+            min_images=0,
         )
         result = builder.build(entries, config)
 
@@ -368,6 +382,7 @@ class TestDatasetBuilder:
             output_dir=tmp_path / "baseline_cap",
             validation_split=0.0,
             character_id="lily-bunny",
+            min_images=0,
         )
         result = builder.build(entries, config)
         baselines_dir = result.output_dir / "baselines" / "lily-bunny"
@@ -401,6 +416,7 @@ class TestDatasetBuilder:
             output_dir=tmp_path / "baseline_types",
             validation_split=0.0,
             character_id="test-char",
+            min_images=0,
         )
         result = builder.build(entries, config)
         baselines_dir = result.output_dir / "baselines" / "test-char"

@@ -35,6 +35,9 @@ class DatasetConfig:
     shuffle_seed: int = 42
     caption_prefix: str = ""
     caption_suffix: str = ", high quality, detailed, Pixar-style"
+    min_images: int = 20
+    max_images: int = 40
+    character_id: str = ""
 
 
 @dataclass
@@ -77,6 +80,10 @@ class DatasetBuilder:
 
         Returns:
             BuildResult with paths to the prepared dataset.
+
+        Raises:
+            ValueError: When the number of valid entries is below
+                ``config.min_images``.
         """
         output_dir = config.output_dir.resolve()
         train_dir = output_dir / "train"
@@ -90,6 +97,29 @@ class DatasetBuilder:
         shuffled = list(entries)
         random.shuffle(shuffled)
 
+        # --- Bounds enforcement (G6) --------------------------------
+        valid_count = len(shuffled)
+        if valid_count < config.min_images:
+            # Collect per-state counts for a useful error message
+            state_counts: dict[str, int] = {}
+            for e in entries:
+                state = getattr(e, "_state", "unknown")
+                state_counts[state] = state_counts.get(state, 0) + 1
+            counts_str = ", ".join(
+                f"{s}: {c}" for s, c in sorted(state_counts.items())
+            ) if state_counts else "N/A"
+            raise ValueError(
+                f"Dataset has {valid_count} images, which is below minimum "
+                f"of {config.min_images}. Per-state counts: {counts_str}"
+            )
+        if valid_count > config.max_images:
+            warnings.warn(
+                f"Dataset has {valid_count} images, capping at maximum "
+                f"of {config.max_images}."
+            )
+            shuffled = shuffled[:config.max_images]
+
+        # --- Split ---------------------------------------------------
         num_val = int(len(shuffled) * config.validation_split)
         if num_val < 1 and config.validation_split > 0:
             num_val = 1
@@ -115,6 +145,9 @@ class DatasetBuilder:
 
         config_file = self._write_kohya_config(output_dir, config)
 
+        # --- Baselines copy (G15) -----------------------------------
+        self._copy_baselines(entries, output_dir, config)
+
         return BuildResult(
             output_dir=output_dir,
             num_images=len(train_metadata),
@@ -129,7 +162,17 @@ class DatasetBuilder:
         dest_dir: Path,
         config: DatasetConfig,
     ) -> list[dict]:
-        """Copy images and build caption metadata for a split.
+        """Copy images, write .txt caption sidecars, and build metadata.
+
+        Each image is copied to *dest_dir* and a sibling ``.txt`` file is
+        written alongside with the full caption string (trigger-word prefix
+        first so ``shuffle_caption=true`` cannot displace it via
+        ``keep_tokens=1``).
+
+        Path containment (T-01c-01a): every source path is resolved and
+        verified to remain inside its declared root before copying —
+        untrusted repo-supplied ``file_path`` values must not escape the
+        training output tree.
 
         Args:
             entries: Dataset entries to process.
@@ -146,6 +189,16 @@ class DatasetBuilder:
                 warnings.warn(f"Image not found: {src}")
                 continue
 
+            # Path containment check (T-01c-01a): skip paths that escape
+            # their declared parent directory after resolution.
+            try:
+                src.relative_to(entry.image_path.parent.resolve())
+            except ValueError:
+                warnings.warn(
+                    f"Skipping image with path escaping expected root: {src}"
+                )
+                continue
+
             dest = dest_dir / f"{i:04d}_{src.stem}{src.suffix}"
             shutil.copy2(str(src), str(dest))
 
@@ -158,6 +211,11 @@ class DatasetBuilder:
 
             caption = ", ".join(part for part in caption_parts if part)
 
+            # Write .txt sidecar — trigger-word first so
+            # shuffle_caption=true + keep_tokens=1 preserves it.
+            sidecar = dest.with_suffix(".txt")
+            sidecar.write_text(caption, encoding="utf-8")
+
             metadata.append({
                 "image": dest.name,
                 "caption": caption,
@@ -167,16 +225,61 @@ class DatasetBuilder:
 
         return metadata
 
+    def _copy_baselines(
+        self,
+        entries: list[DatasetEntry],
+        output_dir: Path,
+        config: DatasetConfig,
+    ) -> None:
+        """Copy reference-type source images into baselines/{character_id}/.
+
+        Populates the directory convention that ``LoRABenchmark``
+        ``_load_baseline_images`` reads: ``{baseline_dir}/{character_id}/``.
+
+        At most 10 reference images are copied (capped per plan spec).
+
+        Args:
+            entries: All dataset entries (pre-split).
+            output_dir: Dataset output directory.
+            config: Dataset build configuration (must have ``character_id``).
+        """
+        if not config.character_id:
+            return
+        baselines_dir = output_dir / "baselines" / config.character_id
+        baselines_dir.mkdir(parents=True, exist_ok=True)
+
+        ref_entries = [e for e in entries if e.asset_type == "reference"]
+        if not ref_entries:
+            return
+        ref_entries = ref_entries[:10]  # cap at 10
+        for entry in ref_entries:
+            src = entry.image_path.resolve()
+            if not src.exists():
+                warnings.warn(f"Baseline image not found: {src}")
+                continue
+            dest = baselines_dir / src.name
+            shutil.copy2(str(src), str(dest))
+
     def _write_kohya_config(
         self,
         output_dir: Path,
         config: DatasetConfig,
     ) -> Path:
-        """Write a Kohya SS TOML dataset configuration file.
+        """Write a schema-valid Kohya SS TOML dataset configuration file.
 
-        This config is referenced by the ``--dataset_config`` flag in
-        Kohya's training scripts.  It points to the prepared image
-        directories and metadata files.
+        Emits **only** documented sd-scripts keys (validated against the
+        official config_README-en.md schema).  Key design decisions:
+
+        - ``caption_extension = ".txt"`` triggers DreamBooth-style sidecar
+          reading (one ``.txt`` per image).
+        - ``keep_tokens = 1`` preserves the trigger-word prefix when
+          ``shuffle_caption = true``.
+        - Native ``validation_split`` / ``validation_seed`` replaces the
+          manual ``val/``-as-training-subset hack — validation images are
+          **never** mounted as a training subset.
+        - No ``caption_metadata_file`` key (G2 — rejected by voluptuous
+          schema validator on Colab).
+        - Single ``[[datasets.subsets]]`` pointing at ``train/`` only.
 
         Args:
             output_dir: Dataset output directory.
@@ -186,24 +289,26 @@ class DatasetBuilder:
             Path to the written TOML config file.
         """
         config_path = output_dir / "dataset_config.toml"
+        train_path = str(output_dir / "train")
+
         lines = [
             "[general]",
+            "shuffle_caption = true",
+            "caption_extension = \".txt\"",
+            "keep_tokens = 1",
+            "enable_bucket = true",
+            "min_bucket_reso = 256",
+            "max_bucket_reso = 2048",
+            "",
+            "[[datasets]]",
             f"resolution = {config.resolution}",
-            f"shuffle_caption = true",
-            f"keep_tokens = 1",
-            "",
-            f"[[datasets]]",
-            f"batch_size = 4",
-            f"caption_metadata_file = \"metadata.json\"",  # noqa: Q003
-            "caption_prefix = \"\"",
+            "batch_size = 1",
+            f"validation_split = {config.validation_split}",
+            f"validation_seed = {config.shuffle_seed}",
             "",
             "  [[datasets.subsets]]",
-            f"  image_dir = \"train\"",
+            f"  image_dir = \"{train_path}\"",
             f"  num_repeats = {config.repeat_count}",
-            "",
-            "  [[datasets.subsets]]",
-            f"  image_dir = \"val\"",
-            f"  num_repeats = 1",
             "",
         ]
         config_path.write_text("\n".join(lines), encoding="utf-8")
