@@ -42,6 +42,7 @@ class TrainingConfig:
     cache_latents: bool = True
     caption_dropout_rate: float = 0.05
     version: str = "v0.1"
+    dry_run: bool = False
 
 
 # ---------------------------------------------------------------------------

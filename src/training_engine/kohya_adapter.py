@@ -9,6 +9,7 @@ and validates paths with ``Path.resolve()`` before passing to subprocess.
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,11 @@ class KohyaAdapter(TrainingBackend):
         if adapter.validate_environment():
             result = adapter.train(config)
     """
+
+    # Conservative identifier patterns — lowercase alphanumerics, hyphens,
+    # underscores; versions may also contain dots (e.g. v0.1, v1.0).
+    _VALID_IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9\-_]{0,127}$")
+    _VALID_VERSION = re.compile(r"^v?[0-9]+\.[0-9]+[a-zA-Z0-9.\-_]*$")
 
     def __init__(
         self,
@@ -135,8 +141,8 @@ class KohyaAdapter(TrainingBackend):
             config: Training configuration.
 
         Returns:
-            ``TrainingResult(success=True, lora_path=…)`` on success, or
-            ``TrainingResult(success=False, metrics={"error": …})`` if the
+            ``TrainingResult(success=True, lora_path=...)`` on success, or
+            ``TrainingResult(success=False, metrics={"error": ...})`` if the
             environment is not ready.
         """
         if not self.validate_environment():
@@ -147,9 +153,79 @@ class KohyaAdapter(TrainingBackend):
                 success=False,
             )
 
+        # Validate identifiers before they are interpolated into filenames or argv
+        if not self._VALID_IDENTIFIER.match(config.character_id):
+            return TrainingResult(
+                lora_path=Path(),
+                version=config.version,
+                metrics={"error": f"Invalid character_id: {config.character_id!r}"},
+                success=False,
+            )
+        if not self._VALID_VERSION.match(config.version):
+            return TrainingResult(
+                lora_path=Path(),
+                version=config.version,
+                metrics={"error": f"Invalid version: {config.version!r}"},
+                success=False,
+            )
+
         cmd = self._build_command(config)
 
-        # Ensure the output directory exists
+        if config.dry_run:
+            try:
+                config.output_path.resolve().mkdir(parents=True, exist_ok=True)
+                output_name = f"{config.character_id}_{config.version}"
+                artifact = config.output_path.resolve() / f"{output_name}.train_cmd.json"
+                artifact.write_text(
+                    json.dumps(cmd, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            except OSError as exc:
+                return TrainingResult(
+                    lora_path=Path(),
+                    version=config.version,
+                    metrics={"error": f"Dry-run artifact write failed: {exc}"},
+                    success=False,
+                )
+
+            # Register version exactly like the real path (locked decision)
+            try:
+                lora_file = (
+                    config.output_path.resolve()
+                    / f"{config.character_id}_{config.version}.safetensors"
+                )
+                lora_version = LoRAVersion.parse(config.version)
+                self.version_registry.register(
+                    character_id=config.character_id,
+                    version=lora_version,
+                    file_path=str(lora_file),
+                    training_config={
+                        "base_model": config.base_model,
+                        "learning_rate": config.learning_rate,
+                        "num_epochs": config.num_epochs,
+                        "batch_size": config.batch_size,
+                        "lora_rank": config.lora_rank,
+                        "lora_alpha": config.lora_alpha,
+                        "resolution": config.resolution,
+                        "dataset_path": str(config.dataset_path),
+                        "output_path": str(config.output_path),
+                    },
+                )
+            except ValueError:
+                warnings.warn(f"Could not parse version '{config.version}' for registry")
+
+            return TrainingResult(
+                lora_path=config.output_path.resolve()
+                / f"{config.character_id}_{config.version}.safetensors",
+                version=config.version,
+                metrics={
+                    "dry_run": True,
+                    "output_name": f"{config.character_id}_{config.version}",
+                },
+                success=True,
+            )
+
+        # Real training path — ensure output directory exists
         config.output_path.resolve().mkdir(parents=True, exist_ok=True)
 
         try:
