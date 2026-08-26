@@ -5,6 +5,7 @@ Tests cover interface compliance, config defaults, environment validation,
 dataset preparation, and command generation (Flux vs SDXL).
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -251,6 +252,176 @@ class TestTrainingIntegration:
             dataset_path=Path("/tmp/test"),
             output_path=Path("/tmp/test_out"),
         )
+        result = adapter.train(config)
+        assert result.success is False
+        assert "error" in result.metrics
+
+
+# ---------------------------------------------------------------------------
+# Dry-run mode tests (G17)
+# ---------------------------------------------------------------------------
+
+class TestDryRunMode:
+    """First-class dry_run mode on TrainingConfig and KohyaAdapter.train().
+
+    Dry-run trainings must complete offline with zero subprocess spawns,
+    produce an inspectable .train_cmd.json artifact, register their version
+    through the normal path, and return distinguishable success results.
+    """
+
+    def _make_adapter(self, tmp_path):
+        """Create a KohyaAdapter with a valid (but empty) kohya path."""
+        kohya_dir = tmp_path / "kohya_ss"
+        sd_dir = kohya_dir / "sd-scripts"
+        sd_dir.mkdir(parents=True, exist_ok=True)
+        return KohyaAdapter(kohya_path=str(kohya_dir))
+
+    def test_dry_run_no_subprocess(self, tmp_path, monkeypatch):
+        """Dry-run train never invokes subprocess.run."""
+        adapter = self._make_adapter(tmp_path)
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("subprocess.run must not be called during dry_run")
+
+        monkeypatch.setattr("subprocess.run", fail_if_called)
+
+        config = TrainingConfig(
+            character_id="lily-bunny",
+            dataset_path=tmp_path / "dataset",
+            output_path=tmp_path / "output",
+            dry_run=True,
+        )
+        result = adapter.train(config)
+        assert result.success is True
+
+    def test_dry_run_creates_output_path(self, tmp_path, monkeypatch):
+        """Dry-run creates output_path (parents ok)."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr("subprocess.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("subprocess.run called")))
+
+        output = tmp_path / "output" / "nested"
+        config = TrainingConfig(
+            character_id="lily-bunny",
+            dataset_path=tmp_path / "dataset",
+            output_path=output,
+            dry_run=True,
+        )
+        adapter.train(config)
+        assert output.exists()
+
+    def test_dry_run_writes_command_artifact(self, tmp_path, monkeypatch):
+        """Dry-run writes {character_id}_{version}.train_cmd.json containing argv."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr("subprocess.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("subprocess.run called")))
+
+        output = tmp_path / "output"
+        config = TrainingConfig(
+            character_id="lily-bunny",
+            dataset_path=tmp_path / "dataset",
+            output_path=output,
+            dry_run=True,
+        )
+        adapter.train(config)
+
+        artifact = output / "lily-bunny_v0.1.train_cmd.json"
+        assert artifact.exists(), f"Command artifact not found at {artifact}"
+        content = json.loads(artifact.read_text(encoding="utf-8"))
+        assert isinstance(content, list), "Artifact should be a JSON array (argv list)"
+        assert len(content) > 0, "Artifact argv list should not be empty"
+
+    def test_dry_run_metrics_mark_dry_run(self, tmp_path, monkeypatch):
+        """Dry-run result metrics contain a dry_run indicator."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr("subprocess.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("subprocess.run called")))
+
+        config = TrainingConfig(
+            character_id="lily-bunny",
+            dataset_path=tmp_path / "dataset",
+            output_path=tmp_path / "output",
+            dry_run=True,
+        )
+        result = adapter.train(config)
+        assert result.success is True
+        assert result.metrics.get("dry_run") is True
+
+    def test_dry_run_registers_version(self, tmp_path, monkeypatch):
+        """Dry-run registers its version exactly once in the registry."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr("subprocess.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("subprocess.run called")))
+
+        config = TrainingConfig(
+            character_id="lily-bunny",
+            dataset_path=tmp_path / "dataset",
+            output_path=tmp_path / "output",
+            dry_run=True,
+            version="v0.1",
+        )
+        adapter.train(config)
+
+        versions = adapter.version_registry.get_versions("lily-bunny")
+        assert len(versions) == 1, f"Expected 1 registered version, got {len(versions)}"
+        assert str(versions[0].version) == "v0.1"
+
+    def test_dry_run_unwritable_output_returns_failure(self, tmp_path, monkeypatch):
+        """Dry-run with unwritable output_path returns typed failure, never raises."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr("subprocess.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("subprocess.run called")))
+
+        # Use a path where a file blocks directory creation
+        blocker = tmp_path / "output_file"
+        blocker.write_text("block")
+
+        config = TrainingConfig(
+            character_id="lily-bunny",
+            dataset_path=tmp_path / "dataset",
+            output_path=blocker / "nested",  # output_file is a file, not a dir
+            dry_run=True,
+        )
+        result = adapter.train(config)
+        # Should return typed failure, never raise
+        assert result.success is False
+        assert "error" in result.metrics
+
+    def test_dry_run_invalid_character_id_returns_failure(self, tmp_path, monkeypatch):
+        """Dry-run rejects invalid character_id (injection attempt) with typed failure."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr("subprocess.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("subprocess.run called")))
+
+        config = TrainingConfig(
+            character_id="../etc/passwd",
+            dataset_path=tmp_path / "dataset",
+            output_path=tmp_path / "output",
+            dry_run=True,
+        )
+        result = adapter.train(config)
+        assert result.success is False
+        assert "error" in result.metrics
+
+    def test_dry_run_invalid_version_returns_failure(self, tmp_path, monkeypatch):
+        """Dry-run rejects invalid version string with typed failure."""
+        adapter = self._make_adapter(tmp_path)
+        monkeypatch.setattr("subprocess.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("subprocess.run called")))
+
+        config = TrainingConfig(
+            character_id="lily-bunny",
+            dataset_path=tmp_path / "dataset",
+            output_path=tmp_path / "output",
+            version="v0.1; rm -rf /",
+            dry_run=True,
+        )
+        result = adapter.train(config)
+        assert result.success is False
+        assert "error" in result.metrics
+
+    def test_dry_run_false_unchanged_behavior(self):
+        """dry_run=False (default) with env not ready still returns typed failure."""
+        adapter = KohyaAdapter(kohya_path="")
+        config = TrainingConfig(
+            character_id="test",
+            dataset_path=Path("/tmp/test"),
+            output_path=Path("/tmp/test_out"),
+        )
+        assert config.dry_run is False  # default
         result = adapter.train(config)
         assert result.success is False
         assert "error" in result.metrics
