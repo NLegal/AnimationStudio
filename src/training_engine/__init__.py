@@ -16,6 +16,7 @@ from .kohya_adapter import KohyaAdapter
 from .dataset_builder import DatasetBuilder, DatasetEntry, DatasetConfig, BuildResult
 from .versioning import LoRAVersion, VersionRegistry, VersionRecord
 from .benchmark import LoRABenchmark, BenchmarkConfig, BenchmarkResult, MockScorerProvider
+from .scorer_adapter import IdentityScorerProvider
 
 __all__ = [
     "TrainingBackend",
@@ -33,4 +34,5 @@ __all__ = [
     "BenchmarkConfig",
     "BenchmarkResult",
     "MockScorerProvider",
+    "IdentityScorerProvider",
 ]

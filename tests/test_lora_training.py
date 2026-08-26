@@ -1036,8 +1036,9 @@ class TestIdentityScorerProvider:
                     "unknown_future_plugin": 0.50,  # not in benchmark table
                 }
 
+        from PIL import Image
         img = tmp_path / "test.png"
-        img.write_text("fake")
+        Image.new("RGB", (8, 8), color="blue").save(str(img))
         adapter = IdentityScorerProvider(scorer=_FakeScorer())
         scores = adapter.score_identity(img)
 
@@ -1059,15 +1060,16 @@ class TestIdentityScorerProvider:
                 opened.append(("score_all", kwargs))
                 return {"character_consistency": 0.80}
 
+        from PIL import Image
         img = tmp_path / "target.png"
-        img.write_text("fake")
+        Image.new("RGB", (8, 8), color="green").save(str(img))
         adapter = IdentityScorerProvider(scorer=_SpyScorer())
         scores = adapter.score_identity(img, reference_path=None)
 
         assert len(opened) == 1
         assert opened[0][0] == "score_all"
         # reference should be None when no reference_path
-        assert "reference" in opened[0][1] or True  # may be positional
+        assert "reference" not in opened[0][1]
 
     def test_protocol_structural_conformance(self):
         """IdentityScorerProvider satisfies the ScorerProvider protocol."""
