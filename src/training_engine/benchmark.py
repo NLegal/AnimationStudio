@@ -37,7 +37,7 @@ class BenchmarkConfig:
     ])
     baseline_dir: Optional[Path] = None
     num_test_images: int = 5
-    similarity_threshold: float = 0.85
+    similarity_threshold: float = 0.90
     resolution: int = 1024
 
 
@@ -79,6 +79,7 @@ class BenchmarkResult:
     baseline_composite: Optional[float] = None
     improvement: Optional[float] = None
     passed: bool = False
+    weight_coverage: float = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -132,12 +133,13 @@ class MockScorerProvider:
         character_id: Optional[str] = None,
     ) -> dict[str, float]:
         return {
-            "dino_similarity": self._rng.uniform(0.7, 0.95),
-            "clip_alignment": self._rng.uniform(0.65, 0.92),
-            "color_consistency": self._rng.uniform(0.75, 0.98),
-            "pose_accuracy": self._rng.uniform(0.7, 0.93),
-            "expression_match": self._rng.uniform(0.7, 0.94),
-            "style_consistency": self._rng.uniform(0.72, 0.96),
+            "character_consistency": self._rng.uniform(0.6, 0.98),
+            "prompt_accuracy": self._rng.uniform(0.6, 0.98),
+            "color_harmony": self._rng.uniform(0.6, 0.98),
+            "facial_appeal": self._rng.uniform(0.6, 0.98),
+            "silhouette_recognizability": self._rng.uniform(0.6, 0.98),
+            "child_friendliness": self._rng.uniform(0.6, 0.98),
+            "style_consistency": self._rng.uniform(0.6, 0.98),
         }
 
 
@@ -146,12 +148,13 @@ class MockScorerProvider:
 # ---------------------------------------------------------------------------
 
 _BENCHMARK_WEIGHTS: dict[str, float] = {
-    "dino_similarity": 0.30,
-    "clip_alignment": 0.20,
-    "color_consistency": 0.15,
-    "pose_accuracy": 0.10,
-    "expression_match": 0.10,
-    "style_consistency": 0.15,
+    "character_consistency": 0.40,
+    "prompt_accuracy": 0.20,
+    "color_harmony": 0.10,
+    "facial_appeal": 0.10,
+    "silhouette_recognizability": 0.05,
+    "child_friendliness": 0.05,
+    "style_consistency": 0.10,
 }
 
 
@@ -264,11 +267,16 @@ class LoRABenchmark:
 
         dimensions: list[BenchmarkDimension] = []
         composite_total = 0.0
-        weight_total = 0.0
+        matched_weight_sum = 0.0
+        total_canonical_weight = sum(_BENCHMARK_WEIGHTS.values())
         baseline_total = 0.0
 
         for dim_name, weight in _BENCHMARK_WEIGHTS.items():
-            scores = all_dim_scores.get(dim_name, [0.0])
+            scores = all_dim_scores.get(dim_name)
+            if scores is None:
+                # Dimension absent from provider output — skip entirely;
+                # weight excluded from numerator and denominator (A7 honesty).
+                continue
             avg_score = float(np.mean(scores)) if scores else 0.0
 
             baseline_avg: Optional[float] = None
@@ -287,13 +295,19 @@ class LoRABenchmark:
                 improvement=round(improvement, 4) if improvement is not None else None,
             ))
             composite_total += avg_score * weight
-            weight_total += weight
+            matched_weight_sum += weight
             if baseline_avg is not None:
                 baseline_total += baseline_avg * weight
 
-        composite_score = composite_total / weight_total if weight_total > 0 else 0.0
+        weight_coverage = (
+            matched_weight_sum / total_canonical_weight
+            if total_canonical_weight > 0 else 0.0
+        )
+        weight_coverage = round(weight_coverage, 4)
+        composite_score = composite_total / matched_weight_sum if matched_weight_sum > 0 else 0.0
+        composite_score = round(composite_score, 4)
         baseline_composite = (
-            baseline_total / weight_total if (weight_total > 0 and baseline_total > 0)
+            baseline_total / matched_weight_sum if (matched_weight_sum > 0 and baseline_total > 0)
             else None
         )
 
@@ -306,6 +320,7 @@ class LoRABenchmark:
         passed = (
             len(dimensions) > 0
             and composite_score >= self._config.similarity_threshold
+            and weight_coverage >= 1.0
         )
 
         return BenchmarkResult(
@@ -316,6 +331,7 @@ class LoRABenchmark:
             baseline_composite=round(baseline_composite, 4) if baseline_composite is not None else None,
             improvement=round(overall_improvement, 4) if overall_improvement is not None else None,
             passed=passed,
+            weight_coverage=round(weight_coverage, 4),
         )
 
     def _generate_test_images(
@@ -410,6 +426,12 @@ class LoRABenchmark:
             f"|--------|-------|",
             f"| Composite | {result.composite_score:.2%} |",
         ]
+
+        if result.weight_coverage < 1.0:
+            lines.append(
+                f"| Weight Coverage | {result.weight_coverage:.0%} "
+                f"(partial — gate requires 100%) |"
+            )
 
         if result.baseline_composite is not None:
             lines.append(f"| Baseline | {result.baseline_composite:.2%} |")
