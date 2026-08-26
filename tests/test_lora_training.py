@@ -822,6 +822,118 @@ class TestVersionRegistryPersistence:
 
 
 # =========================================================================
+# VersionRegistry promote() tests (01c-04: post-hoc production promotion, G10)
+# =========================================================================
+
+class TestVersionRegistryPromotion:
+    """promote() flips records to production, persists, and raises on unknown."""
+
+    def test_promote_flips_record(self):
+        """promote() sets promoted=True on the target record."""
+        registry = VersionRegistry()
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/lily_v0.1.safetensors",
+        )
+        record = registry.promote("lily", LoRAVersion.parse("v0.1"))
+        assert record.promoted is True
+        promoted = registry.get_promoted("lily")
+        assert promoted is not None
+        assert str(promoted.version) == "v0.1"
+
+    def test_promote_persists_through_store(self, tmp_path):
+        """promote() is visible to a new registry over the same store."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "promo.json")
+        registry = VersionRegistry(store=store)
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/lily_v0.1.safetensors",
+        )
+        registry.promote("lily", LoRAVersion.parse("v0.1"))
+
+        # New registry from same store
+        registry2 = VersionRegistry(store=store)
+        promoted = registry2.get_promoted("lily")
+        assert promoted is not None
+        assert promoted.promoted is True
+        assert str(promoted.version) == "v0.1"
+
+    def test_promote_second_version_both_promoted(self):
+        """Promoting two versions: both records carry promoted=True."""
+        registry = VersionRegistry()
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/lily_v0.1.safetensors",
+        )
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v1.0"),
+            file_path="/tmp/lily_v1.0.safetensors",
+        )
+        registry.promote("lily", LoRAVersion.parse("v0.1"))
+        registry.promote("lily", LoRAVersion.parse("v1.0"))
+        # Both are promoted
+        versions = registry.get_versions("lily")
+        promoted_versions = [v for v in versions if v.promoted]
+        assert len(promoted_versions) == 2
+
+    def test_promote_unknown_character_raises(self):
+        """promote() raises ValueError for unknown character_id."""
+        registry = VersionRegistry()
+        with pytest.raises(ValueError, match="character_id 'nonexistent' not found"):
+            registry.promote("nonexistent", LoRAVersion.parse("v0.1"))
+
+    def test_promote_unknown_version_raises(self):
+        """promote() raises ValueError for unregistered version."""
+        registry = VersionRegistry()
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/lily_v0.1.safetensors",
+        )
+        with pytest.raises(ValueError, match="version v0.2 not found"):
+            registry.promote("lily", LoRAVersion.parse("v0.2"))
+
+    def test_promote_dry_run_then_promote(self):
+        """Dry-run v0.1 registration followed by promote after benchmark evidence."""
+        registry = VersionRegistry()
+        # Simulate dry-run registration (v0.1, experimental)
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v0.1"),
+            file_path="/tmp/lily_v0.1.safetensors",
+            training_config={"dry_run": True},
+        )
+        assert registry.get_promoted("lily") is None
+
+        # Benchmark passes → promote v0.1
+        promoted = registry.promote("lily", LoRAVersion.parse("v0.1"))
+        assert promoted.promoted is True
+        assert promoted.training_config == {"dry_run": True}  # config preserved
+
+    def test_promote_preserves_other_fields(self, tmp_path):
+        """promote() preserves training_config, benchmark_scores, file_path."""
+        from src.training_engine.version_store import JsonVersionStore
+        store = JsonVersionStore(tmp_path / "fields.json")
+        registry = VersionRegistry(store=store)
+        registry.register(
+            character_id="lily",
+            version=LoRAVersion.parse("v1.0"),
+            file_path="/tmp/lily_v1.0.safetensors",
+            training_config={"lr": 0.0001, "epochs": 10},
+            benchmark_scores={"character_consistency": 0.92},
+        )
+        promoted = registry.promote("lily", LoRAVersion.parse("v1.0"))
+        assert promoted.file_path == "/tmp/lily_v1.0.safetensors"
+        assert promoted.training_config == {"lr": 0.0001, "epochs": 10}
+        assert promoted.benchmark_scores == {"character_consistency": 0.92}
+
+
+# =========================================================================
 # LoRABenchmark tests
 # =========================================================================
 
