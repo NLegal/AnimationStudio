@@ -43,6 +43,11 @@ class TrainingConfig:
     caption_dropout_rate: float = 0.05
     version: str = "v0.1"
     dry_run: bool = False
+    # Flux companion model paths (optional — omit to skip in command)
+    clip_l_path: Optional[str] = None
+    t5xxl_path: Optional[str] = None
+    ae_path: Optional[str] = None
+    blocks_to_swap: int = 8
 
 
 # ---------------------------------------------------------------------------

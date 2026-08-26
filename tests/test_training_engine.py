@@ -425,3 +425,201 @@ class TestDryRunMode:
         result = adapter.train(config)
         assert result.success is False
         assert "error" in result.metrics
+
+
+# ---------------------------------------------------------------------------
+# Flux-complete command generation tests (G16)
+# ---------------------------------------------------------------------------
+
+class TestFluxCommandGeneration:
+    """Flux-complete _build_command emits accelerate wrapper with all Flux-specific flags."""
+
+    def _make_adapter(self, tmp_path):
+        """Create a KohyaAdapter with a valid kohya path."""
+        kohya_dir = tmp_path / "kohya_ss"
+        sd_dir = kohya_dir / "sd-scripts"
+        sd_dir.mkdir(parents=True, exist_ok=True)
+        return KohyaAdapter(kohya_path=str(kohya_dir))
+
+    def _flux_config(self, tmp_path, **overrides):
+        """Return a standard Flux TrainingConfig for testing."""
+        defaults = dict(
+            character_id="lily-bunny",
+            dataset_path=tmp_path / "dataset",
+            output_path=tmp_path / "output",
+            base_model="black-forest-labs/FLUX.1-dev",
+        )
+        defaults.update(overrides)
+        return TrainingConfig(**defaults)
+
+    def test_accelerate_launch_wrapper(self, tmp_path):
+        """Command begins with accelerate launch wrapper."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert cmd_str.startswith("accelerate launch"), (
+            f"Command should start with 'accelerate launch', got: {cmd_str[:60]}"
+        )
+
+    def test_accelerate_cpu_threads_bounded(self, tmp_path):
+        """Accelerate wrapper includes bounded CPU-thread count."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--num_cpu_threads_per_process" in cmd_str
+
+    def test_flux_network_module(self, tmp_path):
+        """Flux config uses networks.lora_flux network module."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "networks.lora_flux" in cmd_str
+
+    def test_companion_models_present_when_set(self, tmp_path):
+        """Companion model flags (clip_l, t5xxl, ae) appear when config fields are set."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(
+            tmp_path,
+            clip_l_path="/models/clip_l.safetensors",
+            t5xxl_path="/models/t5xxl_fp16.safetensors",
+            ae_path="/models/ae.safetensors",
+        )
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--clip_l" in cmd_str
+        assert "--t5xxl" in cmd_str
+        assert "--ae" in cmd_str
+        assert "/models/clip_l.safetensors" in cmd_str
+        assert "/models/t5xxl_fp16.safetensors" in cmd_str
+        assert "/models/ae.safetensors" in cmd_str
+
+    def test_companion_models_absent_when_unset(self, tmp_path):
+        """Companion model flags are omitted when config fields are None."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--clip_l" not in cmd_str
+        assert "--t5xxl" not in cmd_str
+        assert "--ae" not in cmd_str
+
+    def test_safetensors_save_format(self, tmp_path):
+        """Command includes safetensors save format flag."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--save_model_as" in cmd_str
+        assert "safetensors" in cmd_str
+
+    def test_flux_precision_flags(self, tmp_path):
+        """Command includes bf16 mixed precision, gradient checkpointing, sdpa, fp8_base."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--mixed_precision bf16" in cmd_str
+        assert "--gradient_checkpointing" in cmd_str
+        assert "--sdpa" in cmd_str
+        assert "--fp8_base" in cmd_str
+
+    def test_flux_caching_flags(self, tmp_path):
+        """Command includes latent and text-encoder output caching flags."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--cache_latents" in cmd_str
+        assert "--cache_latents_to_disk" in cmd_str
+        assert "--cache_text_encoder_outputs" in cmd_str
+        assert "--cache_text_encoder_outputs_to_disk" in cmd_str
+
+    def test_flux_sampling_flags(self, tmp_path):
+        """Command includes Flux-specific sampling flags."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--guidance_scale 1.0" in cmd_str
+        assert "--timestep_sampling flux_shift" in cmd_str
+        assert "--model_prediction_type raw" in cmd_str
+
+    def test_blocks_to_swap_from_config(self, tmp_path):
+        """blocks_to_swap value flows from config (default 8)."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--blocks_to_swap 8" in cmd_str
+
+    def test_blocks_to_swap_custom(self, tmp_path):
+        """blocks_to_swap uses custom config value."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path, blocks_to_swap=16)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--blocks_to_swap 16" in cmd_str
+
+    def test_caption_dropout_forwarded(self, tmp_path):
+        """Previously dead caption_dropout_rate now appears in the command."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path, caption_dropout_rate=0.05)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--caption_dropout_rate" in cmd_str
+
+    def test_dataloader_workers_reduced_to_two(self, tmp_path):
+        """Dataloader workers reduced from 8 to 2 (Colab-safe)."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--max_data_loader_n_workers 2" in cmd_str
+
+    def test_command_uses_accelerate_not_bare_python(self, tmp_path):
+        """Command uses accelerate launch, not bare sys.executable."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        # First element should be accelerate, not sys.executable
+        assert cmd[0] == "accelerate", (
+            f"First element should be 'accelerate', got: {cmd[0]}"
+        )
+
+    def test_existing_args_preserved(self, tmp_path):
+        """Existing command arguments (learning_rate, epochs, etc.) are still present."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        cmd_str = " ".join(cmd)
+        assert "--learning_rate" in cmd_str
+        assert "--train_batch_size" in cmd_str
+        assert "--max_train_epochs" in cmd_str
+        assert "--network_dim" in cmd_str
+        assert "--network_alpha" in cmd_str
+        assert "--seed" in cmd_str
+        assert "lily-bunny_v0.1" in cmd_str
+
+    def test_no_stray_empty_flags_when_models_omitted(self, tmp_path):
+        """Omitted optional model paths produce no stray empty-string arguments."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        # No empty strings in the argv list
+        assert "" not in cmd, f"Command contains empty-string args: {cmd}"
+
+    def test_pure_arglist_no_shell_true(self, tmp_path):
+        """Command is a pure arg-list — no shell metacharacters."""
+        adapter = self._make_adapter(tmp_path)
+        config = self._flux_config(tmp_path)
+        cmd = adapter._build_command(config)
+        # Every element is a string
+        assert all(isinstance(a, str) for a in cmd)
+        # No shell operators
+        cmd_str = " ".join(cmd)
+        assert "|" not in cmd_str
+        assert "&&" not in cmd_str
+        assert ";" not in cmd_str
