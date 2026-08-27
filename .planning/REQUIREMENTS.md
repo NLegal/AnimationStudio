@@ -21,7 +21,7 @@
 - [x] **CHAR-04**: Pose library for each character (standing, running, jumping, sitting, dancing, etc.)
 - [ ] **CHAR-05**: Outfit/wardrobe variants per character (default, winter, rain, pajamas, holiday, etc.)
 - [x] **CHAR-06**: Character personality profiles, relationships, catchphrases, and emotion matrix
-- [ ] **CHAR-07**: LoRA training pipeline for character consistency (ComfyUI-FluxTrainer or SDXL-based)
+- [x] **CHAR-07**: LoRA training pipeline for character consistency (ComfyUI-FluxTrainer or SDXL-based)
 - [x] **CHAR-08**: Reusable prompt templates and negative prompt standards per character
 - [ ] **CHAR-09**: Age progression variants for characters (toddler, preschool, kindergarten)
 
@@ -169,7 +169,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHAR-04 | Phase 1b | Complete |
 | CHAR-05 | Phase 1b | Pending |
 | CHAR-06 | Phase 1 | Complete |
-| CHAR-07 | Phase 1c | Pending |
+| CHAR-07 | Phase 1c | Complete |
 | CHAR-08 | Phase 1 | Complete |
 | CHAR-09 | Phase 1 | Planning |
 | ASST-01 | Phase 2 | Pending |

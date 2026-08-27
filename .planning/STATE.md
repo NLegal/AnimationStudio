@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01c
 current_phase_name: Character Training System
 status: in_progress
-stopped_at: Completed 01c-05-PLAN.md
-last_updated: "2026-08-27T01:30:00.000Z"
-last_activity: 2026-08-26
-last_activity_desc: Plan 01c-05 complete — training orchestration CLI (build-dataset/train/benchmark/versions)
+stopped_at: Completed 01c-06-PLAN.md
+last_updated: "2026-08-27T13:28:30.449Z"
+last_activity: 2026-08-27
+last_activity_desc: Plan 01c-06 complete
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -23,24 +23,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-28)
 
 **Core value:** Character consistency and asset reusability across every episode. Build once, reuse forever.
-**Current focus:** Phase 01c — Character Training System (Plans 01-05 complete, 01c-06 remaining)
+**Current focus:** Phase 01c — Character Training System (Plans 01-06 complete, 6/6; deferred-human GPU run pending)
 
 ## Current Position
 
 Phase: 01c — Character Training System
-Plan: 01+02+03+04+05 complete, next is 06 (Colab training notebook)
-Status: Plan 01c-05 complete — ready for next plan
-Last activity: 2026-08-26 — Plan 01c-05 complete
+Plan: 06 complete — all 6 plans executed. Phase 01c deliverable chain (dataset → benchmark → adapter → versions → orchestrator → Colab notebook) is complete; production LoRA v1.0 training awaits the operator GPU run (deferred-human, tracked as CHAR-07 criterion 2)
+Status: Plan 01c-06 complete — phase 01c ready for operator execution / next phase
+Last activity: 2026-08-27 — Plan 01c-06 complete
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8
-- Average duration: 91min
-- Total execution time: 752min
+- Total plans completed: 20
+- Average duration: 89min
+- Total execution time: 848min
 
 **By Phase:**
 
@@ -48,14 +48,14 @@ Progress: [█████████░] 90%
 |-------|-------|-------|----------|
 | 01-character-universe | 1 | 47min | 47min |
 | 01b-character-asset-production | 1 | 45m | 45m |
-| 01c-character-training-system | 4 | 376m | 125m |
+| 01c-character-training-system | 6 | 622m | 104m |
 | 07 | 2 | - | - |
 | 08 | 2 | - | - |
 
 **Recent Trend:**
 
-- Last 1 plans: 106min (01c-03)
-- Trend: 106min
+- Last 1 plans: 96min (01c-06)
+- Trend: 96min
 
 *Updated after each plan completion*
 **Per-Plan Metrics:**
@@ -72,6 +72,8 @@ Progress: [█████████░] 90%
 | Phase 01c-character-training-system P03 | 106m | 2 tasks | 3 files |
 | Phase 01c-character-training-system P04 | 47m | 2 tasks | 4 files |
 | Phase 01c-character-training-system P05 | 90m | 2 tasks | 3 files |
+| Phase 01c-character-training-system P06 | 96m | 2 tasks | 3 files |
+| Phase 01c-character-training-system P06 | 96 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -122,6 +124,11 @@ Recent decisions affecting current work:
 - Plan 01c-05: Dry-run supersedes validate_environment in KohyaAdapter so offline proof needs no KOHYA_SS_PATH
 - [Phase 01c]: JSON sidecar chosen over catalog.db migration per locked A3 — corruption-isolated persistence — Idempotent registration prevents duplicate records from repeated dry-runs
 - [Phase 01c]: promote() uses flip-target-only semantics — does not un-promote others, preserving audit trail — Multi-promotion preserves history of all promoted versions
+- [Phase ?]: Plan 01c-06: Training artifacts live inside the repo tree (Universe/Characters/Lily Bunny/lora/ + training/) so the Colab sync cell commits safetensors + benchmark report + registry directly — no Drive upload (Universe ships via git)
+- [Phase ?]: Plan 01c-06: sd-scripts pinned to verified upstream main SHA 37a1cbbc (2026-07-23) — supply-chain pin for reproducibility, bump procedure documented in notebook
+- [Phase ?]: Plan 01c-06: Model sources verified against HF API — flux1-dev.safetensors + ae.safetensors from gated black-forest-labs/FLUX.1-dev; clip_l + t5xxl_fp16 from ungated comfyanonymous/flux_text_encoders
+- [Phase ?]: Plan 01c-06: fp8_base auto-forced when compute capability < 8 regardless of VRAM profile (Pitfall 6 — Turing bf16 emulation / Flux fp16 NaNs); t4-16g is the notebook default profile
+- [Phase ?]: Plan 01c-06: Notebook settings forms use #@param (adjacent, no space) so Colab renders the form; token params are empty-string placeholders enforced by CI secret-shape scan over all 7 colab notebooks
 
 ### Pending Todos
 
@@ -139,8 +146,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T00:12:28.344Z
-Stopped at: Completed 01c-04-PLAN.md
+Last session: 2026-08-27T13:17:35.962Z
+Stopped at: Completed 01c-06-PLAN.md
 Resume file: None
 
 ## Accumulated Context
