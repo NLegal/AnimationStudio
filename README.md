@@ -25,6 +25,50 @@ global timeout under full-suite load).
 | 11 | Publishing, Distribution & Channel Management | `publishing` |
 | 12 | Studio Automation & AI Orchestration | `studio` |
 
+## Character Training (Phase 1c)
+
+LoRA training for character consistency. The local pipeline curates approved
+assets into a training dataset, proves the full Flux training command via
+dry-run, and records version/benchmark state — all without a GPU. The GPU half
+runs on Google Colab from the training notebook.
+
+### Local evidence chain (no GPU, offline-safe)
+
+| Step | Command | Artifacts it proves |
+|------|---------|---------------------|
+| Dataset build | `python3 scripts/train_lora.py build-dataset --character-id lily-bunny` | curated set exists (20–40 per character), `training/dataset_config.toml` + train/val split + baselines |
+| Training dry-run | `python3 scripts/train_lora.py train --character-id lily-bunny` | the full accelerate + flux_train_network.py command compiles and would train (dry-run refuses to run without a GPU) |
+| Benchmark | `python3 scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>` | identity score vs the DINOv2-based baseline (promote gate ≥ 0.90 at full weight coverage) |
+| Versions | `python3 scripts/train_lora.py versions` | `training/lora_registry.json` contents and promotion state |
+
+### Operator prerequisites (Colab)
+
+1. Hugging Face access token — the account must have accepted the gated
+   FLUX.1-dev license (huggingface.co/black-forest-labs/FLUX.1-dev).
+2. GitHub fine-grained PAT with *Contents: Read and write* on this repo
+   (only needed for the notebook's artifact sync).
+3. Colab GPU runtime: T4 (free tier, fp8 profile, hours-scale) or A100.
+
+### Runbook
+
+Open [colab/AnimationStudio_Colab_Training.ipynb](colab/AnimationStudio_Colab_Training.ipynb)
+and run top-to-bottom; edit only the Settings cell. VRAM profiles:
+
+| Profile | Batch | fp8_base | blocks_to_swap |
+|---------|-------|----------|----------------|
+| a100-24g | 2 | off | 0 |
+| t4-16g | 1 | on | 8 |
+| t4-12gb-swap16 | 1 | on | 16 |
+
+The dataset build requires at least 20 curated images per character — when
+the curated count is under the minimum, approve/promote assets via the Review
+UI first (`nursery review` / HTTP UI), then rerun the build cell.
+
+The production LoRA v1.0 training criterion (CHAR-07, criterion 2) is recorded
+`verification_deferred_human`: the local dry-run chain above plus this notebook
+is the complete evidence package — executing the notebook is the operator step
+that resolves it.
+
 ## Project Structure
 
 ```
