@@ -93,7 +93,7 @@ Plans:
 - [x] 01c-02-PLAN.md — Benchmark ↔ identity-engine bridge (D-06 plugin weights, threshold 0.90, coverage-honest gate, IdentityScorerProvider)
 - [x] 01c-03-PLAN.md — KohyaAdapter Flux contract + first-class dry-run mode
 - [x] 01c-04-PLAN.md — Version persistence (sidecar JSON store) + promote()
-- [ ] 01c-05-PLAN.md — scripts/train_lora.py offline orchestrator (--dry-run enforced, curate/build/train/benchmark/versions)
+- [x] 01c-05-PLAN.md — scripts/train_lora.py offline orchestrator (--dry-run enforced, curate/build/train/benchmark/versions)
 - [ ] 01c-06-PLAN.md — Colab training notebook (Phase 4 pattern) + operator docs
 
 ### Phase 2: World Building & Environment Bible

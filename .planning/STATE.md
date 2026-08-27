@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01c
 current_phase_name: Character Training System
 status: in_progress
-stopped_at: Completed 01c-04-PLAN.md
-last_updated: "2026-08-27T00:15:44.302Z"
+stopped_at: Completed 01c-05-PLAN.md
+last_updated: "2026-08-27T01:30:00.000Z"
 last_activity: 2026-08-26
-last_activity_desc: Plan 01c-04 complete — version store + promote()
+last_activity_desc: Plan 01c-05 complete — training orchestration CLI (build-dataset/train/benchmark/versions)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 20
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-28)
 
 **Core value:** Character consistency and asset reusability across every episode. Build once, reuse forever.
-**Current focus:** Phase 01c — Character Training System (Plans 01-04 complete, 05-06 remaining)
+**Current focus:** Phase 01c — Character Training System (Plans 01-05 complete, 01c-06 remaining)
 
 ## Current Position
 
 Phase: 01c — Character Training System
-Plan: 01+02+03+04 complete, next is 05 or 06 depending on orchestrator
-Status: Plan 01c-04 complete — ready for next plan
-Last activity: 2026-08-26 — Plan 01c-04 complete
+Plan: 01+02+03+04+05 complete, next is 06 (Colab training notebook)
+Status: Plan 01c-05 complete — ready for next plan
+Last activity: 2026-08-26 — Plan 01c-05 complete
 
 Progress: [█████████░] 90%
 
@@ -48,7 +48,7 @@ Progress: [█████████░] 90%
 |-------|-------|-------|----------|
 | 01-character-universe | 1 | 47min | 47min |
 | 01b-character-asset-production | 1 | 45m | 45m |
-| 01c-character-training-system | 3 | 376m | 125m |
+| 01c-character-training-system | 4 | 376m | 125m |
 | 07 | 2 | - | - |
 | 08 | 2 | - | - |
 
@@ -71,6 +71,7 @@ Progress: [█████████░] 90%
 | Phase 01c-character-training-system P02 | 118m | 2 tasks | 4 files |
 | Phase 01c-character-training-system P03 | 106m | 2 tasks | 3 files |
 | Phase 01c-character-training-system P04 | 47m | 2 tasks | 4 files |
+| Phase 01c-character-training-system P05 | 90m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,10 @@ Recent decisions affecting current work:
 - Plan 01c-04: JSON sidecar store chosen over catalog.db migration per locked A3 — corruption-isolated persistence
 - Plan 01c-04: Idempotent registration replaces in-place on (character_id, version) match — prevents duplicate records from repeated dry-runs
 - Plan 01c-04: promote() uses flip-target-only semantics — does not un-promote others, preserving audit trail
+- Plan 01c-05: train registers only post-completion via the adapter — no placeholder pre-seeding in the CLI
+- Plan 01c-05: versions subcommand strictly read-only — never creates, registers, or promotes
+- Plan 01c-05: Real training refused locally by policy — Colab notebook named as the exclusive GPU path
+- Plan 01c-05: Dry-run supersedes validate_environment in KohyaAdapter so offline proof needs no KOHYA_SS_PATH
 - [Phase 01c]: JSON sidecar chosen over catalog.db migration per locked A3 — corruption-isolated persistence — Idempotent registration prevents duplicate records from repeated dry-runs
 - [Phase 01c]: promote() uses flip-target-only semantics — does not un-promote others, preserving audit trail — Multi-promotion preserves history of all promoted versions
 
