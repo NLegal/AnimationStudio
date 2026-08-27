@@ -200,4 +200,7 @@ class TestReadmeRunbook:
 
     def test_readme_notes_deferred_human_verification(self, readme_text):
         """The deferred-human status of production LoRA training is declared."""
-        assert "deferred-human" in readme_text or "deferred human" in readme_text
+        assert any(
+            marker in readme_text
+            for marker in ("deferred-human", "deferred human", "deferred_human")
+        )
