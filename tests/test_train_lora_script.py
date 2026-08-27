@@ -134,7 +134,11 @@ def _seed_assets_for_cli(db_path: Path, tmp_path: Path) -> int:
     count = 0
     for aid, atype, variant, score in approved_assets + production_assets:
         seed_num = hash(aid) % 100000
-        fpath = tmp_path / f"{variant}_{seed_num}.png"
+        # Write image files at the path recorded in the DB (Universe/... layout)
+        # so the dataset builder can actually find and copy them.
+        rel = Path("Universe") / "Characters" / "Lily Bunny" / f"{atype}s" / f"{variant}_{seed_num}.png"
+        fpath = tmp_path / rel
+        fpath.parent.mkdir(parents=True, exist_ok=True)
         fpath.write_bytes(b"\x89PNG fake image data")
         state = "approved" if aid.startswith("a-") else "production"
         _seed_asset(
@@ -164,7 +168,6 @@ class TestTrainLoraBuildDataset:
         monkeypatch.chdir(tmp_path)
         from scripts.train_lora import main as cli_main
         rc = cli_main([
-            "build-dataset",
             "--db", str(db),
             "--character-id", "lily-bunny",
             "--output-root", str(out),
@@ -172,6 +175,7 @@ class TestTrainLoraBuildDataset:
             "--states", "approved,production",
             "--min-images", "5",
             "--max-images", "30",
+            "build-dataset",
         ])
         assert rc == 0
         # Dataset directory exists
@@ -187,7 +191,6 @@ class TestTrainLoraBuildDataset:
         monkeypatch.chdir(tmp_path)
         from scripts.train_lora import main as cli_main
         rc = cli_main([
-            "build-dataset",
             "--db", str(db),
             "--character-id", "lily-bunny",
             "--output-root", str(out),
@@ -195,6 +198,7 @@ class TestTrainLoraBuildDataset:
             "--states", "approved,production",
             "--min-images", "5",
             "--max-images", "30",
+            "build-dataset",
         ])
         assert rc == 0
 
@@ -216,7 +220,6 @@ class TestTrainLoraBuildDataset:
         monkeypatch.chdir(tmp_path)
         from scripts.train_lora import main as cli_main
         rc = cli_main([
-            "build-dataset",
             "--db", str(db),
             "--character-id", "lily-bunny",
             "--output-root", str(out),
@@ -224,6 +227,7 @@ class TestTrainLoraBuildDataset:
             "--states", "approved,production",
             "--min-images", "5",
             "--max-images", "10",  # cap at 10
+            "build-dataset",
         ])
         assert rc == 0
         train_dir = out / "train"
@@ -240,7 +244,6 @@ class TestTrainLoraBuildDataset:
         monkeypatch.chdir(tmp_path)
         from scripts.train_lora import main as cli_main
         rc = cli_main([
-            "build-dataset",
             "--db", str(db),
             "--character-id", "lily-bunny",
             "--output-root", str(out),
@@ -248,6 +251,7 @@ class TestTrainLoraBuildDataset:
             "--states", "approved,production",
             "--min-images", "100",  # impossible to reach
             "--max-images", "200",
+            "build-dataset",
         ])
         assert rc == 1
 
@@ -269,11 +273,11 @@ class TestTrainLoraTrain:
         monkeypatch.chdir(tmp_path)
         from scripts.train_lora import main as cli_main
         rc = cli_main([
-            "train",
             "--db", str(db),
             "--character-id", "lily-bunny",
             "--output-root", str(out),
             "--registry-path", str(registry),
+            "train",
         ])
         assert rc == 1
 
@@ -287,12 +291,12 @@ class TestTrainLoraTrain:
         monkeypatch.chdir(tmp_path)
         from scripts.train_lora import main as cli_main
         rc = cli_main([
-            "train",
             "--dry-run",
             "--db", str(db),
             "--character-id", "lily-bunny",
             "--output-root", str(out),
             "--registry-path", str(registry),
+            "train",
         ])
         assert rc == 0
         # Artifact created
@@ -315,16 +319,18 @@ class TestTrainLoraTrain:
 
         # First invocation
         cli_main([
-            "train", "--dry-run",
+            "--dry-run",
             "--db", str(db), "--character-id", "lily-bunny",
             "--output-root", str(out), "--registry-path", str(registry),
+            "train",
         ])
 
         # Second invocation
         rc = cli_main([
-            "train", "--dry-run",
+            "--dry-run",
             "--db", str(db), "--character-id", "lily-bunny",
             "--output-root", str(out), "--registry-path", str(registry),
+            "train",
         ])
         assert rc == 0
         # Check registry has exactly 2 versions (v0.1 and v0.2)
@@ -345,8 +351,9 @@ class TestTrainLoraTrain:
         monkeypatch.chdir(tmp_path)
         from scripts.train_lora import main as cli_main
         rc = cli_main([
-            "train", "--dry-run",
+            "--dry-run",
             "--db", str(db), "--character-id", "nonexistent",
             "--output-root", str(out), "--registry-path", str(registry),
+            "train",
         ])
         assert rc == 1

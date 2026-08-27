@@ -145,7 +145,9 @@ class KohyaAdapter(TrainingBackend):
             ``TrainingResult(success=False, metrics={"error": ...})`` if the
             environment is not ready.
         """
-        if not self.validate_environment():
+        # Dry-run is the default-safe mode for offline proof and does not
+        # require a KOHYA_SS_PATH checkout — it supersedes environment checks.
+        if not config.dry_run and not self.validate_environment():
             return TrainingResult(
                 lora_path=Path(),
                 version=config.version,
