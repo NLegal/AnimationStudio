@@ -5,10 +5,10 @@ milestone_name: milestone
 current_phase: 01c
 current_phase_name: Character Training System
 status: in_progress
-stopped_at: Completed 01c-03-PLAN.md
-last_updated: "2026-08-26T22:14:54Z"
+stopped_at: Completed 01c-04-PLAN.md
+last_updated: "2026-08-27T00:15:44.302Z"
 last_activity: 2026-08-26
-last_activity_desc: Plan 01c-03 complete — dry-run mode and Flux command builder
+last_activity_desc: Plan 01c-04 complete — version store + promote()
 progress:
   total_phases: 5
   completed_phases: 4
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-28)
 
 **Core value:** Character consistency and asset reusability across every episode. Build once, reuse forever.
-**Current focus:** Phase 01c — Character Training System (Plans 01-03 complete, 04-06 remaining)
+**Current focus:** Phase 01c — Character Training System (Plans 01-04 complete, 05-06 remaining)
 
 ## Current Position
 
 Phase: 01c — Character Training System
-Plan: 01+02+03 complete, next is 04 or 05 depending on orchestrator
-Status: Plan 01c-03 complete — ready for next plan
-Last activity: 2026-08-26 — Plan 01c-03 complete
+Plan: 01+02+03+04 complete, next is 05 or 06 depending on orchestrator
+Status: Plan 01c-04 complete — ready for next plan
+Last activity: 2026-08-26 — Plan 01c-04 complete
 
 Progress: [█████████░] 90%
 
@@ -70,6 +70,7 @@ Progress: [█████████░] 90%
 | Phase 01c-character-training-system P01 | 165m | 2 tasks | 5 files |
 | Phase 01c-character-training-system P02 | 118m | 2 tasks | 4 files |
 | Phase 01c-character-training-system P03 | 106m | 2 tasks | 3 files |
+| Phase 01c-character-training-system P04 | 47m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,11 @@ Recent decisions affecting current work:
 - Plan 01c-03: Identifier validation uses conservative lowercase alphanumeric pattern before interpolation into filenames or argv
 - Plan 01c-03: Dry-run mkdir + artifact write wrapped in try/except OSError for typed failure on unwritable paths
 - Plan 01c-03: accelerate launch with --num_cpu_threads_per_process 1 for Colab 2-vCPU runtimes
+- Plan 01c-04: JSON sidecar store chosen over catalog.db migration per locked A3 — corruption-isolated persistence
+- Plan 01c-04: Idempotent registration replaces in-place on (character_id, version) match — prevents duplicate records from repeated dry-runs
+- Plan 01c-04: promote() uses flip-target-only semantics — does not un-promote others, preserving audit trail
+- [Phase 01c]: JSON sidecar chosen over catalog.db migration per locked A3 — corruption-isolated persistence — Idempotent registration prevents duplicate records from repeated dry-runs
+- [Phase 01c]: promote() uses flip-target-only semantics — does not un-promote others, preserving audit trail — Multi-promotion preserves history of all promoted versions
 
 ### Pending Todos
 
@@ -128,8 +134,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-26T22:14:54Z
-Stopped at: Completed 01c-03-PLAN.md
+Last session: 2026-08-27T00:12:28.344Z
+Stopped at: Completed 01c-04-PLAN.md
 Resume file: None
 
 ## Accumulated Context
