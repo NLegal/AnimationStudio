@@ -87,6 +87,12 @@ service contract.
 1. Start the local ACE-Step 1.5 service on `localhost:8001`
    (GPU ≥ 4 GB VRAM minimum; Turbo XL ~20 GB weights; optional CPU-offload env
    knob `ACESTEP_OFFLOAD_TO_CPU` documented by ACE-Step — our code never sets it).
+   ACE-Step 1.5 pins `requires-python = >=3.11,<3.13`. If your interpreter is
+   newer (e.g. Colab ships 3.13+), bring it up via `uv` which provisions a
+   compatible isolated venv:
+   `uv sync && uv run acestep-api` (do **not** `pip install -r requirements.txt`
+   into a 3.13 env — it crashes at startup). Default `ACESTEP_NO_INIT=true` makes
+   `/health` answer immediately and lazy-loads models on the first request.
 2. Export the API key: `export ACESTEP_API_KEY=<your-key>`
 3. Run:
    ```bash
