@@ -34,13 +34,27 @@ overrides). Nothing is ever written to the asset-catalog database.
 
 | Variable | Purpose | Source | Default |
 |---|---|---|---|
-| `ACESTEP_API_KEY` | Bearer credential sent as `Authorization: Bearer <key>` to the local ACE-Step service | Your local ACE-Step Studio deployment configuration | *(unset — `ace-step` then reports not configured)* |
+| `ACESTEP_API_KEY` | Bearer credential sent as `Authorization: Bearer <key>` to the local ACE-Step service. **Optional** — when unset the header is omitted and the service is expected to be running with auth disabled | Your local ACE-Step Studio deployment configuration | *(unset — sends no auth header)* |
 | `ACESTEP_BASE_URL` | Base URL of the local ACE-Step REST service | Set only if the service does not run at the default address | `http://localhost:8001` |
 | `MUSIC_BACKEND` | Default backend selection when no `--backend` flag is given | Operator preference; Phase 8 pipeline wiring inherits this | `mock` |
 
 Backend-selection precedence: **`--backend` flag > `MUSIC_BACKEND` env > `mock`**.
 A constructor-level override (`api_key`, `base_url`) beats the environment when
 embedding the library directly.
+
+## ACE-Step 1.5 API contract
+
+This adapter speaks the REAL ACE-Step 1.5 REST contract
+(vendor `docs/en/API.md`) — not an assumed one:
+
+- `GET  /health`              — readiness probe (`is_configured()`)
+- `POST /release_task`        — create a task → `task_id`
+- `POST /query_result`        — batch status query (`task_id_list`; int status:
+  0 running, 1 succeeded, 2 failed)
+- `GET  /v1/audio?path=...`   — download audio bytes
+
+Every response is wrapped as `{data, code, error, ...}`. To honor the requested
+seed, the payload sets `use_random_seed=false` alongside `seed`.
 
 ## Error taxonomy
 
@@ -49,7 +63,7 @@ Every failure surfaces as exactly one typed exception (all subclasses of
 
 | Exception | Meaning | First fixes |
 |---|---|---|
-| `NotConfigured` | The backend cannot be used at all: missing `ACESTEP_API_KEY`, HTTP 401/403 from the service, or a refusing stub (Suno) | Export the API key; verify the key against your local service; pick another backend |
+| `NotConfigured` | The backend cannot be used at all: HTTP 401/403 from the service, or a refusing stub (Suno) | Verify the key against your local service; pick another backend |
 | `BackendUnavailable` | The remote backend could not be reached: connection refused, DNS failure, or timeout on submit/poll/download | Confirm the ACE-Step service is running and reachable at `ACESTEP_BASE_URL`; retry later or fall back to `mock` |
 | `GenerationFailed` | The generation job itself failed: terminal `failed` status (server error text included), malformed response bodies, or the overall deadline (300 s) expiring | Read the server error text; check service logs/GPU memory; re-run with a different seed |
 

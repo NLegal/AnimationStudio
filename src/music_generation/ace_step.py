@@ -1,20 +1,33 @@
 """ACE-Step 1.5 local REST adapter.
 
-Speaks the LOCKED Phase 7 research §2 contract against an EXTERNAL local
-service (ACE-Step Studio, default ``http://localhost:8001``). This code
-never starts, installs, or configures the service; every network flow is
-routed through the injected transport (``DEFAULT_TRANSPORT`` from
-``backends.py`` when omitted), so tests stay fully offline.
+Speaks the real ACE-Step 1.5 async REST contract (vendor ``docs/en/API.md``)
+against an EXTERNAL local service (ACE-Step Studio, default
+``http://localhost:8001``). This code never starts, installs, or configures
+the service; every network flow is routed through the injected transport
+(``DEFAULT_TRANSPORT`` from ``backends.py`` when omitted), so tests stay
+fully offline.
 
-Error map (research §2 — enforced here AND at the plan-01 seam):
-- connection refused / DNS failure / timeout → ``BackendUnavailable``
-- HTTP 401/403                               → ``NotConfigured``
-- job status ``failed`` / malformed bodies   → ``GenerationFailed``
+Vendor API (ACE-Step 1.5) — the only authoritative contract:
+- ``GET  /health``              -> readiness probe
+- ``POST /release_task``        -> create a task; returns ``task_id``
+- ``POST /query_result``        -> batch status query (int status: 0 running,
+  1 succeeded, 2 failed); ``result`` holds a JSON-encoded audio record
+- ``GET  /v1/audio?path=...``   -> download audio bytes
+- Auth: ``Authorization: Bearer <key>`` header OR ``ai_token`` body field.
+  When the server has no ``ACESTEP_API_KEY`` configured, auth is DISABLED
+  and requests carry no credential (our client sends the header only when a
+  key resolves).
+
+Error map (kept consistent with the LOCKED taxonomy):
+- connection refused / DNS failure / timeout -> ``BackendUnavailable``
+- HTTP 401/403                               -> ``NotConfigured``
+- task status ``2`` / malformed bodies       -> ``GenerationFailed``
 
 Header values (including the Bearer token) are never embedded in raised
 messages or log records (threat T7-02-I).
 """
 
+import json
 import logging
 import os
 import re
@@ -47,7 +60,11 @@ _LYRICS_MAX_CHARS = 4096
 _HEALTH_TIMEOUT = (5.0, 5.0)     # short connect budget per RESEARCH §5
 _MARKER_RE = re.compile(r"\[[^\]]*\]")
 
-_AUDIO_PATH_KEYS = ("audio_path", "path", "output")
+# Real ACE-Step 1.5 response wrapper: {data, code, error, timestamp, extra}.
+_DATA_KEY = "data"
+
+# Real task status mapping (int) -> our MusicStatus.state.
+_TASK_STATUS = {0: "running", 1: "completed", 2: "failed"}
 
 
 def _typed_transport_call(fn, *args, **kwargs):
@@ -70,8 +87,44 @@ def _typed_transport_call(fn, *args, **kwargs):
         ) from exc
 
 
+def _unwrap(data):
+    """Extract the 'data' field from the ACE-Step response wrapper.
+
+    The vendor wraps every response as ``{data, code, error, ...}``.
+    Tolerate a bare object (no wrapper) for robustness against simpler
+    test scripts and future contract variants.
+    """
+    if isinstance(data, dict) and _DATA_KEY in data:
+        inner = data[_DATA_KEY]
+        if isinstance(inner, dict) or isinstance(inner, list):
+            error = data.get("error")
+            if isinstance(error, str) and error.strip():
+                raise GenerationFailed(f"ACE-Step server error: {error}")
+            return inner
+    return data
+
+
+def _decode_result_json(raw) -> dict:
+    """Parse the JSON-encoded ``result`` value found on a completed task."""
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise GenerationFailed(
+            "Malformed query result from ACE-Step (result is not JSON)"
+        ) from exc
+    if not isinstance(value, dict):
+        raise GenerationFailed(
+            "Malformed query result from ACE-Step (result is not an object)"
+        )
+    return value
+
+
 class AceStepBackend:
-    """Async-job REST adapter for a LOCAL ACE-Step Studio service.
+    """Async-job REST adapter for a LOCAL ACE-Step 1.5 service.
 
     - External dependency policy: this backend talks to a local service
       the operator starts themselves; we never spawn or install it.
@@ -79,15 +132,16 @@ class AceStepBackend:
       (pinned names ``post_json``/``get_json``/``get_bytes``), which
       defaults to the shared stdlib ``DEFAULT_TRANSPORT`` and can be
       replaced wholesale by fakes in tests (constraint C3).
-    - Lifecycle: submit → poll → download via the protocol default
+    - Lifecycle: submit -> poll -> download via the protocol default
       ``generate()`` loop (doubling backoff capped x8, monotonic
       deadline of ``timeout_s=300``).
+    - Auth: optional Bearer header. When ``ACESTEP_API_KEY`` is unset the
+      real service runs with auth disabled and we simply omit the header.
 
-    Error map summary (research §2): connection-level failures raise
-    ``BackendUnavailable``; HTTP 401/403 raise ``NotConfigured``;
-    failed terminal states and malformed responses raise
-    ``GenerationFailed``. Authorization header values never appear in
-    exception messages or logs.
+    Error map: connection-level failures raise ``BackendUnavailable``;
+    HTTP 401/403 raise ``NotConfigured``; failed terminal statuses (2)
+    and malformed responses raise ``GenerationFailed``. Authorization
+    header values never appear in exception messages or logs.
     """
 
     BACKEND_NAME = "ace-step"
@@ -101,7 +155,7 @@ class AceStepBackend:
         transport=None,
     ):
         # Credential/base resolution order per C5: constructor arg > env.
-        self.api_key = api_key or os.environ.get("ACESTEP_API_KEY")
+        self.api_key = api_key if api_key is not None else os.environ.get("ACESTEP_API_KEY")
         resolved_base = (
             base_url
             or os.environ.get("ACESTEP_BASE_URL")
@@ -115,37 +169,42 @@ class AceStepBackend:
             )
         self.model = model or DEFAULT_MODEL
         self._transport = transport if transport is not None else DEFAULT_TRANSPORT
-        # job_id -> audio path/URL remembered from completed polls.
-        self._audio_paths: dict[str, str] = {}
+        # task_id -> audio URL remembered from completed polls.
+        self._audio_urls: dict[str, str] = {}
         self._effective_seed = None
 
     # ------------------------------------------------------------------ #
-    #  MusicGenerationBackend surface (structural — no inheritance)       #
+    #  MusicGenerationBackend surface (structural - no inheritance)       #
     # ------------------------------------------------------------------ #
 
     def _auth_headers(self) -> dict[str, str]:
-        """Assemble Bearer headers at call time (never logged/serialized)."""
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        """Assemble Bearer headers at call time (never logged/serialized).
+
+        An unset key means the local server runs without auth: omit the
+        Authorization header entirely (matches the vendor contract).
+        """
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
 
     def is_configured(self) -> bool:
-        """True iff a key resolves AND a short-timeout probe succeeds.
+        """True iff the local service answers a short-timeout health probe.
 
-        Probes ``GET {base}/v1/jobs/health`` first, falling back to a
-        root GET when that endpoint is missing (HTTP 404). ANY
-        connection-level failure degrades to False — never a bare log
-        line. A 401/403 means the key itself was rejected: False without
-        probing further.
+        Probes ``GET {base}/health`` (the real ACE-Step 1.5 readiness
+        endpoint), falling back to a root GET when that path is missing
+        (HTTP 404). ANY connection-level failure degrades to False —
+        never a bare log line. A 401/403 still means False without
+        probing further. No API key is required: the real service can
+        run with auth disabled.
         """
-        if not self.api_key:
-            return False
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         try:
             _typed_transport_call(
                 self._transport.get_json,
-                f"{self.base_url}/v1/jobs/health",
+                f"{self.base_url}/health",
                 headers=headers,
                 timeout=_HEALTH_TIMEOUT,
             )
@@ -160,7 +219,7 @@ class AceStepBackend:
             )
             return False
         except MusicBackendError:
-            # Endpoint missing (HTTP 404) or malformed body — the service
+            # Endpoint missing (HTTP 404) or malformed body - the service
             # answered, so try the root probe before degrading.
             logger.debug("ACE-Step health endpoint missing at %s; "
                          "falling back to root probe", self.base_url)
@@ -182,19 +241,14 @@ class AceStepBackend:
             return False
 
     def submit(self, request: MusicRequest) -> str:
-        """Start one generation job; returns its job id.
+        """Start one generation task; returns its task id.
 
-        Payload fields follow research §2 verbatim: bible-composed
-        caption (≤512), category-scaffold lyrics (≤4096), audio_duration,
-        bpm/key_scale/time_signature from the locked table, integer seed,
-        thinking=False, and the selected model name.
+        Payload follows the vendor ``/release_task`` contract: bible-composed
+        caption (prompt, <=512), category-scaffold lyrics (<=4096),
+        audio_duration, bpm/key_scale/time_signature, integer seed with
+        ``use_random_seed=false`` so the seed is honored, thinking=False,
+        and the selected model name.
         """
-        if not self.api_key:
-            raise NotConfigured(
-                "No ACE-Step API key configured; set ACESTEP_API_KEY "
-                "(or pass api_key to the constructor)"
-            )
-
         params = resolve_music_params(request.category)
         caption = build_music_prompt(
             request.category, request.topic, vocals=request.vocals,
@@ -206,106 +260,134 @@ class AceStepBackend:
 
         effective_seed = int(request.seed or 0)
         payload = {
-            "caption": caption,
+            "prompt": caption,
             "lyrics": lyrics,
             "audio_duration": request.duration_s,
             "bpm": params.bpm,
             "key_scale": params.key_scale,
             "time_signature": params.time_signature,
             "seed": effective_seed,
+            "use_random_seed": False,
             "thinking": False,
             "model": self.model,
         }
 
         response = _typed_transport_call(
             self._transport.post_json,
-            f"{self.base_url}/v1/music/generate",
+            f"{self.base_url}/release_task",
             payload,
             headers=self._auth_headers(),
         )
-
-        job_id = response.get("job_id") if isinstance(response, dict) else None
-        if not isinstance(job_id, str) or not job_id.strip():
+        data = _unwrap(response)
+        if not isinstance(data, dict):
             raise GenerationFailed(
-                "Malformed submit response from ACE-Step (missing job_id)"
+                "Malformed submit response from ACE-Step (missing data object)"
+            )
+        task_id = data.get("task_id")
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise GenerationFailed(
+                "Malformed submit response from ACE-Step (missing task_id)"
             )
         self._effective_seed = effective_seed
-        return job_id
+        return task_id
 
-    def poll(self, job_id: str) -> MusicStatus:
-        """Fetch one job's current status from ``GET /v1/jobs/{id}``.
+    def poll(self, task_id: str) -> MusicStatus:
+        """Fetch one task's status from ``POST /query_result``.
 
-        Status strings pass straight into ``MusicStatus.state``; unknown
-        strings and non-object bodies are malformed responses
-        (GenerationFailed). Completed jobs have their audio path/URL
+        The vendor API is batch-oriented: we query a single-element list.
+        Status codes are integers (0 running, 1 succeeded, 2 failed);
+        unknown codes and non-object bodies are malformed responses
+        (GenerationFailed). Completed tasks have their audio URL
         remembered for ``download()``.
         """
         response = _typed_transport_call(
-            self._transport.get_json,
-            f"{self.base_url}/v1/jobs/{job_id}",
+            self._transport.post_json,
+            f"{self.base_url}/query_result",
+            {"task_id_list": [task_id]},
             headers=self._auth_headers(),
         )
-        if not isinstance(response, dict):
+        entries = _unwrap(response)
+        if not isinstance(entries, list):
             raise GenerationFailed(
-                "Malformed poll response from ACE-Step (expected JSON object)"
+                "Malformed poll response from ACE-Step (expected data list)"
             )
-        state = response.get("status")
-        if state not in ("pending", "running", "completed", "failed"):
+
+        match = None
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("task_id") == task_id:
+                match = entry
+                break
+        if match is None:
+            raise GenerationFailed(
+                f"ACE-Step poll returned no entry for task {task_id!r}"
+            )
+
+        code = match.get("status")
+        if code not in _TASK_STATUS:
             raise GenerationFailed(
                 f"Malformed poll response from ACE-Step "
-                f"(unknown status {state!r})"
+                f"(unknown status {code!r})"
             )
-        try:
-            default_progress = 1.0 if state == "completed" else 0.0
-            progress = float(response.get("progress", default_progress))
-        except (TypeError, ValueError) as exc:
-            raise GenerationFailed(
-                "Malformed poll response from ACE-Step (invalid progress)"
-            ) from exc
+        state = _TASK_STATUS[code]
+
+        error = None
+        if state == "failed":
+            raw_error = match.get("error") or match.get("message")
+            if isinstance(raw_error, str) and raw_error.strip():
+                error = raw_error
+            else:
+                # The failure detail may live inside the result record.
+                error = _decode_result_json(match.get("result")).get("status")
+                if not isinstance(error, str):
+                    error = None
 
         if state == "completed":
-            for key in _AUDIO_PATH_KEYS:
-                value = response.get(key)
+            result = _decode_result_json(match.get("result"))
+            for key in ("file", "audio_path", "path", "output"):
+                value = result.get(key)
                 if isinstance(value, str) and value.strip():
-                    self._audio_paths[job_id] = value
+                    self._audio_urls[task_id] = value
                     break
 
         return MusicStatus(
             state=state,
-            progress=progress,
-            error=response.get("error") if state == "failed" else None,
+            progress=1.0 if state == "completed" else 0.0,
+            error=error,
         )
 
-    def download(self, job_id: str) -> bytes:
-        """Return raw audio bytes for a completed job.
+    def download(self, task_id: str) -> bytes:
+        """Return raw audio bytes for a completed task.
 
-        Looks up the path remembered by ``poll()``; when absent (poll
-        never ran) performs exactly one poll first. The path is
-        percent-encoded into the query string verbatim. Audio bytes are
-        accepted as opaque binary; when the transport exposes response
-        headers, a non-audio content-type only logs a warning.
+        Looks up the audio URL remembered by ``poll()``; when absent
+        (poll never ran) performs exactly one poll first. The vendor
+        ``result.file`` is itself a URL (usually ``/v1/audio?path=...``);
+        relative URLs are resolved against ``base_url``. Audio bytes are
+        accepted as opaque binary.
         """
-        path = self._audio_paths.get(job_id)
-        if path is None:
-            status = self.poll(job_id)
+        url = self._audio_urls.get(task_id)
+        if url is None:
+            status = self.poll(task_id)
             if status.state != "completed":
                 raise GenerationFailed(
-                    f"Job '{job_id}' has no downloadable audio "
+                    f"Task '{task_id}' has no downloadable audio "
                     f"(state: {status.state})"
                 )
-            path = self._audio_paths.get(job_id)
-        if not path:
+            url = self._audio_urls.get(task_id)
+        if not url:
             raise GenerationFailed(
-                f"Completed job '{job_id}' carried no audio path"
+                f"Completed task '{task_id}' carried no audio URL"
             )
 
-        url = (
-            f"{self.base_url}/v1/audio?"
-            f"path={urllib.parse.quote(path, safe='')}"
-        )
+        if url.startswith("http://") or url.startswith("https://"):
+            full_url = url
+        else:
+            full_url = f"{self.base_url}/{url.lstrip('/')}"
+
         payload = _typed_transport_call(
             self._transport.get_bytes,
-            url,
+            full_url,
             headers=self._auth_headers(),
         )
 

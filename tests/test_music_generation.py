@@ -592,7 +592,12 @@ def _clean_music_env(monkeypatch):
 
 
 class TestAceStepAdapter:
-    """Tracer 07-02-01: AceStepBackend happy path over scripted fake transport."""
+    """Tracer 07-02-01: AceStepBackend happy path over scripted fake transport.
+
+    Targets the REAL ACE-Step 1.5 REST contract (vendor docs/en/API.md):
+    GET /health, POST /release_task, POST /query_result, GET /v1/audio?path=,
+    with a ``{data, code, error}`` wrapper and integer task status codes.
+    """
 
     BASE = "http://localhost:8001"
     AUDIO = b"RIFF\x24\x00\x00\x00WAVEfmt" + b"\xab" * 40
@@ -602,8 +607,17 @@ class TestAceStepAdapter:
         backend = AceStepBackend(transport=transport, **kwargs)
         return backend, transport
 
-    def _submit_script(self, job_id="j-abc"):
-        return _RecordingTransport({"job_id": job_id})
+    def _submit_script(self, task_id="j-abc"):
+        return _RecordingTransport({"data": {"task_id": task_id}})
+
+    def _completed_match(self, task_id, file_url=None, result=None):
+        """One /query_result entry in terminal 'completed' state."""
+        if result is None:
+            result = {"status": 1}
+            if file_url is not None:
+                result["file"] = file_url
+        return {"data": [{"task_id": task_id, "status": 1,
+                          "result": json.dumps(result)}]}
 
     # -- protocol conformance ----------------------------------------------
 
@@ -619,13 +633,15 @@ class TestAceStepAdapter:
         _clean_music_env(monkeypatch)
         monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
 
+        # Vendor file URL is itself a /v1/audio?path=... relative endpoint.
+        vendor_file = "/v1/audio?path=" + urllib.parse.quote(
+            "/generated/song one.wav", safe="")
         transport = _RecordingTransport(
-            {"job_id": "j-abc"},
-            {"status": "pending", "progress": 0.1},
-            {"status": "running", "progress": 0.5},
-            {"status": "completed", "progress": 1.0,
-             "audio_path": "/generated/song one.wav"},
-            self.AUDIO,
+            {"data": {"task_id": "j-abc"}},                          # submit
+            {"data": [{"task_id": "j-abc", "status": 0}]},           # poll 1
+            {"data": [{"task_id": "j-abc", "status": 0}]},           # poll 2
+            self._completed_match("j-abc", file_url=vendor_file),    # completed
+            self.AUDIO,                                              # download
         )
         backend = AceStepBackend(api_key="k-test", base_url=self.BASE,
                                  transport=transport)
@@ -643,26 +659,23 @@ class TestAceStepAdapter:
         request = MusicRequest(category="Bedtime", topic="sleepy moon", seed=7)
         result = backend.generate(request)
 
-        # Exactly one POST to the locked submit endpoint.
-        posts = transport.posts()
-        assert len(posts) == 1
-        assert posts[0].url == f"{self.BASE}/v1/music/generate"
+        # Exactly one POST to the submit endpoint.
+        submits = [c for c in transport.posts()
+                   if c.url == f"{self.BASE}/release_task"]
+        assert len(submits) == 1
 
-        # Job polls hit /v1/jobs/j-abc until completed (three-state script).
-        job_gets = [c for c in transport.gets()
-                    if c.url == f"{self.BASE}/v1/jobs/j-abc"]
-        assert len(job_gets) >= 2
+        # Status polls hit /query_result until completed.
+        queries = [c for c in transport.posts()
+                   if c.url == f"{self.BASE}/query_result"]
+        assert len(queries) >= 2
 
-        # Exactly one download GET with the URL-encoded audio path.
+        # Exactly one download GET to the vendor audio endpoint.
         downloads = [c for c in transport.gets()
-                     if c.url.startswith(f"{self.BASE}/v1/audio?")]
+                     if c.url == f"{self.BASE}{vendor_file}"]
         assert len(downloads) == 1
-        expected_path = urllib.parse.quote("/generated/song one.wav",
-                                           safe="")
-        assert downloads[0].url == f"{self.BASE}/v1/audio?path={expected_path}"
 
         # States surfaced in script order; result carries scripted bytes.
-        assert seen_states == ["pending", "running", "completed"]
+        assert seen_states == ["running", "running", "completed"]
         assert result.audio == self.AUDIO
         assert result.backend == "ace-step"
         assert result.seed == 7          # effective seed echoed back
@@ -686,6 +699,16 @@ class TestAceStepAdapter:
         backend.submit(MusicRequest(category="Bedtime", seed=1))
         assert transport.posts()[0].headers["authorization"] == "Bearer env-key"
 
+    def test_no_auth_header_when_key_unset(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        # Real ACE-Step 1.5: empty key disables server auth; client omits header.
+        transport = self._submit_script()
+        backend = AceStepBackend(transport=transport)
+        backend.submit(MusicRequest(category="Bedtime", seed=1))
+        headers = transport.posts()[0].headers
+        assert "authorization" not in headers
+        assert headers["content-type"] == "application/json"
+
     def test_submit_payload_golden_bedtime(self, monkeypatch):
         _clean_music_env(monkeypatch)
         transport = self._submit_script()
@@ -697,13 +720,13 @@ class TestAceStepAdapter:
         backend.submit(request)
 
         payload = transport.posts()[0].payload
-        expected_caption = build_music_prompt(
+        expected_prompt = build_music_prompt(
             "Bedtime", "sleepy moon",
             vocals="female lead vocal, children's choir")[:512]
 
-        assert payload["caption"] == expected_caption
-        assert len(payload["caption"]) <= 512
-        assert "lullaby" in payload["caption"].lower()
+        assert payload["prompt"] == expected_prompt
+        assert len(payload["prompt"]) <= 512
+        assert "lullaby" in payload["prompt"].lower()
 
         # Bedtime scaffold markers joined with newlines.
         assert payload["lyrics"] == "\n".join([
@@ -717,6 +740,7 @@ class TestAceStepAdapter:
         assert payload["time_signature"] == "3/4"
         assert isinstance(payload["seed"], int)
         assert payload["seed"] == 7
+        assert payload["use_random_seed"] is False   # honor the explicit seed
         assert payload["thinking"] is False
         assert payload["model"] == "acestep-v15-turbo"
 
@@ -738,7 +762,7 @@ class TestAceStepAdapter:
         transport = self._submit_script()
         backend = AceStepBackend(api_key="k", transport=transport)
         backend.submit(MusicRequest(category="Bedtime", seed=1))
-        assert len(transport.posts()[0].payload["caption"]) == 512
+        assert len(transport.posts()[0].payload["prompt"]) == 512
 
     def test_seed_defaults_to_zero_when_unset(self, monkeypatch):
         _clean_music_env(monkeypatch)
@@ -749,14 +773,6 @@ class TestAceStepAdapter:
         assert backend._effective_seed == 0   # echoes into MusicResult via generate()
 
     # -- configuration resolution -------------------------------------------
-
-    def test_submit_without_key_raises_not_configured_zero_calls(self, monkeypatch):
-        _clean_music_env(monkeypatch)
-        transport = _RecordingTransport()   # nothing scripted: any call fails loud
-        backend = AceStepBackend(transport=transport)
-        with pytest.raises(NotConfigured):
-            backend.submit(MusicRequest(category="Bedtime", seed=1))
-        assert transport.calls == []
 
     def test_invalid_model_name_rejected(self, monkeypatch):
         _clean_music_env(monkeypatch)
@@ -788,19 +804,19 @@ class TestAceStepAdapter:
 
     def test_is_configured_true_when_health_probe_ok(self, monkeypatch):
         _clean_music_env(monkeypatch)
-        transport = _RecordingTransport({"status": "ok"})
+        transport = _RecordingTransport({"data": {"status": "ok"}})
         backend = AceStepBackend(api_key="k", transport=transport)
         assert backend.is_configured() is True
         probe = transport.gets()[0]
-        assert probe.url == f"{self.BASE}/v1/jobs/health"
+        assert probe.url == f"{self.BASE}/health"
         assert probe.timeout == (5.0, 5.0)   # short connect budget per RESEARCH §5
 
     def test_is_configured_falls_back_to_root_on_404(self, monkeypatch):
         _clean_music_env(monkeypatch)
         transport = _RecordingTransport(
-            urllib.error.HTTPError(f"{self.BASE}/v1/jobs/health", 404,
+            urllib.error.HTTPError(f"{self.BASE}/health", 404,
                                    "Not Found", {}, io.BytesIO(b"{}")),
-            {"app": "ace-step"},
+            {"data": {"status": "ok"}},
         )
         backend = AceStepBackend(api_key="k", transport=transport)
         assert backend.is_configured() is True
@@ -815,48 +831,64 @@ class TestAceStepAdapter:
     def test_is_configured_false_on_auth_rejection(self, monkeypatch):
         _clean_music_env(monkeypatch)
         transport = _RecordingTransport(
-            urllib.error.HTTPError(f"{self.BASE}/v1/jobs/health", 401,
+            urllib.error.HTTPError(f"{self.BASE}/health", 401,
                                    "Unauthorized", {}, io.BytesIO(b"{}")),
         )
         backend = AceStepBackend(api_key="k", transport=transport)
         assert backend.is_configured() is False
 
-    def test_is_configured_false_without_key_no_probe(self, monkeypatch):
+    def test_is_configured_true_without_key_when_service_up(self, monkeypatch):
         _clean_music_env(monkeypatch)
-        transport = _RecordingTransport()   # any probe would fail loudly
+        # Real ACE-Step 1.5 can run with auth disabled (no key on the server);
+        # our client must still report configured and omit the auth header.
+        transport = _RecordingTransport({"data": {"status": "ok"}})
         backend = AceStepBackend(transport=transport)
-        assert backend.is_configured() is False
-        assert transport.calls == []
+        assert backend.is_configured() is True
+        assert "authorization" not in transport.gets()[0].headers
 
     # -- poll/download semantics ----------------------------------------------
 
-    def test_download_performs_one_poll_if_path_unknown(self, monkeypatch):
+    def test_poll_running_until_terminal(self, monkeypatch):
         _clean_music_env(monkeypatch)
         transport = _RecordingTransport(
-            {"status": "completed", "progress": 1.0,
-             "audio_path": "/generated/song.wav"},
+            {"data": [{"task_id": "j-1", "status": 0}]},
+            {"data": [{"task_id": "j-1", "status": 1,
+                       "result": json.dumps({"status": 1})}]},
+        )
+        backend = AceStepBackend(api_key="k", transport=transport)
+        assert backend.poll("j-1").state == "running"
+        assert backend.poll("j-1").state == "completed"
+        query = transport.posts()[0]
+        assert query.url == f"{self.BASE}/query_result"
+        assert query.payload == {"task_id_list": ["j-1"]}
+
+    def test_download_performs_one_poll_if_path_unknown(self, monkeypatch):
+        _clean_music_env(monkeypatch)
+        vendor_file = "/v1/audio?path=" + urllib.parse.quote(
+            "/generated/song.wav", safe="")
+        transport = _RecordingTransport(
+            self._completed_match("j-1", file_url=vendor_file),
             self.AUDIO,
         )
         backend = AceStepBackend(api_key="k", transport=transport)
         assert backend.download("j-1") == self.AUDIO
-        assert transport.gets()[0].url == f"{self.BASE}/v1/jobs/j-1"
+        assert transport.posts()[0].url == f"{self.BASE}/query_result"
 
-    def test_download_encodes_special_query_characters(self, monkeypatch):
+    def test_download_uses_absolute_audio_url_verbatim(self, monkeypatch):
         _clean_music_env(monkeypatch)
-        raw_path = "/a b/c.wav?x=1"
+        absolute = "http://127.0.0.1:8001/v1/audio?path=%2Fa.wav"
         transport = _RecordingTransport(
-            {"status": "completed", "path": raw_path},
+            self._completed_match("j-2", file_url=absolute),
             self.AUDIO,
         )
         backend = AceStepBackend(api_key="k", transport=transport)
         backend.download("j-2")
-        encoded = urllib.parse.quote(raw_path, safe="")
-        assert transport.gets()[1].url == f"{self.BASE}/v1/audio?path={encoded}"
+        assert transport.gets()[0].url == absolute
 
-    def test_download_without_any_audio_path_raises(self, monkeypatch):
+    def test_download_without_any_audio_url_raises(self, monkeypatch):
         _clean_music_env(monkeypatch)
         transport = _RecordingTransport(
-            {"status": "completed", "progress": 1.0},   # no path key at all
+            self._completed_match("j-3"),   # completed but no file field
         )
         backend = AceStepBackend(api_key="k", transport=transport)
         with pytest.raises(GenerationFailed):
@@ -902,10 +934,11 @@ class TestErrorMapping:
             backend.submit(MusicRequest(category="Bedtime", seed=1))
 
     @pytest.mark.parametrize("bad_response", [
-        "totally-not-json",          # non-object body
-        {"nope": 1},                 # JSON object missing job_id
-        {"job_id": ""},              # empty job_id
-        {"job_id": None},            # null job_id
+        "totally-not-json",                # non-object body
+        [],                                # data not an object
+        {"nope": 1},                       # JSON object missing task_id
+        {"data": {"task_id": ""}},         # empty task_id
+        {"data": {"task_id": None}},       # null task_id
     ])
     def test_malformed_submit_response_maps_to_generation_failed(
             self, monkeypatch, bad_response):
@@ -919,9 +952,9 @@ class TestErrorMapping:
     def test_failed_status_poll_carries_error_and_generate_raises(
             self, monkeypatch):
         _clean_music_env(monkeypatch)
-        monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
         backend = self._backend(_RecordingTransport(
-            {"status": "failed", "progress": 0.4, "error": "model exploded"},
+            {"data": [{"task_id": "j-fail", "status": 2,
+                       "error": "model exploded"}]},
         ))
         status = backend.poll("j-fail")
         assert status.state == "failed"
@@ -930,21 +963,24 @@ class TestErrorMapping:
     def test_failed_terminal_via_generate_includes_server_text(self, monkeypatch):
         _clean_music_env(monkeypatch)
         backend = self._backend(_RecordingTransport(
-            {"job_id": "j-f2"},
-            {"status": "failed", "error": "GPU OOM"},
+            {"data": {"task_id": "j-f2"}},
+            {"data": [{"task_id": "j-f2", "status": 2,
+                       "error": "GPU OOM"}]},
         ))
         with pytest.raises(GenerationFailed, match="GPU OOM"):
             backend.generate(MusicRequest(category="Bedtime", seed=1))
 
-    def test_unknown_status_string_maps_to_generation_failed(self, monkeypatch):
+    def test_unknown_status_code_maps_to_generation_failed(self, monkeypatch):
         _clean_music_env(monkeypatch)
-        backend = self._backend(_RecordingTransport({"status": "weird"}))
+        backend = self._backend(_RecordingTransport(
+            {"data": [{"task_id": "j-x", "status": 99}]},
+        ))
         with pytest.raises(GenerationFailed, match="unknown status"):
             backend.poll("j-x")
 
-    def test_non_dict_poll_body_maps_to_generation_failed(self, monkeypatch):
+    def test_non_object_poll_body_maps_to_generation_failed(self, monkeypatch):
         _clean_music_env(monkeypatch)
-        backend = self._backend(_RecordingTransport("[1, 2]"))
+        backend = self._backend(_RecordingTransport("not-a-list"))
         with pytest.raises(GenerationFailed, match="[Mm]alformed"):
             backend.poll("j-y")
 
@@ -952,19 +988,19 @@ class TestErrorMapping:
             self, monkeypatch):
         _clean_music_env(monkeypatch)
         backend = self._backend(_RecordingTransport(
-            {"job_id": "j-drop"},
-            {"status": "pending"},
+            {"data": {"task_id": "j-drop"}},
+            {"data": [{"task_id": "j-drop", "status": 0}]},
             urllib.error.URLError("connection reset mid-poll"),
         ))
         job_id = backend.submit(MusicRequest(category="Bedtime", seed=1))
-        assert backend.poll(job_id).state == "pending"
+        assert backend.poll(job_id).state == "running"
         with pytest.raises(BackendUnavailable):
             backend.poll(job_id)
 
         # Same drop surfacing through the full generate() loop.
         backend = self._backend(_RecordingTransport(
-            {"job_id": "j-drop2"},
-            {"status": "running", "progress": 0.5},
+            {"data": {"task_id": "j-drop2"}},
+            {"data": [{"task_id": "j-drop2", "status": 0}]},
             urllib.error.URLError("connection reset"),
         ))
         with pytest.raises(BackendUnavailable):
@@ -978,7 +1014,8 @@ class TestErrorMapping:
                             lambda: next(clock_values))
 
         backend = self._backend(_RecordingTransport(
-            {"job_id": "j-slow"}, default={"status": "pending"}))
+            {"data": {"task_id": "j-slow"}},
+            default={"data": [{"task_id": "j-slow", "status": 0}]}))
 
         with pytest.raises(GenerationFailed) as excinfo:
             backend.generate(MusicRequest(category="Bedtime", seed=1))
@@ -1025,7 +1062,8 @@ class TestErrorMapping:
             "http://x", 403, "Forbidden", {}, io.BytesIO(b"{}"))
         server_error = urllib.error.HTTPError(
             "http://x", 500, "Server Error", {}, io.BytesIO(b"{}"))
-        failed_body = {"status": "failed", "error": "boom"}
+        failed_body = {"data": [{"task_id": "j", "status": 2,
+                                 "error": "boom"}]}
 
         # Each scenario replays its failure forever (default=) so the same
         # script can serve is_configured() AND generate() without exhausting.
@@ -1035,12 +1073,12 @@ class TestErrorMapping:
             lambda: _RecordingTransport(unauthorized, default=unauthorized),
             lambda: _RecordingTransport(forbidden, default=forbidden),
             lambda: _RecordingTransport(server_error, default=server_error),
-            lambda: _RecordingTransport("not-a-dict", default="not-a-dict"),
-            lambda: _RecordingTransport({"missing": "job_id"},
-                                        default={"missing": "job_id"}),
-            lambda: _RecordingTransport({"job_id": "j"}, failed_body,
-                                        default=failed_body),
-            lambda: _RecordingTransport({"job_id": "j"},
+            lambda: _RecordingTransport("not-a-list", default="not-a-list"),
+            lambda: _RecordingTransport({"data": {"missing": "task_id"}},
+                                        default={"data": {"missing": "task_id"}}),
+            lambda: _RecordingTransport({"data": {"task_id": "j"}},
+                                        failed_body, default=failed_body),
+            lambda: _RecordingTransport({"data": {"task_id": "j"}},
                                         default=urllib.error.URLError("reset")),
         ]
 
