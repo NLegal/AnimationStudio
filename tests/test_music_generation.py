@@ -682,6 +682,54 @@ class TestAceStepAdapter:
         assert result.job_id == "j-abc"
         assert result.format == "wav"
 
+    def test_completed_result_is_json_string_array(self, monkeypatch):
+        """Real ACE-Step 1.5 result is a JSON string containing an ARRAY of
+        record dicts (API.md §5.3), not a single object. Ensure the adapter
+        decodes the array and pulls the audio URL out of the first record.
+        """
+        _clean_music_env(monkeypatch)
+        monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
+
+        vendor_file = "/v1/audio?path=" + urllib.parse.quote(
+            "/generated/array one.wav", safe="")
+        result_json = json.dumps([{
+            "file": vendor_file, "wave": "", "status": 1,
+            "create_time": 0, "prompt": "p", "lyrics": "",
+            "metas": {"bpm": 120, "duration": 30},
+            "seed_value": "1", "dit_model": "acestep-v15-turbo",
+        }])
+        transport = _RecordingTransport(
+            {"data": {"task_id": "j-arr"}},                        # submit
+            {"data": [{"task_id": "j-arr", "status": 0}]},         # running
+            {"data": [{"task_id": "j-arr", "status": 1,
+                       "result": result_json}]},                   # completed
+            self.AUDIO,                                            # download
+        )
+        backend = AceStepBackend(api_key="k", base_url=self.BASE,
+                                 transport=transport)
+        result = backend.generate(
+            MusicRequest(category="Bedtime", topic="t", seed=3))
+        # Demonstrates the bugfix: no "result is not an object" failure.
+        assert result.audio == self.AUDIO
+        assert result.backend == "ace-step"
+
+    def test_completed_result_is_bare_dict(self, monkeypatch):
+        """Some result variants are a single dict; must still decode."""
+        _clean_music_env(monkeypatch)
+        monkeypatch.setattr(mg_backends, "_sleep", lambda seconds: None)
+        vendor_file = "/v1/audio?path=" + urllib.parse.quote(
+            "/generated/bare.wav", safe="")
+        transport = _RecordingTransport(
+            {"data": {"task_id": "j-d"}},
+            {"data": [{"task_id": "j-d", "status": 1,
+                       "result": json.dumps({"file": vendor_file})}]},
+            self.AUDIO,
+        )
+        backend = AceStepBackend(api_key="k", base_url=self.BASE,
+                                 transport=transport)
+        result = backend.generate(MusicRequest(category="Bedtime", topic="t"))
+        assert result.audio == self.AUDIO
+
     def test_bearer_header_from_constructor_arg(self, monkeypatch):
         _clean_music_env(monkeypatch)
         transport = self._submit_script()

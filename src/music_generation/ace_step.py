@@ -104,8 +104,16 @@ def _unwrap(data):
     return data
 
 
-def _decode_result_json(raw) -> dict:
-    """Parse the JSON-encoded ``result`` value found on a completed task."""
+def _decode_result_json(raw):
+    """Parse the JSON-encoded ``result`` value found on a completed task.
+
+    The real ACE-Step 1.5 contract (API.md §5.3) encodes ``result`` as a JSON
+    string whose parsed value is an ARRAY of record dicts (one per generated
+    item), e.g. ``'[{"file": "/v1/audio?path=...", "status": 1, ...}]'``.
+    Some variants return a bare dict instead. Return the parsed value
+    verbatim (dict or list); callers normalize via ``_record_from_result``.
+    Only truly malformed values raise ``GenerationFailed``.
+    """
     if isinstance(raw, dict):
         return raw
     if not isinstance(raw, str) or not raw.strip():
@@ -116,11 +124,27 @@ def _decode_result_json(raw) -> dict:
         raise GenerationFailed(
             "Malformed query result from ACE-Step (result is not JSON)"
         ) from exc
-    if not isinstance(value, dict):
+    if not isinstance(value, (dict, list)):
         raise GenerationFailed(
             "Malformed query result from ACE-Step (result is not an object)"
         )
     return value
+
+
+def _record_from_result(result) -> dict:
+    """Reduce a decoded ``result`` to a single record dict.
+
+    Accepts either a dict directly, or a list of record dicts (the real
+    ACE-Step shape). For a list, the first element is used (a single task
+    yields one item); the first non-empty dict wins.
+    """
+    if isinstance(result, dict):
+        return result
+    if isinstance(result, list):
+        for item in result:
+            if isinstance(item, dict) and item:
+                return item
+    return {}
 
 
 class AceStepBackend:
@@ -339,14 +363,18 @@ class AceStepBackend:
                 error = raw_error
             else:
                 # The failure detail may live inside the result record.
-                error = _decode_result_json(match.get("result")).get("status")
+                error = _record_from_result(
+                    _decode_result_json(match.get("result"))
+                ).get("status")
                 if not isinstance(error, str):
                     error = None
 
         if state == "completed":
-            result = _decode_result_json(match.get("result"))
+            record = _record_from_result(
+                _decode_result_json(match.get("result"))
+            )
             for key in ("file", "audio_path", "path", "output"):
-                value = result.get(key)
+                value = record.get(key)
                 if isinstance(value, str) and value.strip():
                     self._audio_urls[task_id] = value
                     break

@@ -56,6 +56,10 @@ This adapter speaks the REAL ACE-Step 1.5 REST contract
 Every response is wrapped as `{data, code, error, ...}`. To honor the requested
 seed, the payload sets `use_random_seed=false` alongside `seed`.
 
+The completed task's `result` is a JSON string that parses to an **array of
+record dicts** (vendor API.md §5.3), each carrying the audio `file` URL; the
+first non-empty record is used. (A bare dict is also tolerated.)
+
 ## Error taxonomy
 
 Every failure surfaces as exactly one typed exception (all subclasses of
