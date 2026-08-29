@@ -91,8 +91,11 @@ service contract.
    newer (e.g. Colab ships 3.13+), bring it up via `uv` which provisions a
    compatible isolated venv:
    `uv sync && uv run acestep-api` (do **not** `pip install -r requirements.txt`
-   into a 3.13 env — it crashes at startup). Default `ACESTEP_NO_INIT=true` makes
-   `/health` answer immediately and lazy-loads models on the first request.
+   into a 3.13 env — it crashes at startup). When you spawn the server from a
+   Jupyter/Colab kernel, force the headless backend by setting `MPLBACKEND=Agg`
+   in the subprocess env — the kernel's `matplotlib_inline` backend is invalid
+   in the isolated venv and crashes the import. Default `ACESTEP_NO_INIT=true`
+   makes `/health` answer immediately and lazy-loads models on first request.
 2. Export the API key: `export ACESTEP_API_KEY=<your-key>`
 3. Run:
    ```bash
