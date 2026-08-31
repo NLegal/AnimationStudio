@@ -147,6 +147,17 @@ def _record_from_result(result) -> dict:
     return {}
 
 
+def _safe_snippet(value, limit: int = 200) -> str:
+    """Render a decoded result record compactly for diagnostics."""
+    try:
+        text = json.dumps(value, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        text = str(value)
+    if len(text) > limit:
+        text = text[: limit - 3] + "..."
+    return text
+
+
 class AceStepBackend:
     """Async-job REST adapter for a LOCAL ACE-Step 1.5 service.
 
@@ -358,16 +369,28 @@ class AceStepBackend:
 
         error = None
         if state == "failed":
+            # Surface the real server-side reason. Common detail locations:
+            # match-level error/message, then the decoded result record's
+            # error/message/reason/exception fields, then a raw-record snippet.
             raw_error = match.get("error") or match.get("message")
             if isinstance(raw_error, str) and raw_error.strip():
                 error = raw_error
             else:
-                # The failure detail may live inside the result record.
-                error = _record_from_result(
+                record = _record_from_result(
                     _decode_result_json(match.get("result"))
-                ).get("status")
-                if not isinstance(error, str):
-                    error = None
+                )
+                for key in ("error", "message", "reason", "exception",
+                            "traceback"):
+                    value = record.get(key)
+                    if isinstance(value, str) and value.strip():
+                        error = value
+                        break
+                if error is None:
+                    # Fall back to a compact representation of the raw record
+                    # so the caller can see what the server actually returned.
+                    snippet = _safe_snippet(record)
+                    if snippet:
+                        error = f"server returned {snippet}"
 
         if state == "completed":
             record = _record_from_result(

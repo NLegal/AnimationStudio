@@ -1018,6 +1018,35 @@ class TestErrorMapping:
         with pytest.raises(GenerationFailed, match="GPU OOM"):
             backend.generate(MusicRequest(category="Bedtime", seed=1))
 
+    def test_failed_surfaces_reason_from_result_record(self, monkeypatch):
+        """When the /query_result entry has no error/message, pull the real
+        reason from inside the failed result record (the turbo shape)."""
+        _clean_music_env(monkeypatch)
+        result_json = json.dumps({"status": "failed",
+                                  "error": "Failed to load model on CUDA"})
+        backend = self._backend(_RecordingTransport(
+            {"data": [{"task_id": "j-r", "status": 2,
+                       "result": result_json}]},
+        ))
+        status = backend.poll("j-r")
+        assert status.state == "failed"
+        assert status.error == "Failed to load model on CUDA"
+
+    def test_failed_falls_back_to_raw_record_snippet(self, monkeypatch):
+        """No usable reason anywhere -> don't say 'unknown error'; show the
+        server's raw record so the caller can debug."""
+        _clean_music_env(monkeypatch)
+        result_json = json.dumps(
+            {"foo": "bar", "baz": 1}, sort_keys=True)
+        backend = self._backend(_RecordingTransport(
+            {"data": [{"task_id": "j-s", "status": 2,
+                       "result": result_json}]},
+        ))
+        status = backend.poll("j-s")
+        assert status.state == "failed"
+        assert "server returned" in (status.error or "")
+        assert "foo" in (status.error or "")
+
     def test_unknown_status_code_maps_to_generation_failed(self, monkeypatch):
         _clean_music_env(monkeypatch)
         backend = self._backend(_RecordingTransport(
