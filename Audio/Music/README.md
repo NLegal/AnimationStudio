@@ -100,6 +100,10 @@ service contract.
    in the subprocess env — the kernel's `matplotlib_inline` backend is invalid
    in the isolated venv and crashes the import. Default `ACESTEP_NO_INIT=true`
    makes `/health` answer immediately and lazy-loads models on first request.
+   On **pre-Ampere GPUs** (e.g. Colab's T4/Turing) fp16 diffusion overflows,
+   producing `Generation produced NaN or Inf latents` and failing every job;
+   set `ACESTEP_DTYPE=float32` in the server env (the server's own error
+   message #5 recommends this).
 2. Export the API key: `export ACESTEP_API_KEY=<your-key>`
 3. Run:
    ```bash
