@@ -165,6 +165,21 @@
       "time_signature": "4/4",
       "job_id": "433f6db0-a63a-4ce0-9381-2a073b681e18",
       "generated_at": "2026-09-01T21:45:34.096622+00:00"
+    },
+    {
+      "file": "emotions-emotions-fun-0.wav",
+      "category": "Emotions",
+      "topic": "emotions fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "4c8c3d61-497f-41e4-9821-9e2c0bfbd1f8",
+      "generated_at": "2026-09-01T21:46:23.133206+00:00"
     }
   ]
 }
