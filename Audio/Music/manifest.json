@@ -270,6 +270,21 @@
       "time_signature": "4/4",
       "job_id": "a987671f-7484-499c-a785-e1d6f7b6cae9",
       "generated_at": "2026-09-01T21:51:16.685291+00:00"
+    },
+    {
+      "file": "weather-weather-fun-0.wav",
+      "category": "Weather",
+      "topic": "weather fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "78a663f6-3f1f-4f37-bd0a-c18358003965",
+      "generated_at": "2026-09-01T21:52:05.499629+00:00"
     }
   ]
 }
