@@ -300,6 +300,21 @@
       "time_signature": "4/4",
       "job_id": "f59be0c4-5960-43ab-8052-7516bf6ef63f",
       "generated_at": "2026-09-01T21:52:54.378228+00:00"
+    },
+    {
+      "file": "holiday-specials-holiday-specials-fun-0.wav",
+      "category": "Holiday Specials",
+      "topic": "holiday specials fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "af5a67b4-06de-4a56-80a6-64b388c90ef5",
+      "generated_at": "2026-09-01T21:53:43.971900+00:00"
     }
   ]
 }
