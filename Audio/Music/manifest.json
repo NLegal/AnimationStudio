@@ -255,6 +255,21 @@
       "time_signature": "4/4",
       "job_id": "ab0ea3a5-214c-49bb-9473-f9ae3657d535",
       "generated_at": "2026-09-01T21:50:27.598168+00:00"
+    },
+    {
+      "file": "farm-farm-fun-0.wav",
+      "category": "Farm",
+      "topic": "farm fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "a987671f-7484-499c-a785-e1d6f7b6cae9",
+      "generated_at": "2026-09-01T21:51:16.685291+00:00"
     }
   ]
 }
