@@ -105,6 +105,21 @@
       "time_signature": "4/4",
       "job_id": "ba059893-24e3-4265-80f5-25d73d9e9704",
       "generated_at": "2026-09-01T21:41:45.343965+00:00"
+    },
+    {
+      "file": "family-family-fun-0.wav",
+      "category": "Family",
+      "topic": "family fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "ee565135-e278-4537-9c18-9b97ec125c9e",
+      "generated_at": "2026-09-01T21:42:34.150571+00:00"
     }
   ]
 }
