@@ -120,6 +120,21 @@
       "time_signature": "4/4",
       "job_id": "ee565135-e278-4537-9c18-9b97ec125c9e",
       "generated_at": "2026-09-01T21:42:34.150571+00:00"
+    },
+    {
+      "file": "bedtime-bedtime-fun-0.wav",
+      "category": "Bedtime",
+      "topic": "bedtime fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 1920813,
+      "duration_s": 120,
+      "bpm": 66,
+      "key_scale": "F major",
+      "time_signature": "3/4",
+      "job_id": "9546f6b0-9777-4841-8000-78ea89a61a50",
+      "generated_at": "2026-09-01T21:43:55.154527+00:00"
     }
   ]
 }
