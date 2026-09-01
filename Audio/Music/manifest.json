@@ -225,6 +225,21 @@
       "time_signature": "4/4",
       "job_id": "eff0b0b4-693a-4394-831d-e613275308b5",
       "generated_at": "2026-09-01T21:48:49.922473+00:00"
+    },
+    {
+      "file": "space-space-fun-0.wav",
+      "category": "Space",
+      "topic": "space fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "8684b79b-ef2f-4add-8341-7ae7db571a49",
+      "generated_at": "2026-09-01T21:49:38.874099+00:00"
     }
   ]
 }
