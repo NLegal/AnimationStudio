@@ -90,6 +90,21 @@
       "time_signature": "4/4",
       "job_id": "922f8088-ce2d-45d4-86bd-743afd1639b7",
       "generated_at": "2026-09-01T21:40:55.940510+00:00"
+    },
+    {
+      "file": "food-food-fun-0.wav",
+      "category": "Food",
+      "topic": "food fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "ba059893-24e3-4265-80f5-25d73d9e9704",
+      "generated_at": "2026-09-01T21:41:45.343965+00:00"
     }
   ]
 }
