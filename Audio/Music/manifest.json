@@ -195,6 +195,21 @@
       "time_signature": "4/4",
       "job_id": "794c2633-dc39-4768-881e-b5e16b0e72bd",
       "generated_at": "2026-09-01T21:47:12.202920+00:00"
+    },
+    {
+      "file": "science-science-fun-0.wav",
+      "category": "Science",
+      "topic": "science fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "78ba6c1c-1979-40fe-8e33-460ac38682bc",
+      "generated_at": "2026-09-01T21:48:00.961184+00:00"
     }
   ]
 }
