@@ -23,12 +23,9 @@ sys.path.insert(0, ROOT)
 
 from scripts.generate_phase5 import (
     BACKEND_ALIASES,
-<<<<<<< HEAD
     SYNC_HOOK,
     _basic_auth_header,
     _git_sync_music,
-=======
->>>>>>> parent of 00d2e40b (init)
     _slug,
     atomic_write_manifest,
     entry_matches,
@@ -551,7 +548,6 @@ class TestManifest:
         """song_filename defaults seed to 0 when None."""
         fn = song_filename("Bedtime", "hello", None)
         assert fn == "bedtime-hello-0.wav"
-<<<<<<< HEAD
 
 
 # =================================================================== #
@@ -738,5 +734,3 @@ def test_basic_auth_header_format():
     assert header.startswith("basic ")
     decoded = _b64.b64decode(header.split(" ", 1)[1]).decode()
     assert decoded == "x-access-token:ghp_token123"
-=======
->>>>>>> parent of 00d2e40b (init)

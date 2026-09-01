@@ -20,9 +20,11 @@ Live smoke (requires local ACE-Step service — see Audio/Music/README.md):
 """
 
 import argparse
+import base64
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -161,7 +163,6 @@ def atomic_write_manifest(path: str, manifest: dict) -> None:
 
 
 # =================================================================== #
-<<<<<<< HEAD
 # Per-song git sync (crash-safe handoff)                               #
 #                                                                      #
 # Generated audio is pushed to the repo immediately after each song is #
@@ -247,8 +248,6 @@ def _git_sync_music(sys_cfg: dict, out_dir: str) -> None:
 
 
 # =================================================================== #
-=======
->>>>>>> parent of 00d2e40b (init)
 # Song generation orchestrator                                         #
 # =================================================================== #
 
@@ -261,11 +260,21 @@ def generate_songs(
     seed=None,
     duration_s=None,
     force=False,
+    timeout_s: float = 900.0,
+    sync_every: int = 0,
+    sync_cfg: dict | None = None,
 ) -> list[tuple[str, str]]:
     """Batch-generate songs across *categories* through the named backend.
 
     Returns a list of ``(category, error_message)`` failures.  Empty list
     means all songs succeeded.
+
+    Crash-safe handoff: when ``sync_every`` > 0, the newest song (plus the
+    refreshed ``manifest.json``) is committed and pushed to GitHub after
+    every ``sync_every``-th successful song via ``SYNC_HOOK``.  Combined
+    with the manifest resume logic, an interrupted run never loses the
+    songs that already completed.  ``sync_cfg`` holds branch/token/remote/
+    git identity for the sync helper.
     """
     name = BACKEND_ALIASES.get((backend_name or "").lower(), backend_name or "mock")
     backend = get_backend(name)
@@ -276,6 +285,8 @@ def generate_songs(
     manifest = load_manifest(manifest_path)
 
     failures: list[tuple[str, str]] = []
+    sync_counter = 0
+    cfg = sync_cfg or {}
 
     for category in categories:
         topic = topic_fn(category)
@@ -304,7 +315,7 @@ def generate_songs(
                     continue  # skipped — already done
 
         try:
-            result = backend.generate(request)
+            result = backend.generate(request, timeout_s=timeout_s)
         except MusicBackendError as exc:
             failures.append((category, str(exc)))
             continue
@@ -339,7 +350,6 @@ def generate_songs(
         upsert_entry(manifest, entry)
         atomic_write_manifest(manifest_path, manifest)
 
-<<<<<<< HEAD
         # Crash-safe handoff: push the newest song + manifest to git so an
         # interrupted session never loses already-completed audio.
         sync_counter += 1
@@ -351,8 +361,6 @@ def generate_songs(
                 print(f"WARNING: git sync skipped for {category}: {exc}",
                       file=sys.stderr)
 
-=======
->>>>>>> parent of 00d2e40b (init)
     return failures
 
 
@@ -408,6 +416,22 @@ def main(argv=None) -> int:
                              "default: LOCKED category params)")
     parser.add_argument("--force", action="store_true",
                         help="Regenerate even when manifest entry matches")
+    parser.add_argument("--timeout-s", type=float, default=900.0,
+                        help="Per-job generation deadline in seconds "
+                             "(default 900; raise for slow/cold ACE-Step)")
+    parser.add_argument("--git-sync-every", type=int, default=0,
+                        help="Push generated audio to git after every N "
+                             "successful songs (0 = disabled; 1 = after each)")
+    parser.add_argument("--git-branch", default="master",
+                        help="Branch to push generated music to")
+    parser.add_argument("--git-token", default="",
+                        help="GitHub PAT (optional; used when set)")
+    parser.add_argument("--git-remote-url", default="",
+                        help="Override origin URL before pushing")
+    parser.add_argument("--git-name", default="Colab Studio",
+                        help="git user.name for the commit")
+    parser.add_argument("--git-email", default="colab@animationstudio.local",
+                        help="git user.email for the commit")
 
     args = parser.parse_args(argv)
 
@@ -468,6 +492,16 @@ def main(argv=None) -> int:
         failures = generate_songs(
             resolved_backend, categories, topic_fn, out_dir,
             seed=args.seed, duration_s=args.duration_s, force=args.force,
+            timeout_s=args.timeout_s,
+            sync_every=args.git_sync_every,
+            sync_cfg={
+                "repo": root,
+                "branch": args.git_branch,
+                "token": args.git_token,
+                "remote_url": args.git_remote_url,
+                "git_name": args.git_name,
+                "git_email": args.git_email,
+            },
         )
 
         # Count from manifest
