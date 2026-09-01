@@ -345,6 +345,21 @@
       "time_signature": "4/4",
       "job_id": "3707ae64-8e9c-4744-a3cc-ee21ed165ff5",
       "generated_at": "2026-09-01T21:55:22.127729+00:00"
+    },
+    {
+      "file": "dance-songs-dance-songs-fun-0.wav",
+      "category": "Dance Songs",
+      "topic": "dance songs fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "ab274759-9d80-4057-a601-7cc06765ccb4",
+      "generated_at": "2026-09-01T21:56:11.276195+00:00"
     }
   ]
 }
