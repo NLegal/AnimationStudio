@@ -315,6 +315,21 @@
       "time_signature": "4/4",
       "job_id": "af5a67b4-06de-4a56-80a6-64b388c90ef5",
       "generated_at": "2026-09-01T21:53:43.971900+00:00"
+    },
+    {
+      "file": "birthday-songs-birthday-songs-fun-0.wav",
+      "category": "Birthday Songs",
+      "topic": "birthday songs fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "266036df-f5f5-40ac-b7e8-89f0f846e22a",
+      "generated_at": "2026-09-01T21:54:33.106124+00:00"
     }
   ]
 }
