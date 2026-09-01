@@ -135,6 +135,21 @@
       "time_signature": "3/4",
       "job_id": "9546f6b0-9777-4841-8000-78ea89a61a50",
       "generated_at": "2026-09-01T21:43:55.154527+00:00"
+    },
+    {
+      "file": "morning-routine-morning-routine-fun-0.wav",
+      "category": "Morning Routine",
+      "topic": "morning routine fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "8445779f-8250-48ef-826b-c7d8684359ba",
+      "generated_at": "2026-09-01T21:44:45.002939+00:00"
     }
   ]
 }
