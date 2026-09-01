@@ -210,6 +210,21 @@
       "time_signature": "4/4",
       "job_id": "78ba6c1c-1979-40fe-8e33-460ac38682bc",
       "generated_at": "2026-09-01T21:48:00.961184+00:00"
+    },
+    {
+      "file": "nature-nature-fun-0.wav",
+      "category": "Nature",
+      "topic": "nature fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "eff0b0b4-693a-4394-831d-e613275308b5",
+      "generated_at": "2026-09-01T21:48:49.922473+00:00"
     }
   ]
 }
