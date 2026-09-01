@@ -180,6 +180,21 @@
       "time_signature": "4/4",
       "job_id": "4c8c3d61-497f-41e4-9821-9e2c0bfbd1f8",
       "generated_at": "2026-09-01T21:46:23.133206+00:00"
+    },
+    {
+      "file": "exercise-exercise-fun-0.wav",
+      "category": "Exercise",
+      "topic": "exercise fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "794c2633-dc39-4768-881e-b5e16b0e72bd",
+      "generated_at": "2026-09-01T21:47:12.202920+00:00"
     }
   ]
 }
