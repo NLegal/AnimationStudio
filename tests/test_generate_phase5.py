@@ -23,6 +23,12 @@ sys.path.insert(0, ROOT)
 
 from scripts.generate_phase5 import (
     BACKEND_ALIASES,
+<<<<<<< HEAD
+    SYNC_HOOK,
+    _basic_auth_header,
+    _git_sync_music,
+=======
+>>>>>>> parent of 00d2e40b (init)
     _slug,
     atomic_write_manifest,
     entry_matches,
@@ -545,3 +551,192 @@ class TestManifest:
         """song_filename defaults seed to 0 when None."""
         fn = song_filename("Bedtime", "hello", None)
         assert fn == "bedtime-hello-0.wav"
+<<<<<<< HEAD
+
+
+# =================================================================== #
+# TestGitSync — per-song crash-safe handoff                           #
+# =================================================================== #
+
+class TestGitSync:
+    """``--git-sync-every N`` pushes each finished song via SYNC_HOOK.
+
+    The hook is module-level and injectable so these tests record calls
+    without touching a real git remote.  Sync failures must never block
+    or fail generation (WARNING to stderr, exit code unchanged).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _env_clean(self, monkeypatch):
+        monkeypatch.delenv("ACESTEP_API_KEY", raising=False)
+        monkeypatch.delenv("ACESTEP_BASE_URL", raising=False)
+        monkeypatch.delenv("MUSIC_BACKEND", raising=False)
+
+    def _run(self, tmp_path, monkeypatch, sync_every=1, **extra):
+        calls = []
+        import scripts.generate_phase5 as mod
+        monkeypatch.setattr(mod, "SYNC_HOOK", lambda cfg, out_dir: calls.append(out_dir))
+        args = [
+            "--generate", "--backend", "mock",
+            "--category", "Alphabet", "--category", "Bedtime",
+            "--out", str(tmp_path),
+        ]
+        if sync_every:
+            args += ["--git-sync-every", str(sync_every)]
+        for k, v in extra.items():
+            args.extend([f"--{k.replace('_', '-')}", str(v)])
+        rc = generate_main(args)
+        return rc, calls
+
+    def test_sync_hook_called_after_each_song(self, tmp_path, monkeypatch):
+        """--git-sync-every 1 triggers SYNC_HOOK once per finished song."""
+        rc, calls = self._run(tmp_path, monkeypatch, sync_every=1)
+        assert rc == 0
+        assert len(calls) == 2  # Alphabet + Bedtime
+        assert all(c == str(tmp_path) for c in calls)
+
+    def test_sync_every_two_coalesces(self, tmp_path, monkeypatch):
+        """--git-sync-every 2 syncs after every second song once."""
+        rc, calls = self._run(tmp_path, monkeypatch, sync_every=2)
+        assert rc == 0
+        assert len(calls) == 1  # sync fires on the 2nd song only
+
+    def test_no_sync_when_disabled(self, tmp_path, monkeypatch):
+        """No --git-sync-every (default 0) means zero sync calls."""
+        rc, calls = self._run(tmp_path, monkeypatch, sync_every=0)
+        assert rc == 0
+        assert calls == []
+
+    def test_partial_failure_still_syncs_successes(self, tmp_path, monkeypatch):
+        """A failing song does NOT sync; successes still do."""
+        from src.music_generation.mock import MockBackend
+        from src.music_generation.models import MusicRequest
+
+        class FailAlphabetBackend(MockBackend):
+            def generate(self, request, **kw):
+                if request.category == "Alphabet":
+                    raise MusicBackendError("boom")
+                return super().generate(request, **kw)
+
+        import scripts.generate_phase5 as mod
+        original_get_backend = mod.get_backend
+        monkeypatch.setattr(
+            mod, "get_backend",
+            lambda name=None, **kw: (
+                FailAlphabetBackend() if name == "mock"
+                else original_get_backend(name, **kw)
+            ),
+        )
+        rc, calls = self._run(tmp_path, monkeypatch, sync_every=1)
+        assert rc == 1  # Alphabet failed
+        assert len(calls) == 1  # only Bedtime synced
+        assert calls[0] == str(tmp_path)
+
+    def test_sync_failure_never_fails_generation(self, tmp_path, monkeypatch, capsys):
+        """A raising SYNC_HOOK is swallowed (WARNING) — batch still exits 0."""
+        import scripts.generate_phase5 as mod
+
+        def boom(cfg, out_dir):
+            raise RuntimeError("git push refused")
+
+        monkeypatch.setattr(mod, "SYNC_HOOK", boom)
+        rc = generate_main([
+            "--generate", "--backend", "mock",
+            "--category", "Alphabet",
+            "--out", str(tmp_path),
+            "--git-sync-every", "1",
+        ])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "WARNING: git sync skipped" in captured.err
+        assert "git push refused" in captured.err
+
+
+def _git(*args, cwd=None, check=True, input=None):
+    import subprocess as sp
+    res = sp.run(
+        ["git", *args], cwd=cwd, capture_output=True, text=True, input=input
+    )
+    if check and res.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: {res.stderr}")
+    return res
+
+
+def test_git_sync_music_commits_and_pushes(tmp_path):
+    """_git_sync_music stages ONLY the music dir and pushes to origin."""
+    import subprocess as sp
+
+    repo = tmp_path / "repo"
+    bare = tmp_path / "bare.git"
+    repo.mkdir()
+    _git("init", "-b", "master", cwd=str(repo))
+    _git("config", "user.email", "t@t", cwd=str(repo))
+    _git("config", "user.name", "T", cwd=str(repo))
+    _git("init", "--bare", str(bare))
+    _git("remote", "add", "origin", str(bare), cwd=str(repo))
+    (repo / "README.md").write_text("hi")
+    _git("add", ".", cwd=str(repo))
+    _git("commit", "-m", "init", cwd=str(repo))
+    _git("branch", "-M", "master", cwd=str(repo))
+    _git("push", "-q", "origin", "master", cwd=str(repo))
+
+    music = repo / "Audio" / "Music"
+    music.mkdir(parents=True)
+    (music / "alphabet-fun-0.wav").write_bytes(b"RIFFfake")
+    (music / "manifest.json").write_text('{"version": 1, "songs": []}')
+
+    _git_sync_music(
+        {"repo": str(repo), "branch": "master", "remote_url": str(bare)},
+        str(music),
+    )
+
+    # Bare remote now has the init + one music commit.
+    assert int(_git("rev-list", "--count", "master", cwd=str(bare)).stdout) == 2
+    tree = _git("ls-tree", "-r", "--name-only", "master", cwd=str(bare)).stdout
+    assert "Audio/Music/alphabet-fun-0.wav" in tree
+    assert "Audio/Music/manifest.json" in tree
+    # README.md is not re-pushed/modified; and crucially NO catalog.db leaked.
+    assert "catalog.db" not in tree
+
+
+def test_git_sync_music_never_stages_catalog_db(tmp_path):
+    """Even with a dirty catalog.db in the checkout, music sync ignores it."""
+    repo = tmp_path / "repo"
+    bare = tmp_path / "bare.git"
+    repo.mkdir()
+    _git("init", "-b", "master", cwd=str(repo))
+    _git("config", "user.email", "t@t", cwd=str(repo))
+    _git("config", "user.name", "T", cwd=str(repo))
+    _git("init", "--bare", str(bare))
+    _git("remote", "add", "origin", str(bare), cwd=str(repo))
+    (repo / "README.md").write_text("hi")
+    _git("add", ".", cwd=str(repo))
+    _git("commit", "-m", "init", cwd=str(repo))
+    _git("branch", "-M", "master", cwd=str(repo))
+
+    # A dirty catalog.db that MUST NOT be committed with the song.
+    (repo / "catalog.db").write_bytes(b"dirty-db")
+
+    music = repo / "Audio" / "Music"
+    music.mkdir(parents=True)
+    (music / "bedtime-sleepy-moon-0.wav").write_bytes(b"RIFFfake")
+
+    _git_sync_music(
+        {"repo": str(repo), "branch": "master", "remote_url": str(bare)},
+        str(music),
+    )
+
+    tree = _git("ls-tree", "-r", "--name-only", "master", cwd=str(bare)).stdout
+    assert "Audio/Music/bedtime-sleepy-moon-0.wav" in tree
+    assert "catalog.db" not in tree
+
+
+def test_basic_auth_header_format():
+    """PAT header must be basic auth with x-access-token (GitHub requirement)."""
+    import base64 as _b64
+    header = _basic_auth_header("ghp_token123")
+    assert header.startswith("basic ")
+    decoded = _b64.b64decode(header.split(" ", 1)[1]).decode()
+    assert decoded == "x-access-token:ghp_token123"
+=======
+>>>>>>> parent of 00d2e40b (init)

@@ -161,6 +161,94 @@ def atomic_write_manifest(path: str, manifest: dict) -> None:
 
 
 # =================================================================== #
+<<<<<<< HEAD
+# Per-song git sync (crash-safe handoff)                               #
+#                                                                      #
+# Generated audio is pushed to the repo immediately after each song is #
+# written — NOT held until the whole batch finishes.  An interrupted   #
+# run (lost/restarted session, server timeout) therefore never loses   #
+# the songs that already completed: resume via the normal manifest     #
+# skip logic.                                                          #
+#                                                                      #
+# Constraint C2 is preserved: this module never touches catalog.db.    #
+# The music inventory travels in ``Audio/Music/manifest.json``, and    #
+# ``_git_sync_music`` stages ONLY that directory — the shared          #
+# colab/git_sync auto_sync helper force-adds catalog.db, which must    #
+# never leak into music commits (C2).                                  #
+#                                                                      #
+# ``SYNC_HOOK`` is module-level and injectable so tests can swap in a  #
+# recorder / no-op without hitting a real git remote.                  #
+# =================================================================== #
+
+SYNC_HOOK = None  # callable(sys_cfg, out_dir) -> None, lazily set
+
+
+def _basic_auth_header(token: str) -> str:
+    """GitHub smart-HTTP auth header for a PAT (basic, x-access-token)."""
+    raw = f"x-access-token:{token}".encode()
+    return "basic " + base64.b64encode(raw).decode()
+
+
+def _git_sync_music(sys_cfg: dict, out_dir: str) -> None:
+    """Commit+push ``Audio/Music`` (newest songs + manifest) to GitHub.
+
+    Mirrors the commit/push flow of ``colab/git_sync.auto_sync`` but stages
+    ONLY the music output directory: repository origin is repointed to
+    ``remote_url`` when given, git identity is set, dirty files under the
+    music dir are committed, and the branch is pushed with the PAT via
+    ``http.extraheader``.  No ``catalog.db`` is ever staged (C2).
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    repo = sys_cfg.get("repo") or root
+    branch = sys_cfg.get("branch") or "master"
+    token = sys_cfg.get("token") or ""
+    remote_url = sys_cfg.get("remote_url") or ""
+    git_name = sys_cfg.get("git_name") or "Colab Studio"
+    git_email = sys_cfg.get("git_email") or "colab@animationstudio.local"
+
+    music_sub = os.path.relpath(out_dir, repo)
+    if music_sub.startswith(".."):
+        music_sub = "Audio/Music"
+
+    def _run(cmd, check=True):
+        print("+ " + " ".join(cmd))
+        res = subprocess.run(cmd, cwd=repo, capture_output=True, text=True)
+        if res.stdout:
+            print(res.stdout.strip())
+        if res.stderr:
+            print(res.stderr.strip())
+        if check and res.returncode != 0:
+            raise subprocess.CalledProcessError(
+                res.returncode, cmd, res.stdout, res.stderr
+            )
+        return res
+
+    if remote_url:
+        _run(["git", "remote", "set-url", "origin", remote_url], check=False)
+    _run(["git", "config", "user.name", git_name], check=False)
+    _run(["git", "config", "user.email", git_email], check=False)
+
+    _run(["git", "add", "-f", music_sub], check=False)
+    dirty = _run(["git", "status", "--porcelain"], check=False)
+    if not dirty.stdout.strip():
+        print(f"Auto-sync: no new music under {music_sub}")
+        return
+    count = dirty.stdout.strip().count("\n") + 1
+    _run(["git", "commit", "-m",
+          f"feat(music): generated songs {datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S}"],
+         check=False)
+    if token:
+        _run(["git", "-c",
+              f"http.extraheader=Authorization: {_basic_auth_header(token)}",
+              "push", "origin", branch])
+    else:
+        _run(["git", "push", "origin", branch])
+    print(f"Auto-sync: pushed {count} new/changed file(s) to {branch}")
+
+
+# =================================================================== #
+=======
+>>>>>>> parent of 00d2e40b (init)
 # Song generation orchestrator                                         #
 # =================================================================== #
 
@@ -251,6 +339,20 @@ def generate_songs(
         upsert_entry(manifest, entry)
         atomic_write_manifest(manifest_path, manifest)
 
+<<<<<<< HEAD
+        # Crash-safe handoff: push the newest song + manifest to git so an
+        # interrupted session never loses already-completed audio.
+        sync_counter += 1
+        if sync_every and sync_counter % sync_every == 0:
+            hook = SYNC_HOOK or _git_sync_music
+            try:
+                hook(cfg, out_dir)
+            except Exception as exc:  # sync must never block generation
+                print(f"WARNING: git sync skipped for {category}: {exc}",
+                      file=sys.stderr)
+
+=======
+>>>>>>> parent of 00d2e40b (init)
     return failures
 
 
