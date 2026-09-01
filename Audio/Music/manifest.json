@@ -60,6 +60,21 @@
       "time_signature": "4/4",
       "job_id": "5b23fc9f-57e8-45b4-b35d-93fcdd58ec0c",
       "generated_at": "2026-09-01T21:38:59.563106+00:00"
+    },
+    {
+      "file": "animals-animals-fun-0.wav",
+      "category": "Animals",
+      "topic": "animals fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 1281069,
+      "duration_s": 80,
+      "bpm": 120,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "52bf1459-5255-4201-be5a-88c318c0f6c3",
+      "generated_at": "2026-09-01T21:40:05.816478+00:00"
     }
   ]
 }
