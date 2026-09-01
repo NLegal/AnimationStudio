@@ -30,6 +30,21 @@
       "time_signature": "4/4",
       "job_id": "b3edaaa7-db0c-4031-b77c-c3372404a0ea",
       "generated_at": "2026-09-01T21:37:20.340318+00:00"
+    },
+    {
+      "file": "shapes-shapes-fun-0.wav",
+      "category": "Shapes",
+      "topic": "shapes fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "40cb0cb0-7811-45ec-a92e-b8dfde056024",
+      "generated_at": "2026-09-01T21:38:09.885155+00:00"
     }
   ]
 }
