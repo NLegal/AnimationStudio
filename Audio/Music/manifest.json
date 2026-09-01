@@ -240,6 +240,21 @@
       "time_signature": "4/4",
       "job_id": "8684b79b-ef2f-4add-8341-7ae7db571a49",
       "generated_at": "2026-09-01T21:49:38.874099+00:00"
+    },
+    {
+      "file": "ocean-ocean-fun-0.wav",
+      "category": "Ocean",
+      "topic": "ocean fun",
+      "seed": 0,
+      "backend": "ace-step",
+      "format": "wav",
+      "bytes": 960813,
+      "duration_s": 60,
+      "bpm": 110,
+      "key_scale": "C major",
+      "time_signature": "4/4",
+      "job_id": "ab0ea3a5-214c-49bb-9473-f9ae3657d535",
+      "generated_at": "2026-09-01T21:50:27.598168+00:00"
     }
   ]
 }
