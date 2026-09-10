@@ -23,6 +23,7 @@ import argparse
 import base64
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -30,7 +31,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.audio_bible import AudioBible, AudioProductionSystem, quality_checklist
 

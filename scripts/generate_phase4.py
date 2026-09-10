@@ -12,9 +12,10 @@ Reproduction:
 
 import argparse
 import os
+from pathlib import Path
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.animation import (
     AnimationClip, MotionCategory, FacialExpression, CameraMotion,

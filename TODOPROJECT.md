@@ -256,6 +256,7 @@
 - **Severity:** MINOR
 - **Description:** `_CombinedRepo` adapter class is copy-pasted identically across 4 scripts (~20 lines each).
 - **Recommended Fix:** Extract to `src/review_ui/combined_repo.py` or similar shared module.
+- **Status:** ✅ **DONE 2026-09-09** — `_CombinedRepo` moved to `src/review_ui/combined_repo.py::CombinedRepo`; all 4 scripts import it (302 lines of copy-paste removed; `tests/test_review_ui_generation.py` + `tests/test_catalog_integrity.py` = 34 passed).
 - **Estimated Effort:** S
 - **Dependencies:** None
 
@@ -264,6 +265,7 @@
 - **Severity:** MINOR
 - **Description:** ComfyUI health-check function duplicated across 4 scripts.
 - **Recommended Fix:** Extract to shared utility module.
+- **Status:** ✅ **DONE 2026-09-09** — `check_comfyui` moved to `src/review_ui/combined_repo.py` (now `check_comfyui(comfyui_url)`); all 4 lock scripts import it.
 - **Estimated Effort:** S
 - **Dependencies:** None
 
@@ -375,6 +377,7 @@
 - **Description:** The "Use the LoRA downstream" note tells operators to load the LoRA "in the Phase 4 generation pipeline" — Phase 4 is the CPU-only animation bible; the image-generation consumer is Phase 8 (`src/image_generation` + `--backend comfyui` on `generate_phase1_library.py`) and Phase 9 animation. This mirrors the ROADMAP renumbering confusion (M-01).
 - **Recommended Fix:** Point the note at Phase 8 image generation with the concrete invocation (`--backend comfyui` + LoRA path via ComfyUI workflow/`CharacterLock`), and Phase 9 animation usage.
 - **Estimated Effort:** S
+- **Status:** ✅ **DONE 2026-09-09** — Cell 10 note now points at `scripts/generate_phase1_library.py --backend comfyui` (Phase 1b / `src/image_generation` + `CharacterLock`) or diffusers `load_lora_weights` with the identity-locked prompt system, plus Phase 9 animation.
 - **Dependencies:** None
 
 ### N-15: Local LoRA Dataset Prep is Blocked Until Assets are Approved (C-01)
@@ -423,12 +426,14 @@
 - **Module:** `scripts/*.py`
 - **Severity:** MINOR
 - **Description:** 14 scripts use `sys.path.insert(0, ...)`, 4 scripts use `os.path` equivalent. Functionally identical but inconsistent.
+- **Status:** ✅ **DONE 2026-09-09** — all scripts now use `sys.path.insert(0, str(Path(__file__).resolve().parents[1]))` (phase4/5/6/7 converted; `from pathlib import Path` added where needed). 18/18 scripts import cleanly.
 - **Estimated Effort:** S
 
 ### T-07: Hardcoded COMFYUI_URL in Lock Scripts
 - **Module:** `scripts/generate_{identity,face,body}_lock.py`, `generate_wardrobe.py`
 - **Severity:** MINOR
 - **Description:** `COMFYUI_URL = "http://localhost:8188"` hardcoded as module constant instead of argparse default.
+- **Status:** ✅ **DONE 2026-09-09** — all 4 lock scripts take `--comfyui-url` (argparse default = constant); `main(comfyui_url=...)` threads it through `check_comfyui()` + `ComfyUIBackend(server_url=...)`.
 - **Estimated Effort:** S
 
 ### T-08: .env File Committed to Repo

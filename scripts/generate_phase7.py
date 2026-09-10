@@ -17,10 +17,11 @@ service; CI and the pytest suite NEVER require it):
 import argparse
 import json
 import os
+from pathlib import Path
 import re
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.music_generation import MusicBackendError, build_music_request, get_backend
 

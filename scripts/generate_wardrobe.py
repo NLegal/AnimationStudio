@@ -18,6 +18,7 @@ Usage:
     python scripts/generate_wardrobe.py
 """
 
+import argparse
 import asyncio
 import json
 import logging
@@ -40,6 +41,7 @@ from src.models.schemas import AssetModel, CharacterModel
 from src.pipeline.diversity_filter import DiversityFilter
 from src.prompt_builder.builder import PromptBuilder
 from src.prompt_builder.templates import CharacterPrompt
+from src.review_ui.combined_repo import CombinedRepo, check_comfyui
 
 logger = logging.getLogger(__name__)
 
@@ -90,19 +92,6 @@ OUTFITS: list[dict[str, str]] = [
 # ---------------------------------------------------------------------------
 
 
-def check_comfyui() -> bool:
-    """Verify ComfyUI is reachable at the configured URL."""
-    import requests
-
-    try:
-        r = requests.get(f"{COMFYUI_URL}/", timeout=5)
-        r.raise_for_status()
-        print(f"  ✓ ComfyUI reachable at {COMFYUI_URL}")
-        return True
-    except Exception as exc:
-        print(f"  ✗ ComfyUI not reachable at {COMFYUI_URL}: {exc}")
-        print("    Start ComfyUI first, then re-run this script.")
-        return False
 
 
 def _generate_seeds(count: int) -> list[int]:
@@ -119,59 +108,6 @@ def _generate_seeds(count: int) -> list[int]:
 # ---------------------------------------------------------------------------
 
 
-class _CombinedRepo:
-    """Adapter that wraps CharacterRepository + AssetRepository for create_app()."""
-
-    def __init__(self, char_repo: SQLiteCharacterRepository, asset_repo: SQLiteAssetRepository):
-        self._char = char_repo
-        self._asset = asset_repo
-
-    def list_characters(self) -> list:
-        conn = self._char._get_conn()
-        rows = conn.execute("SELECT * FROM characters ORDER BY created_at").fetchall()
-        return [self._char._row_to_character(r) for r in rows]
-
-    def get_character(self, character_id: str):
-        conn = self._char._get_conn()
-        row = conn.execute("SELECT * FROM characters WHERE id = ?", (character_id,)).fetchone()
-        if row is None:
-            return None
-        return self._char._row_to_character(row)
-
-    def find_assets(self, character_id: str, asset_type: Optional[str] = None):
-        conn = self._asset._get_conn()
-        if asset_type:
-            rows = conn.execute(
-                "SELECT * FROM assets WHERE character_id = ? AND asset_type = ? ORDER BY created_at",
-                (character_id, asset_type),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM assets WHERE character_id = ? ORDER BY created_at",
-                (character_id,),
-            ).fetchall()
-        return [self._asset._row_to_asset(r) for r in rows]
-
-    def find_approved(self, character_id: str, asset_type: str):
-        conn = self._asset._get_conn()
-        rows = conn.execute(
-            "SELECT * FROM assets WHERE character_id = ? AND asset_type = ? "
-            "AND state IN ('approved', 'production') ORDER BY created_at",
-            (character_id, asset_type),
-        ).fetchall()
-        return [self._asset._row_to_asset(r) for r in rows]
-
-    async def save(self, record: AssetModel) -> str:
-        return await self._asset.save(record)
-
-    async def get(self, asset_id: str) -> Optional[AssetModel]:
-        return await self._asset.get(asset_id)
-
-    async def update_state(self, asset_id: str, new_state: str) -> None:
-        return await self._asset.update_state(asset_id, new_state)
-
-    async def find_by_character(self, character_id: str, asset_type: Optional[str] = None):
-        return await self._asset.find_by_character(character_id, asset_type)
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +115,7 @@ class _CombinedRepo:
 # ---------------------------------------------------------------------------
 
 
-async def main():
+async def main(comfyui_url: str = COMFYUI_URL):
     print("=" * 70)
     print("  Wardrobe Expansion — Lily Bunny Outfit Library (17 variants)")
     print("=" * 70)
@@ -188,7 +124,7 @@ async def main():
     batch_id = f"wardrobe_{int(time.time())}"
 
     # -- Precondition: ComfyUI must be running --
-    if not check_comfyui():
+    if not check_comfyui(comfyui_url):
         print(f"\n  Batch ID: {batch_id}")
         print("  Generated 0 outfits (ComfyUI not running)")
         print("  The script is ready. Start ComfyUI and re-run.")
@@ -196,13 +132,13 @@ async def main():
 
     # -- Initialize pipeline components --
     print("\n[1/6] Initializing pipeline components...")
-    backend = ComfyUIBackend(server_url=COMFYUI_URL)
+    backend = ComfyUIBackend(server_url=comfyui_url)
     prompt_builder = PromptBuilder()
     scorer = IdentityScorer()
     asset_repo = SQLiteAssetRepository(db_path=DB_PATH)
     char_repo = SQLiteCharacterRepository(db_path=DB_PATH)
     diversity = DiversityFilter(n_clusters=5)
-    combined_repo = _CombinedRepo(char_repo, asset_repo)
+    combined_repo = CombinedRepo(char_repo, asset_repo)
     print("  ✓ ComfyUIBackend, PromptBuilder, IdentityScorer, repos, DiversityFilter ready")
 
     # -- Ensure Lily Bunny character exists --
@@ -476,5 +412,9 @@ async def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Progressive Locking generation pipeline")
+    parser.add_argument("--comfyui-url", default=COMFYUI_URL,
+                        help=f"ComfyUI server URL (default: {COMFYUI_URL})")
+    args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    asyncio.run(main())
+    asyncio.run(main(comfyui_url=args.comfyui_url))
