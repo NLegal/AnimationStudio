@@ -292,6 +292,7 @@
 - **Severity:** ENHANCEMENT
 - **Description:** README shows a pipeline smoke test that only creates an orchestrator. There's no test that runs a complete episode from story generation through video export (even with mock backends).
 - **Recommended Fix:** Create `test_e2e_episode.py` that runs the full `EpisodeWorkflowFactory` pipeline end-to-end with mocks.
+- **Status:** ✅ **DONE 2026-09-09** — `tests/test_e2e_episode.py` (5 tests) runs the full episode chain with in-process mocks: `EpisodeGenerator` → `blueprint_to_episode` → `ProductionPipeline` (prompts/continuity/render queue) → `PipelineOrchestrator.process_pipeline` (8-stage workflow to COMPLETED) → `EditingEngine.assemble_scenes` → `PostProductionQC.validate_timeline` → `ExportEngine` presets + export QC. No GPU/network. All 5 pass.
 - **Estimated Effort:** M
 - **Dependencies:** None
 
