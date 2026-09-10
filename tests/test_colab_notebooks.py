@@ -15,6 +15,7 @@ import pytest
 _COLAB_DIR = Path(__file__).resolve().parent.parent / "colab"
 _TRAINING_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Training.ipynb"
 _IDLOCK_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_IdentityLock.ipynb"
+_PHASE7_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase7.ipynb"
 _NOTEBOOKS = sorted(_COLAB_DIR.glob("*.ipynb"))
 
 _SECRET_PATTERNS = [
@@ -258,6 +259,76 @@ class TestIdentityLockNotebookStructure:
         md_cells = [
             _cell_source_text(c)
             for c in _iter_cells(_load_notebook(self._LOCK_NOTEBOOK))
+            if c.get("cell_type") == "markdown"
+        ]
+        assert any("Next steps" in md for md in md_cells)
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 storyboard notebook content contract
+# ---------------------------------------------------------------------------
+
+class TestPhase7NotebookStructure:
+    """The Phase 7 production-planning notebook (N-04) drives story -> blueprint."""
+
+    _PHASE7_NOTEBOOK = _PHASE7_NOTEBOOK
+
+    def _code_cells(self, notebook: dict) -> list:
+        return [c for c in _iter_cells(notebook) if c.get("cell_type") == "code"]
+
+    def test_settings_cell_has_episode_knobs(self):
+        """Cell 1 exposes SEASON / EPISODE_NUMBER / EPISODES / REPORT_PATH."""
+        notebook = _load_notebook(self._PHASE7_NOTEBOOK)
+        settings = next(
+            c for c in self._code_cells(notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 1. Settings")
+        )
+        source = _cell_source_text(settings)
+        assert "SEASON =" in source
+        assert "EPISODE_NUMBER =" in source
+        assert "EPISODES =" in source
+        assert "REPORT_PATH =" in source
+
+    def test_branch_restricted_to_colab_gpu(self):
+        """Settings offer only colab-gpu; master is deprecated (N-02)."""
+        text = _notebook_source_text(_load_notebook(self._PHASE7_NOTEBOOK))
+        assert 'BRANCH = "colab-gpu"' in text
+        assert '"master"' not in text
+
+    def test_story_to_blueprint_chain_present(self):
+        """Story generation -> blueprint -> episode must be the driver chain."""
+        text = _notebook_source_text(_load_notebook(self._PHASE7_NOTEBOOK))
+        assert "EpisodeGenerator" in text
+        assert "blueprint_to_episode" in text
+
+    def test_production_planning_drivers_present(self):
+        """Prompts, render queue, continuity, and the 8-step workflow all exist."""
+        text = _notebook_source_text(_load_notebook(self._PHASE7_NOTEBOOK))
+        assert "generate_prompts" in text
+        assert "build_render_queue" in text
+        assert "validate_continuity" in text
+        assert "EpisodeWorkflowFactory" in text
+        assert "PipelineOrchestrator" in text
+        assert "process_pipeline" in text
+
+    def test_phase_report_written(self):
+        """Cell 7 writes PHASE7_REPORT.md into the checkout."""
+        text = _notebook_source_text(_load_notebook(self._PHASE7_NOTEBOOK))
+        assert "PHASE7_REPORT.md" in text
+        assert "open(f" in text or 'open(f"{REPO}/{REPORT_PATH}"' in text
+
+    def test_offline_mock_no_gpu_requirement(self):
+        """The notebook must run offline with mocks (no torch assert, no GPU)."""
+        text = _notebook_source_text(_load_notebook(self._PHASE7_NOTEBOOK))
+        assert "mock" in text or "in-process" in text
+        assert "torch.cuda.is_available" not in text
+        assert "ComfyUIBackend" not in text
+
+    def test_next_steps_markdown_present(self):
+        """The notebook closes with operator follow-up guidance."""
+        md_cells = [
+            _cell_source_text(c)
+            for c in _iter_cells(_load_notebook(self._PHASE7_NOTEBOOK))
             if c.get("cell_type") == "markdown"
         ]
         assert any("Next steps" in md for md in md_cells)

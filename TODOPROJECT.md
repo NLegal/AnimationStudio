@@ -203,6 +203,7 @@
 - **Severity:** MAJOR
 - **Description:** Notebook coverage exists only for Phases 1–6 (+1c Training + Validate). There is **no notebook** for: Phase 7 production/storyboard planning, Phase 8 image-generation pipeline, Phase 9 animation/render, Phase 10 post-production, Phase 11 publishing, or Phase 12 orchestration. `generate_phase7.py` exists but is a single-song music CLI (oddly named — no storyboard functionality at all). The `src/studio` `EpisodeWorkflowFactory` 8-step episode pipeline has no cloud/Colab driver.
 - **Recommended Fix:** Create one new notebook per gap (or a single combined `AnimationStudio_Colab_Episode.ipynb` that drives the mock-compatible EpisodeWorkflowFactory to synthesize an episode schedule, then swaps real backends for image generation + music in later cells). At minimum add Phase 7 + Phase 8 (real image generation for a scene) notebooks.
+- **Status:** ➖ **IN PROGRESS** — Phase 7 part **DONE 2026-09-09** (`colab/AnimationStudio_Colab_Phase7.ipynb`, 11 cells, fully offline/mock: story → blueprint → episode → per-shot prompts → render queue → continuity → 8-step EpisodeWorkflowFactory drive to COMPLETED → PHASE7_REPORT.md → Phase-7 test suites → sync). Content contract in `test_colab_notebooks.py` (117 pass). Phase 8 (image-gen notebook) + Phase 9-12 combined episode notebook remain.
 - **Estimated Effort:** L
 - **Dependencies:** C-01 (real ComfyUI images), C-03 (music) for non-mock runs
 

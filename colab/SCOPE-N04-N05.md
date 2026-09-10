@@ -7,10 +7,15 @@ Phase 8 partial runs unblocked, full runs still gated on C-01 (approved
 images) / C-03 (music).
 
 **Status 2026-09-09:** N-05's two script-gap edits (`--db-path`,
-`--no-review-ui` on all 4 lock scripts) are DONE in commit <pending>; the
-`AnimationStudio_Colab_IdentityLock.ipynb` notebook (14 cells) is built and a
-9-test content contract added to `test_colab_notebooks.py` (103 pass).
-Remaining in this scope: N-04 Phase 7 notebook, N-04 Phase 8 notebook.
+`--no-review-ui` on all 4 lock scripts) are DONE in commit `a196d578`; the
+`AnimationStudio_Colab_IdentityLock.ipynb` notebook (14 cells) ships with a
+9-test content contract in `test_colab_notebooks.py`. N-04 **Phase 7**
+notebook (`AnimationStudio_Colab_Phase7.ipynb`, 11 cells, offline/mock:
+story → blueprint → episode → prompts → render queue → continuity → 8-step
+workflow → PHASE7_REPORT.md → tests → sync) is DONE, verified offline
+(8 scenes / 27 shots / 27 prompts / 0 continuity issues / 8-of-8 workflow
+steps + 117 notebook tests). Remaining in this scope: N-04 Phase 8 notebook
+(Part A mock + Part B GPU).
 
 ---
 
