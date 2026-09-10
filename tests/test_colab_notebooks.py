@@ -17,6 +17,7 @@ _TRAINING_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Training.ipynb"
 _IDLOCK_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_IdentityLock.ipynb"
 _PHASE7_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase7.ipynb"
 _PHASE8_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase8.ipynb"
+_PHASE9_12_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase9to12.ipynb"
 _NOTEBOOKS = sorted(_COLAB_DIR.glob("*.ipynb"))
 
 _SECRET_PATTERNS = [
@@ -403,6 +404,97 @@ class TestPhase8NotebookStructure:
         md_cells = [
             _cell_source_text(c)
             for c in _iter_cells(_load_notebook(self._PHASE8_NOTEBOOK))
+            if c.get("cell_type") == "markdown"
+        ]
+        assert any("Next steps" in md for md in md_cells)
+
+
+# ---------------------------------------------------------------------------
+# Phases 9-12 episode production notebook content contract
+# ---------------------------------------------------------------------------
+
+class TestPhase9to12NotebookStructure:
+    """The Phases 9-12 notebook (N-04) drives render -> post -> publish -> orchestrate."""
+
+    _PHASE9_12_NOTEBOOK = _PHASE9_12_NOTEBOOK
+
+    def _code_cells(self, notebook: dict) -> list:
+        return [c for c in _iter_cells(notebook) if c.get("cell_type") == "code"]
+
+    def test_settings_cell_has_episode_and_master_knobs(self):
+        """Cell 1 exposes episode scope plus the real-render switch."""
+        notebook = _load_notebook(self._PHASE9_12_NOTEBOOK)
+        settings = next(
+            c for c in self._code_cells(notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 1. Settings")
+        )
+        source = _cell_source_text(settings)
+        assert "SEASON =" in source
+        assert "EPISODE_NUMBER =" in source
+        assert "RUN_REAL_RENDER =" in source
+        assert "REAL_SCENE_INDEX =" in source
+
+    def test_branch_restricted_to_colab_gpu(self):
+        """Settings offer only colab-gpu; master is deprecated (N-02)."""
+        text = _notebook_source_text(_load_notebook(self._PHASE9_12_NOTEBOOK))
+        assert 'BRANCH = "colab-gpu"' in text
+        assert '"master"' not in text
+
+    def test_phase9_render_and_regeneration_present(self):
+        """Phase 9 drives the RenderPipeline and the regeneration workflow."""
+        text = _notebook_source_text(_load_notebook(self._PHASE9_12_NOTEBOOK))
+        assert "RenderPipeline" in text
+        assert "process_next" in text
+        assert "complete_job" in text
+        assert "ClipRegenerationEngine" in text
+
+    def test_phase10_post_production_drivers_present(self):
+        """Phase 10 assembles a timeline, runs QC, and lists export presets."""
+        text = _notebook_source_text(_load_notebook(self._PHASE9_12_NOTEBOOK))
+        assert "SceneAssembly" in text
+        assert "assemble_scenes" in text
+        assert "PostProductionQC" in text
+        assert "validate_timeline" in text
+        assert "ExportEngine" in text
+
+    def test_phase11_publishing_drivers_present(self):
+        """Phase 11 generates metadata, creates a record, and schedules."""
+        text = _notebook_source_text(_load_notebook(self._PHASE9_12_NOTEBOOK))
+        assert "prepare_publish_package" in text
+        assert "create_record" in text
+        assert "SchedulingEngine" in text
+        assert "create_schedule" in text
+
+    def test_phase12_orchestrator_drives_full_workflow(self):
+        """Phase 12 runs the 8-step production workflow via the orchestrator."""
+        text = _notebook_source_text(_load_notebook(self._PHASE9_12_NOTEBOOK))
+        assert "PipelineOrchestrator" in text
+        assert "create_pipeline" in text
+        assert "process_pipeline" in text
+
+    def test_report_written_to_checkout(self):
+        """Cell 9 writes the episode production report into the checkout."""
+        text = _notebook_source_text(_load_notebook(self._PHASE9_12_NOTEBOOK))
+        assert "PHASE9_12_EPISODE_REPORT.md" in text
+
+    def test_part_a_mock_no_gpu_requirement(self):
+        """Part A (Phases 9-12) is offline-green: mocks, no GPU forces."""
+        text = _notebook_source_text(_load_notebook(self._PHASE9_12_NOTEBOOK))
+        assert "mock" in text or "in-process" in text
+        # The torch GPU assert exists ONLY inside the Part B gate.
+        assert "assert torch.cuda.is_available()" in text
+
+    def test_fp8_model_download_guards_present(self):
+        """Part B model download carries disk + truncation guards (N-08/N-10)."""
+        text = _notebook_source_text(_load_notebook(self._PHASE9_12_NOTEBOOK))
+        assert "disk_usage" in text
+        assert "17.25" in text
+
+    def test_next_steps_markdown_present(self):
+        """The notebook closes with operator follow-up guidance."""
+        md_cells = [
+            _cell_source_text(c)
+            for c in _iter_cells(_load_notebook(self._PHASE9_12_NOTEBOOK))
             if c.get("cell_type") == "markdown"
         ]
         assert any("Next steps" in md for md in md_cells)
