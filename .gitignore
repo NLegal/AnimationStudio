@@ -27,3 +27,6 @@ Thumbs.db
 
 # Local tool installs (ComfyUI and friends land here via the setup scripts)
 tools/
+
+# Local pip bootstrap script (downloads the exact Python version's installer)
+get-pip.py

@@ -20,7 +20,11 @@ if ($args.Count -lt 1) {
     exit 1
 }
 $ScriptName = $args[0]
-$Forwarded  = @($args[1..($args.Count - 1)])
+if ($args.Count -le 1) {
+    $Forwarded = @()
+} else {
+    $Forwarded = @($args[1..($args.Count - 1)])
+}
 
 # Resolve Python.
 $Py = $null

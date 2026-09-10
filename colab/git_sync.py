@@ -34,12 +34,13 @@ def _basic_auth_header(token: str) -> str:
 
 
 def _checkpoint_db(db_path: str) -> None:
-    """Flush SQLite WAL contents into the main ``catalog.db`` file.
+    """Flush any SQLite WAL contents into the main ``catalog.db`` file.
 
-    The asset repository runs with ``PRAGMA journal_mode=WAL``, so its latest
-    writes live in ``catalog.db-wal`` and are invisible to a plain file copy.
-    Running ``wal_checkpoint(TRUNCATE)`` forces those writes into the main DB
-    file so every per-image sync captures the freshest catalog state.
+    The production repo ``catalog.db`` now runs with ``PRAGMA journal_mode=DELETE``
+    (C-00 recovery hardening: WAL sidecars were the corruption vector after abrupt
+    Colab termination). ``wal_checkpoint(TRUNCATE)`` is a harmless no-op there.
+    It is still issued defensively so a Colab-side clone that was left in WAL mode
+    checkpoints its writes before the plain file copy.
     """
     try:
         conn = sqlite3.connect(db_path)

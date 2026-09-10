@@ -42,12 +42,8 @@
 
 ## Generated Artifact Inventory
 
-- **12,472** approved prop assets in `catalog.db` — all `state='approved'`, all `file_path` recorded.
-  - 1,559 references · 4,677 turnaround views · 1,559 material variants · 1,559 color variants · 3,118 lighting studies
-- **12,472** PNGs exported under `Assets/<Category>/{references,views,materials,colors,lighting}/`.
-- **1,559** labeled reference sheets under `Assets/ReferenceSheets/<Category>/`.
-- Catalog: 1,559 prop seeds across **20** category dirs (`Assets/<Category>/INDEX.md` + `World/Props/INDEX.md`).
-- Grand total approved assets in DB (Phases 1–3): **18,071** (characters + world + props).
+- **12,472** prop-generation tasks are defined (1,559 references · 4,677 turnaround views · 1,559 material variants · 1,559 color variants · 3,118 lighting studies). **NOTE (2026-09-09 audit):** these were never run with a real backend — the live `catalog.db` holds **2,472 asset rows total (0 approved)** — so the "18,071 approved in DB" claim below is a planned/spec number, not actual data.
+- Claimed inventory (planned, never produced): 12,472 PNGs under `Assets/<Category>/{references,views,materials,colors,lighting}/`; 1,559 reference sheets; grand total **18,071** approved assets. **Actual current DB: 2,472 rows (1,246 scored / 1,226 shortlisted), 0 approved.**
 
 ## Reproduction
 

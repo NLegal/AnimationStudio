@@ -114,6 +114,14 @@ class TestTrainingNotebookStructure:
         assert "nvidia-smi" in text
         assert "torch.cuda.is_available()" in text
 
+    def test_model_download_cell_has_disk_and_size_guards(self, training_notebook):
+        """Cell 4 fails fast on low disk and catches truncated downloads (N-08/N-10)."""
+        text = _notebook_source_text(training_notebook)
+        assert "EXPECTED_BYTES" in text
+        assert 'flux1-dev.safetensors": 33956436064' in text
+        assert "disk_usage(WORK)" in text
+        assert "looks truncated" in text
+
     def test_pinned_sd_scripts_clone_present(self, training_notebook):
         """sd-scripts is cloned at a pinned upstream commit (T-01c-06b)."""
         text = _notebook_source_text(training_notebook)
@@ -148,6 +156,13 @@ class TestTrainingNotebookStructure:
         assert "_basic_auth_header" in text
         assert "push" in text
 
+    def test_sync_cell_authorization_header_prefixed(self, training_notebook):
+        """The push header carries the required 'Authorization: ' prefix (N-03)."""
+        text = _notebook_source_text(training_notebook)
+        assert re.search(r"Authorization:\s*\{_basic_auth_header\(", text), (
+            "push cell must set http.extraheader=Authorization: {_basic_auth_header(...)}"
+        )
+
     def test_next_steps_markdown_present(self, training_notebook):
         """The notebook closes with operator follow-up guidance."""
         markdown_cells = [
@@ -175,6 +190,113 @@ class TestSecretShapeGuard:
         assert pattern.search(text) is None, (
             f"{secret_name}-shaped literal found in {notebook_path.name}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Validate notebook drift guards (N-17)
+# ---------------------------------------------------------------------------
+
+class TestValidateNotebookStructure:
+    """The pre-flight notebook is a single clean, linear 8-step flow."""
+
+    def test_eight_sequential_steps_no_duplicates(self):
+        """STEP cells are exactly 1..8 in order with no repeats (N-01)."""
+        notebook = _load_notebook(_COLAB_DIR / "AnimationStudio_Validate.ipynb")
+        steps = [
+            int(m.group(1))
+            for cell in _iter_cells(notebook)
+            if cell.get("cell_type") == "code"
+            for m in [re.search(r"STEP (\d)", _cell_source_text(cell))]
+            if m
+        ]
+        assert steps == [1, 2, 3, 4, 5, 6, 7, 8], f"unexpected step order: {steps}"
+
+    def test_model_filename_defined_before_download_and_check(self):
+        """MODEL_FILE / MODEL_URL / MODEL_EXPECTED_BYTES are literal settings."""
+        text = _notebook_source_text(
+            _load_notebook(_COLAB_DIR / "AnimationStudio_Validate.ipynb")
+        )
+        assert 'MODEL_FILE = "flux1-dev.safetensors"' in text
+        assert "MODEL_URL" in text
+        assert "MODEL_EXPECTED_BYTES = 17250000000" in text
+        assert "wget" in text and "MODEL_URL" in text
+
+    def test_backend_and_gen_input_built_before_generate(self):
+        """STEP 6 builds backend+gen_input; STEP 7 uses them (not vice versa)."""
+        notebook = _load_notebook(_COLAB_DIR / "AnimationStudio_Validate.ipynb")
+        sources = [
+            _cell_source_text(cell)
+            for cell in _iter_cells(notebook)
+            if cell.get("cell_type") == "code"
+        ]
+        build = next(i for i, s in enumerate(sources) if "ComfyUIBackend(" in s)
+        gen = next(i for i, s in enumerate(sources) if "backend.generate(gen_input" in s)
+        assert build < gen, "backend/gen_input must be constructed before the generate call"
+
+    def test_branch_restricted_to_colab_gpu(self):
+        """Settings cell offers only the supported colab-gpu branch (N-02)."""
+        text = _notebook_source_text(
+            _load_notebook(_COLAB_DIR / "AnimationStudio_Validate.ipynb")
+        )
+        assert 'BRANCH = "colab-gpu"' in text
+        assert '"master"' not in text
+
+    def test_gpu_assert_guard_present(self):
+        """The GPU check fails fast instead of silently degrading (N-09)."""
+        text = _notebook_source_text(
+            _load_notebook(_COLAB_DIR / "AnimationStudio_Validate.ipynb")
+        )
+        assert "assert torch.cuda.is_available()" in text
+
+
+# ---------------------------------------------------------------------------
+# Phase 1-3 model download drift guards (N-02 / N-10 / N-17)
+# ---------------------------------------------------------------------------
+
+class TestPhaseNotebookModelDownloads:
+    """Phase 1-3 notebooks download only the live colab-gpu fp8 URL."""
+
+    _PHASE_NOTEBOOKS = [
+        _COLAB_DIR / "AnimationStudio_Colab.ipynb",
+        _COLAB_DIR / "AnimationStudio_Colab_Phase2.ipynb",
+        _COLAB_DIR / "AnimationStudio_Colab_Phase3.ipynb",
+    ]
+    _FP8_URL = (
+        "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/"
+        "flux1-dev-fp8.safetensors"
+    )
+    _CITY96_404_URLS = [
+        "city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q4_K_S.gguf",
+        "city96/FLUX.1-dev-gguf/resolve/main/clip_l.safetensors",
+        "city96/FLUX.1-dev-gguf/resolve/main/t5xxl_fp16.safetensors",
+        "city96/FLUX.1-dev-gguf/resolve/main/ae.safetensors",
+    ]
+
+    @pytest.mark.parametrize("notebook_path", _PHASE_NOTEBOOKS, ids=lambda p: p.name)
+    def test_colab_gpu_fp8_url_present(self, notebook_path):
+        """Each notebook downloads the working fp8 single-file Flux model."""
+        text = _notebook_source_text(_load_notebook(notebook_path))
+        assert self._FP8_URL in text
+
+    @pytest.mark.parametrize("notebook_path", _PHASE_NOTEBOOKS, ids=lambda p: p.name)
+    def test_no_city96_dead_urls(self, notebook_path):
+        """The 404 Q4 GGUF encoder/VAE URLs must not reappear (N-02)."""
+        text = _notebook_source_text(_load_notebook(notebook_path))
+        for url in self._CITY96_404_URLS:
+            assert url not in text, f"dead city96 URL in {notebook_path.name}: {url}"
+
+    @pytest.mark.parametrize("notebook_path", _PHASE_NOTEBOOKS, ids=lambda p: p.name)
+    def test_branch_param_restricted_to_colab_gpu(self, notebook_path):
+        """Settings offer only colab-gpu; master is deprecated (N-02)."""
+        text = _notebook_source_text(_load_notebook(notebook_path))
+        assert 'BRANCH = "colab-gpu"' in text
+        assert '"master"' not in text
+
+    @pytest.mark.parametrize("notebook_path", _PHASE_NOTEBOOKS, ids=lambda p: p.name)
+    def test_gpu_assert_guard_present(self, notebook_path):
+        """GPU cell fails fast instead of silently degrading (N-09)."""
+        text = _notebook_source_text(_load_notebook(notebook_path))
+        assert "assert torch.cuda.is_available()" in text
 
 
 # ---------------------------------------------------------------------------

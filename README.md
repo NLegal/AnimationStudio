@@ -10,6 +10,18 @@ All 12 phases implemented and audited. **1435 tests** (1432 passing; the
 3 slow universe-seed/review-UI tests pass in isolation but exceed the 30s
 global timeout under full-suite load).
 
+> **IMPORTANT: Production Readiness Note**
+>
+> The codebase is architecturally complete but **no real images exist**:
+> catalog.db holds 2,472 asset rows (all `scored`/`shortlisted`, **0
+> approved**), and every row is a solid-color mock placeholder from
+> MockBackend. No LoRA has been trained, no real images generated, no
+> songs produced, no video rendered. The pipeline has never executed
+> end-to-end with real AI backends. GPU hardware (CUDA + ComfyUI) or
+> cloud API keys are required for real output. All Colab work runs on the
+> **`colab-gpu`** branch (`master` is deprecated). See `SUMMARY.md` and
+> `TODOPROJECT.md` for the full audit.
+
 | Phase | System | Module |
 |-------|--------|--------|
 | 1 | Universe Creation & Character Bible | `models`, `identity_engine` |
@@ -376,7 +388,7 @@ it plus the fp8 Flux checkpoint with the platform setup script:
 **Windows (PowerShell):**
 
 ```powershell
-.\scripts\setup_comfyui_flux.ps1                  # install + download (~12GB)
+.\scripts\setup_comfyui_flux.ps1                  # install + download (~17 GB)
 .\scripts\setup_comfyui_flux.ps1 -Serve           # start the server on :8188 (CUDA)
 .\scripts\setup_comfyui_flux.ps1 -Serve -Cpu      # CPU-only machines only
 .\scripts\generate_phase1_library.ps1 --backend comfyui --comfyui-url http://localhost:8188
@@ -388,7 +400,7 @@ If PowerShell blocks the script, bypass for this session first:
 **macOS / Linux (bash):**
 
 ```bash
-bash scripts/setup_comfyui_flux.sh                # install + download (~12GB)
+bash scripts/setup_comfyui_flux.sh                # install + download (~17 GB)
 bash scripts/setup_comfyui_flux.sh --serve        # start the server on :8188
 python3 scripts/generate_phase1_library.py --backend comfyui
 ```
@@ -412,7 +424,7 @@ colab/AnimationStudio_Colab.ipynb
 ```
 
 The notebook clones the repo, installs ComfyUI, downloads the model onto the
-Colab disk (12-14 GB models do **not** fit a free 5 GB Drive), starts the
+Colab disk (~17.25 GB fp8 model does **not** fit a free 5 GB Drive), starts the
 server, runs Phase-1 generation, exports real PNGs into the repo checkout,
 launches the Review UI behind a LocalTunnel link, and syncs approved output
 back to GitHub (or downloads a zip). Only `catalog.db` (the shortlisted/
@@ -424,8 +436,11 @@ Branches pin the model flavor (the notebook selects it via its `BRANCH` cell):
 
 | Branch | Model | Where it runs |
 | --- | --- | --- |
-| `master` | Q4 GGUF (`flux1-dev-Q4_K_S.gguf` + encoders/VAE, ~14 GB) | CPU box (Iris Xe), also T4 |
-| `colab-gpu` | fp8 Flux bundle (`flux1-dev.safetensors`, ~12 GB) | Colab T4/L4/A100 |
+| `colab-gpu` | fp8 Flux bundle (`flux1-dev.safetensors`, ~17.25 GB) | Colab T4/L4/A100 |
+
+`master` is deprecated (its `city96` Q4 GGUF encoder/VAE URLs return 404) and
+all runs use `colab-gpu`. The setup scripts download the `Comfy-Org/flux1-dev`
+fp8 checkpoint (17.25 GB).
 
 Keep the free-tier scope small (`--count 2 --shortlist 1`, a couple of asset
 types) — a T4 takes ~2 min per 1024×1024 image.
