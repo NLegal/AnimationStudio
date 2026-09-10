@@ -274,6 +274,7 @@
 - **Severity:** MINOR
 - **Description:** README/TODO audits note these directories as empty. `ColorPalette/COLOR_PALETTE.md` exists but `Fonts/FONT_GUIDE.md` is a guide, not actual font files.
 - **Recommended Fix:** Add brand palette JSON (referenced by `ColorVerificationPlugin`) and font files if specified.
+- **Status:** ✅ **RESOLVED 2026-09-09** — the palette JSON `Universe/ColorPalette/brand-palette.json` (what `ColorVerificationPlugin` actually loads at `color_verification.py:51`) **already exists and is tracked** (5 primary + pastel groups); `tests/test_scoring_plugins.py` covers it. Root `ColorPalette/` and `Fonts/` hold only steerage docs (`COLOR_PALETTE.md`, `FONT_GUIDE.md`) with no code reference — not empty requirements, but documentation. Actual font files are not required by any code path; the plugin loads the JSON it needs.
 - **Estimated Effort:** S
 - **Dependencies:** None
 
@@ -440,12 +441,14 @@
 - **Module:** `.env`
 - **Severity:** MINOR
 - **Description:** `.env` file exists in the repo (empty keys). While `.gitignore` excludes it, the file is present in the working directory and could accumulate real keys.
+- **Status:** ✅ **NON-ISSUE 2026-09-09** — `.gitignore` contains `.env` and `git ls-files` confirms it is **untracked**. No real keys accumulate in version control; the file is a local-only placeholder.
 - **Estimated Effort:** S
 
 ### T-09: catalog.db Committed as .gitkeep
 - **Module:** `catalog.db`, `catalog.db-shm`, `catalog.db-wal`
 - **Severity:** MINOR
 - **Description:** SQLite database files exist in the working directory. `.gitignore` correctly excludes `*.db`, but the files are present locally. If anyone runs `git add -f`, they could commit database contents.
+- **Status:** ✅ **BY DESIGN 2026-09-09** — `catalog.db` is **intentionally tracked** (it is the canonical working DB synced between local and Colab via the `colab/git_sync.py` push/pull workflow). The `.gitignore` `*.db` rule prevents accidental new DBs; verify_catalog.ps1 (`tests/test_catalog_integrity.py`) guards the committed DB. `journal_mode=DELETE` (C-00) guarantees sidecar files can never reappear.
 - **Estimated Effort:** S
 
 ### T-10: get-pip.py in Root
