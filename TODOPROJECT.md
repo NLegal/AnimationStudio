@@ -301,6 +301,7 @@
 - **Severity:** ENHANCEMENT
 - **Description:** No `.github/workflows/`, no `Makefile`, no `tox.ini`, no pre-commit hooks. Tests are manual-only.
 - **Recommended Fix:** Add GitHub Actions workflow for lint + test on PR. Add pre-commit hooks for ruff/flake8.
+- **Status:** ✅ **DONE 2026-09-09** — `.github/workflows/ci.yml` (3 jobs: ruff lint+format on `src scripts tests`, mypy `src`, offline-safe pytest suites) + `.pre-commit-config.yaml` (ruff + ruff-format + mypy). Workflow pins Python 3.11, caches pip, validates YAML. Test job runs the 12 offline-safe suites (695 passed locally) — excludes the known hang (`test_generation_engine.py`), the C-01-dependent story lookup, and Windows-only issues.
 - **Estimated Effort:** M
 - **Dependencies:** None
 

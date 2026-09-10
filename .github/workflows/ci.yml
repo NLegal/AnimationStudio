@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [colab-gpu, master]
+  pull_request:
+    branches: [colab-gpu]
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dev deps
+        run: pip install "ruff>=0.6.0"
+      - name: ruff check
+        run: ruff check src scripts tests
+      - name: ruff format --check
+        run: ruff format --check src scripts tests
+
+  typecheck:
+    name: Typecheck (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project + dev deps
+        run: |
+          pip install "mypy>=1.10.0"
+          pip install -e ".[dev]"
+      - name: mypy src
+        run: mypy src
+
+  test:
+    name: Test (offline-safe suites)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project
+        run: pip install -e ".[dev]"
+      - name: Run offline-safe test suites
+        run: python -m pytest \
+          tests/test_catalog_integrity.py \
+          tests/test_colab_notebooks.py \
+          tests/test_e2e_episode.py \
+          tests/test_animation_bible.py \
+          tests/test_animation.py \
+          tests/test_audio_bible.py \
+          tests/test_character_bio.py \
+          tests/test_identity_engine.py \
+          tests/test_production.py \
+          tests/test_studio.py \
+          tests/test_story_to_production_integration.py \
+          tests/test_universe_catalog.py \
+          -q --timeout=60
