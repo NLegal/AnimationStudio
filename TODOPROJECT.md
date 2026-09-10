@@ -248,6 +248,7 @@
 - **Severity:** MINOR
 - **Description:** Four scripts hardcode "Lily Bunny" as the character name, description, and paths. They cannot be used for other characters without code edits. Other scripts (phase1/2/3) correctly use discover_characters() and CLI filtering.
 - **Recommended Fix:** Extract character parameterization to CLI args or config file.
+- **Status:** ✅ **DONE 2026-09-09** — `--character` and `--universe-dir` flags added to all 4 lock scripts (argparse defaults: `CHARACTER_NAME`/`UNIVERSE_DIR`); `main(comfyui_url, character_name, universe_dir)` threads them through repos, prompts, and paths. Existing behavior unchanged without flags.
 - **Estimated Effort:** M
 - **Dependencies:** None
 

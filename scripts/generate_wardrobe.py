@@ -115,7 +115,11 @@ def _generate_seeds(count: int) -> list[int]:
 # ---------------------------------------------------------------------------
 
 
-async def main(comfyui_url: str = COMFYUI_URL):
+async def main(
+    comfyui_url: str = COMFYUI_URL,
+    character_name: str = CHARACTER_NAME,
+    universe_dir: Path = UNIVERSE_DIR,
+):
     print("=" * 70)
     print("  Wardrobe Expansion — Lily Bunny Outfit Library (17 variants)")
     print("=" * 70)
@@ -143,13 +147,13 @@ async def main(comfyui_url: str = COMFYUI_URL):
 
     # -- Ensure Lily Bunny character exists --
     print("\n[2/6] Ensuring Lily Bunny character record...")
-    existing = await char_repo.find_character_by_name(CHARACTER_NAME)
+    existing = await char_repo.find_character_by_name(character_name)
     if existing:
         character_id = existing.id
-        print(f"  ✓ Character '{CHARACTER_NAME}' found (id={character_id})")
+        print(f"  ✓ Character '{character_name}' found (id={character_id})")
     else:
         char = CharacterModel(
-            name=CHARACTER_NAME,
+            name=character_name,
             category="main",
             species="rabbit",
             bio_data={
@@ -159,10 +163,10 @@ async def main(comfyui_url: str = COMFYUI_URL):
             },
         )
         character_id = await char_repo.save_character(char)
-        print(f"  ✓ Character '{CHARACTER_NAME}' created (id={character_id})")
+        print(f"  ✓ Character '{character_name}' created (id={character_id})")
 
     character = CharacterPrompt(
-        name=CHARACTER_NAME,
+        name=character_name,
         species="rabbit",
         appearance="white fur, pink ears, big blue eyes",
         outfit="pink dress with white lace, blue bow",
@@ -170,7 +174,7 @@ async def main(comfyui_url: str = COMFYUI_URL):
     )
 
     # Create output directory
-    UNIVERSE_DIR.mkdir(parents=True, exist_ok=True)
+    universe_dir.mkdir(parents=True, exist_ok=True)
 
     # -- Find approved front reference sheet for identity scoring --
     print("\n[3/6] Loading approved front reference sheet...")
@@ -355,9 +359,9 @@ async def main(comfyui_url: str = COMFYUI_URL):
     print(f"  GENERATION SUMMARY")
     print(f"{'=' * 70}")
     print(f"  Batch ID:      {batch_id}")
-    print(f"  Character:     {CHARACTER_NAME} ({character_id})")
+    print(f"  Character:     {character_name} ({character_id})")
     print(f"  DB:            {DB_PATH}")
-    print(f"  Universe dir:  {UNIVERSE_DIR}")
+    print(f"  Universe dir:  {universe_dir}")
     print(f"  Reference:     {reference_image_path or '(none)'}")
     print(f"  Total generated:  {total_generated}")
     print(f"  Total shortlisted: {total_shortlisted}")
@@ -415,6 +419,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Progressive Locking generation pipeline")
     parser.add_argument("--comfyui-url", default=COMFYUI_URL,
                         help=f"ComfyUI server URL (default: {COMFYUI_URL})")
+    parser.add_argument("--character", default=CHARACTER_NAME,
+                        help=f"Character display name (default: {CHARACTER_NAME})")
+    parser.add_argument("--universe-dir", type=Path, default=UNIVERSE_DIR,
+                        help=f"Output directory (default: {UNIVERSE_DIR})")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    asyncio.run(main(comfyui_url=args.comfyui_url))
+    asyncio.run(main(comfyui_url=args.comfyui_url, character_name=args.character, universe_dir=args.universe_dir))
