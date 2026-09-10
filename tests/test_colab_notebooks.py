@@ -14,6 +14,7 @@ import pytest
 
 _COLAB_DIR = Path(__file__).resolve().parent.parent / "colab"
 _TRAINING_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Training.ipynb"
+_IDLOCK_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_IdentityLock.ipynb"
 _NOTEBOOKS = sorted(_COLAB_DIR.glob("*.ipynb"))
 
 _SECRET_PATTERNS = [
@@ -171,6 +172,95 @@ class TestTrainingNotebookStructure:
             if c.get("cell_type") == "markdown"
         ]
         assert any("Next steps" in md for md in markdown_cells)
+
+
+# ---------------------------------------------------------------------------
+# Identity Lock notebook content contract
+# ---------------------------------------------------------------------------
+
+class TestIdentityLockNotebookStructure:
+    """The Progressive Locking Pipeline notebook (N-05) drives all 4 lock scripts."""
+
+    _LOCK_NOTEBOOK = _IDLOCK_NOTEBOOK
+
+    def _code_cells(self, notebook: dict) -> list:
+        return [c for c in _iter_cells(notebook) if c.get("cell_type") == "code"]
+
+    def test_settings_cell_has_character_knobs(self):
+        """Cell 1 exposes CHARACTERS and MAX_CHARACTERS_PER_LOCK."""
+        notebook = _load_notebook(self._LOCK_NOTEBOOK)
+        settings = next(
+            c for c in self._code_cells(notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 1. Settings")
+        )
+        source = _cell_source_text(settings)
+        assert "CHARACTERS =" in source
+        assert "MAX_CHARACTERS_PER_LOCK =" in source
+        assert "COMFYUI_URL" not in source or 'BRANCH = "colab-gpu"' in source
+
+    def test_branch_restricted_to_colab_gpu(self):
+        """Settings offer only colab-gpu; master is deprecated (N-02)."""
+        text = _notebook_source_text(_load_notebook(self._LOCK_NOTEBOOK))
+        assert 'BRANCH = "colab-gpu"' in text
+        assert '"master"' not in text
+
+    def test_gpu_assert_guard_present(self):
+        """GPU cell fails fast instead of silently degrading (N-09)."""
+        text = _notebook_source_text(_load_notebook(self._LOCK_NOTEBOOK))
+        assert "assert torch.cuda.is_available()" in text
+
+    def test_all_four_lock_scripts_run_headless(self):
+        """Cell 8 invokes all 4 lock scripts with every CLI knob (N-05/E-02)."""
+        text = _notebook_source_text(_load_notebook(self._LOCK_NOTEBOOK))
+        for script in ("generate_identity_lock.py", "generate_face_lock.py",
+                       "generate_body_lock.py", "generate_wardrobe.py"):
+            assert script in text
+        # Headless mode must be wired so scripts don't each block on uvicorn.
+        assert "--no-review-ui" in text
+        # Per-character parameterization from E-02 must be threaded through.
+        for flag in ("--comfyui-url", "--character", "--universe-dir", "--db-path"):
+            assert flag in text
+
+    def test_lock_scripts_run_in_order(self):
+        """Identity -> Face -> Body -> Wardrobe, never the reverse."""
+        notebook = _load_notebook(self._LOCK_NOTEBOOK)
+        pipeline = next(
+            c for c in self._code_cells(notebook)
+            if "Run the Progressive Locking Pipeline" in _cell_source_text(c)
+        )
+        source = _cell_source_text(pipeline)
+        order = [source.index(s) for s in
+                 ("generate_identity_lock.py", "generate_face_lock.py",
+                  "generate_body_lock.py", "generate_wardrobe.py")]
+        assert order == sorted(order), "lock scripts must run in pipeline order"
+
+    def test_review_ui_started_single_cell(self):
+        """The Review UI is launched once (Cell 10), not inside each script."""
+        text = _notebook_source_text(_load_notebook(self._LOCK_NOTEBOOK))
+        assert "Launch the Review UI and tunnel" in text
+        assert "create_app(" in text
+
+    def test_training_readiness_gate_present(self):
+        """Cell 11 prints the >=20 approved/character dataset-readiness table."""
+        text = _notebook_source_text(_load_notebook(self._LOCK_NOTEBOOK))
+        assert "APPROVED ASSETS PER CHARACTER" in text
+        assert "READY" in text
+        assert "train_lora.py" in text or "build-dataset" in text
+
+    def test_fp8_model_download_guards_present(self):
+        """Model download carries disk + truncation guards (N-08/N-10)."""
+        text = _notebook_source_text(_load_notebook(self._LOCK_NOTEBOOK))
+        assert "disk_usage" in text
+        assert "17.25" in text
+
+    def test_next_steps_markdown_present(self):
+        """The notebook closes with operator follow-up guidance."""
+        md_cells = [
+            _cell_source_text(c)
+            for c in _iter_cells(_load_notebook(self._LOCK_NOTEBOOK))
+            if c.get("cell_type") == "markdown"
+        ]
+        assert any("Next steps" in md for md in md_cells)
 
 
 # ---------------------------------------------------------------------------

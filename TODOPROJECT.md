@@ -211,8 +211,9 @@
 - **Severity:** MAJOR
 - **Description:** `generate_identity_lock.py`, `generate_face_lock.py`, `generate_body_lock.py`, `generate_wardrobe.py` (the core character-consistency "Progressive Locking Pipeline") have no Colab driver. These are exactly the runs that produce the curated reference/expression/pose/outfit sets that feed `train_lora.py build-dataset` (≥20 approved per character). Their absence breaks the golden path: lock scripts → curated assets → LoRA dataset.
 - **Recommended Fix:** Add `AnimationStudio_Colab_IdentityLock.ipynb` that clones the repo, installs ComfyUI, and runs the four lock scripts in order (each already ends by launching the Review UI; keep that behind a tunnel flag). Consider porting the four scripts' hardcoded `"Lily Bunny"`/`COMFYUI_URL`/`DB_PATH` constants to CLI args (E-02/E-07) first.
+- **Status:** ✅ **DONE 2026-09-09** — `colab/AnimationStudio_Colab_IdentityLock.ipynb` (14 cells: settings → Drive → clone/install → ComfyUI → fp8 model + N-08/N-10 guards → server → GPU → 4-stage pipeline in order → export → single Review UI + tunnel → training-readiness gate + sync). Added `--db-path` + `--no-review-ui` CLI args to all 4 lock scripts (headless sequential run instead of 4 blocking uvicorn servers); `MAX_CHARACTERS_PER_LOCK` cap for safe free-tier trials. Content-contract hooked into `tests/test_colab_notebooks.py` (103 tests pass; suite went 87→103).
 - **Estimated Effort:** M
-- **Dependencies:** E-02/E-07 (parameterization) preferable first
+- **Dependencies:** E-02/E-07 (parameterization) preferable first — done
 
 ### N-06: No Cloud-Backend Notebook (fal/replicate/bfl)
 - **Module:** `colab/`

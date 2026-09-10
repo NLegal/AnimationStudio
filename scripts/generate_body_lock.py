@@ -98,6 +98,8 @@ async def main(
     comfyui_url: str = COMFYUI_URL,
     character_name: str = CHARACTER_NAME,
     universe_dir: Path = UNIVERSE_DIR,
+    db_path: str = DB_PATH,
+    review_ui: bool = True,
 ):
     print("=" * 70)
     print("  Body Lock — Lily Bunny Pose Library (20+ poses)")
@@ -118,8 +120,8 @@ async def main(
     backend = ComfyUIBackend(server_url=comfyui_url)
     prompt_builder = PromptBuilder()
     scorer = IdentityScorer()
-    asset_repo = SQLiteAssetRepository(db_path=DB_PATH)
-    char_repo = SQLiteCharacterRepository(db_path=DB_PATH)
+    asset_repo = SQLiteAssetRepository(db_path=db_path)
+    char_repo = SQLiteCharacterRepository(db_path=db_path)
     diversity = DiversityFilter(n_clusters=5)
     combined_repo = CombinedRepo(char_repo, asset_repo)
     print("  ✓ ComfyUIBackend, PromptBuilder, IdentityScorer, repos, DiversityFilter ready")
@@ -335,7 +337,7 @@ async def main(
     print(f"{'=' * 70}")
     print(f"  Batch ID:      {batch_id}")
     print(f"  Character:     {character_name} ({character_id})")
-    print(f"  DB:            {DB_PATH}")
+    print(f"  DB:            {db_path}")
     print(f"  Universe dir:  {universe_dir}")
     print(f"  Reference:     {reference_image_path or '(none)'}")
     print(f"  Total generated:  {total_generated}")
@@ -381,11 +383,12 @@ async def main(
     print(f"  Starting Review UI server...")
     print()
 
-    import uvicorn
-    from src.review_ui.app import create_app
+    if review_ui:
+        import uvicorn
+        from src.review_ui.app import create_app
 
-    app = create_app(asset_repo=combined_repo)
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+        app = create_app(asset_repo=combined_repo)
+        uvicorn.run(app, host="127.0.0.1", port=8000)
 
 
 if __name__ == "__main__":
@@ -396,6 +399,16 @@ if __name__ == "__main__":
                         help=f"Character display name (default: {CHARACTER_NAME})")
     parser.add_argument("--universe-dir", type=Path, default=UNIVERSE_DIR,
                         help=f"Output directory (default: {UNIVERSE_DIR})")
+    parser.add_argument("--db-path", default=DB_PATH,
+                        help=f"SQLite catalog path (default: {DB_PATH})")
+    parser.add_argument("--no-review-ui", action="store_true",
+                        help="Skip starting the blocking Review UI server")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    asyncio.run(main(comfyui_url=args.comfyui_url, character_name=args.character, universe_dir=args.universe_dir))
+    asyncio.run(main(
+        comfyui_url=args.comfyui_url,
+        character_name=args.character,
+        universe_dir=args.universe_dir,
+        db_path=args.db_path,
+        review_ui=not args.no_review_ui,
+    ))
