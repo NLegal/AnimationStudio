@@ -6,16 +6,16 @@ Phase 7 is unblocked (storyboard + episode scheduling are movie-free); N-04
 Phase 8 partial runs unblocked, full runs still gated on C-01 (approved
 images) / C-03 (music).
 
-**Status 2026-09-09:** N-05's two script-gap edits (`--db-path`,
-`--no-review-ui` on all 4 lock scripts) are DONE in commit `a196d578`; the
-`AnimationStudio_Colab_IdentityLock.ipynb` notebook (14 cells) ships with a
-9-test content contract in `test_colab_notebooks.py`. N-04 **Phase 7**
-notebook (`AnimationStudio_Colab_Phase7.ipynb`, 11 cells, offline/mock:
-story → blueprint → episode → prompts → render queue → continuity → 8-step
-workflow → PHASE7_REPORT.md → tests → sync) is DONE, verified offline
-(8 scenes / 27 shots / 27 prompts / 0 continuity issues / 8-of-8 workflow
-steps + 117 notebook tests). Remaining in this scope: N-04 Phase 8 notebook
-(Part A mock + Part B GPU).
+**Status 2026-09-09:** N-05 (IdentityLock notebook + `--db-path`/`--no-review-ui`
+script edits) DONE in `a196d578`. N-04 **Phase 7** storyboard notebook DONE in
+`62d48511` (offline/mock, verified: 8 scenes / 27 shots / 27 prompts / 0
+continuity issues / 8-of-8 workflow steps). N-04 **Phase 8** notebook
+(`AnimationStudio_Colab_Phase8.ipynb`, 13 cells) DONE in <pending>: Part A mock
+visual pipeline verified offline (27/27 shots generated + validated + scored,
+5 light plugins); Part B real ComfyUI+fp8 Flux single-scene generation gated on
+`RUN_REAL_GENERATION`. `test_colab_notebooks.py` content contracts at 132 pass.
+Remaining in ticket: Phase 9–12 combined episode notebook (deferred,
+media/gpu-gated) and the optional `colab/comfy_setup.py` extraction.
 
 ---
 

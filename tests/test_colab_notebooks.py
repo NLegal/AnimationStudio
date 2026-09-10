@@ -16,6 +16,7 @@ _COLAB_DIR = Path(__file__).resolve().parent.parent / "colab"
 _TRAINING_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Training.ipynb"
 _IDLOCK_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_IdentityLock.ipynb"
 _PHASE7_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase7.ipynb"
+_PHASE8_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase8.ipynb"
 _NOTEBOOKS = sorted(_COLAB_DIR.glob("*.ipynb"))
 
 _SECRET_PATTERNS = [
@@ -329,6 +330,79 @@ class TestPhase7NotebookStructure:
         md_cells = [
             _cell_source_text(c)
             for c in _iter_cells(_load_notebook(self._PHASE7_NOTEBOOK))
+            if c.get("cell_type") == "markdown"
+        ]
+        assert any("Next steps" in md for md in md_cells)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 image-generation notebook content contract
+# ---------------------------------------------------------------------------
+
+class TestPhase8NotebookStructure:
+    """The Phase 8 visual pipeline notebook (N-04) runs mock + real-sections."""
+
+    _PHASE8_NOTEBOOK = _PHASE8_NOTEBOOK
+
+    def _code_cells(self, notebook: dict) -> list:
+        return [c for c in _iter_cells(notebook) if c.get("cell_type") == "code"]
+
+    def test_settings_cell_has_phase8_knobs(self):
+        """Cell 1 exposes the Part A episode scope and Part B real-gen switches."""
+        notebook = _load_notebook(self._PHASE8_NOTEBOOK)
+        settings = next(
+            c for c in self._code_cells(notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 1. Settings")
+        )
+        source = _cell_source_text(settings)
+        assert "SEASON =" in source
+        assert "EPISODE_NUMBER =" in source
+        assert "RUN_REAL_GENERATION =" in source
+        assert "REAL_SCENE_INDEX =" in source
+
+    def test_branch_restricted_to_colab_gpu(self):
+        """Settings offer only colab-gpu; master is deprecated (N-02)."""
+        text = _notebook_source_text(_load_notebook(self._PHASE8_NOTEBOOK))
+        assert 'BRANCH = "colab-gpu"' in text
+        assert '"master"' not in text
+
+    def test_part_a_mock_visual_pipeline_present(self):
+        """Part A drives MockBackend + validator + scorer + consistency."""
+        text = _notebook_source_text(_load_notebook(self._PHASE8_NOTEBOOK))
+        assert "MockBackend" in text
+        assert "ImageValidator" in text
+        assert "IdentityScorer" in text
+        assert "ConsistencyManager" in text
+
+    def test_part_b_real_generation_gated(self):
+        """Part B builds ComfyUIBackend and is gated on RUN_REAL_GENERATION."""
+        text = _notebook_source_text(_load_notebook(self._PHASE8_NOTEBOOK))
+        assert "ComfyUIBackend" in text
+        assert "RUN_REAL_GENERATION" in text
+
+    def test_fp8_model_download_guards_present(self):
+        """Model download carries disk + truncation guards (N-08/N-10)."""
+        text = _notebook_source_text(_load_notebook(self._PHASE8_NOTEBOOK))
+        assert "disk_usage" in text
+        assert "17.25" in text
+
+    def test_gpu_assert_guard_present(self):
+        """Part B GPU cell fails fast instead of silently degrading (N-09)."""
+        text = _notebook_source_text(_load_notebook(self._PHASE8_NOTEBOOK))
+        assert "torch.cuda.is_available" in text
+
+    def test_planning_chain_imported(self):
+        """Part A reuses the Phase 7 planning chain for the episode prompts."""
+        text = _notebook_source_text(_load_notebook(self._PHASE8_NOTEBOOK))
+        assert "EpisodeGenerator" in text
+        assert "blueprint_to_episode" in text
+        assert "generate_prompts" in text
+
+    def test_next_steps_markdown_present(self):
+        """The notebook closes with operator follow-up guidance."""
+        md_cells = [
+            _cell_source_text(c)
+            for c in _iter_cells(_load_notebook(self._PHASE8_NOTEBOOK))
             if c.get("cell_type") == "markdown"
         ]
         assert any("Next steps" in md for md in md_cells)
