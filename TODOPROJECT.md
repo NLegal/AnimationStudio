@@ -538,16 +538,16 @@
 
 | Notebook | Phase | Backend | Status | Notes |
 |----------|-------|---------|--------|-------|
-| `AnimationStudio_Colab.ipynb` | 1 (characters) | ComfyUI | ✅ colab-gpu works (N-02 closed); GPU cell no assert (N-09) | CLI flags match scripts ✓ |
-| `AnimationStudio_Colab_Phase2.ipynb` | 2 (world) | ComfyUI | ⚠️ Same as Phase 1 | Flags ✓ |
-| `AnimationStudio_Colab_Phase3.ipynb` | 3 (assets) | ComfyUI | ⚠️ Same as Phase 1 | Flags ✓ |
+| `AnimationStudio_Colab.ipynb` | 1 (characters) | ComfyUI | ✅ Sound | GPU assert (N-09), disk guard (N-08), truncation check (N-10), colab-gpu only (N-02) |
+| `AnimationStudio_Colab_Phase2.ipynb` | 2 (world) | ComfyUI | ✅ Sound | Same guards as Phase 1 |
+| `AnimationStudio_Colab_Phase3.ipynb` | 3 (assets) | ComfyUI | ✅ Sound | Same guards as Phase 1 |
 | `AnimationStudio_Colab_Phase4.ipynb` | 4 (animation bible) | CPU-only | ✅ Sound | Regenerates `PHASE4_REPORT.md` |
-| `AnimationStudio_Colab_Phase5.ipynb` | 5 (music/ACE-Step) | mock / ace-step | ✅ Sound | Duplicate `ace_cmd` (N-16) |
+| `AnimationStudio_Colab_Phase5.ipynb` | 5 (music/ACE-Step) | mock / ace-step | ✅ Sound | Duplicate `ace_cmd` removed (N-16) |
 | `AnimationStudio_Colab_Phase6.ipynb` | 6 (story engine) | CPU-only | ✅ Sound | Documents known corrupt-DB test failures |
-| `AnimationStudio_Colab_Training.ipynb` | 1c (LoRA) | GPU (kohya) | ❌ Push header broken (N-03); dead import (N-13); wrong downstream pointer (N-14); ✅ N-07 batch driver built 2026-09-11 | All 4 model URLs valid |
-| `AnimationStudio_Validate.ipynb` | Pre-flight | ComfyUI | ❌ **Cannot run as shipped** — missing STEP 3 + STEP 6 cells, undefined vars, duplicate cells (N-01, N-12) | Sharpness gate logic OK |
+| `AnimationStudio_Colab_Training.ipynb` | 1c (LoRA) | GPU (kohya) | ✅ Sound | Push header (N-03), dead import (N-13), downstream pointer (N-14) fixed; ✅ N-07 39-character batch driver + registry skip gate built 2026-09-11 |
+| `AnimationStudio_Validate.ipynb` | Pre-flight | ComfyUI | ✅ Sound | Rebuilt as clean 8-step flow (N-01); sharpness gate logic OK |
 
-**Coverage gaps:** no notebooks for Phases 7–12 (N-04; Phases 7, 8, 9-12 notebooks added 2026-09-09/10), Phase 1b lock scripts (N-05; IdentityLock notebook exists), cloud backends fal/replicate/bfl (N-06 → **done 2026-09-11**), multi-character training (N-07 → **done 2026-09-11**). No disk guards (N-08).
+**Coverage gaps:** Phases 7–12, 1b lock, cloud, and multi-character training all covered by dedicated notebooks (N-04/N-05/N-06/N-07 → **done 2026-09-09/10/11**). All notebooks carry disk guards (N-08), GPU asserts (N-09), and truncation checks (N-10). Everything notebook-side is green; N-15 (dataset prep) is blocked on approved assets (C-01).
 
 ---
 
@@ -616,15 +616,15 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 
 | Category | Count | Notes |
 |----------|-------|-------|
-| Critical Issues | 9 | 6 core (C-*) + 3 notebook (N-01..N-03) |
-| Major Gaps | 12 | 8 module (M-*) + 4 notebook (N-04..N-07); N-06 and N-07 closed 2026-09-11, N-04/N-05 mostly covered |
-| Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15) |
-| Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17) |
+| Critical Issues | 9 | 6 core (C-*) + 3 notebook (N-01..N-03); all 3 notebook items closed 2026-09-09 |
+| Major Gaps | 12 | 8 module (M-*) + 4 notebook (N-04..N-07); all 4 notebook items closed 2026-09-09/10/11 |
+| Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15); N-08..N-14 closed 2026-09-09/11, N-15 blocked on C-01 |
+| Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17); both closed 2026-09-09 |
 | **Total Issues** | **52** | |
 | Documentation Gaps | 13 | Across Phases 1, 5, 6 |
 | Missing Script Wrappers | 2 | generate_phase7, train_lora |
 | Security Concerns | 3 | UI auth, input validation, persistent secrets |
 | Vision Deviations | 1 | No real character consistency |
-| Notebook coverage boundaries | 1c, 2–8, 9-12, Cloud, Training, IdentityLock | Multi-character training batch driver added 2026-09-11 (N-07) |
+| Notebook coverage boundaries | 1–8, 9-12, Cloud, Training, IdentityLock, Validate | All 13 notebooks sound; N-15 dataset prep pending approved assets (C-01) |
 
 **Bottom Line:** The codebase is architecturally sound, well-tested in isolation, and comprehensive in scope. The critical gap is that it has never been executed end-to-end with real AI backends. The next step is not more code — it's running the pipeline once with real hardware.
