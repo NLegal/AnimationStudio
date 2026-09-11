@@ -6,14 +6,16 @@ assets, and minimal manual work — from story to publishing.
 
 ## Status
 
-All 12 phases implemented and audited. **1435 tests** (1432 passing; the
-3 slow universe-seed/review-UI tests pass in isolation but exceed the 30s
-global timeout under full-suite load).
+All 12 phases defined in `PHASE1.md`–`PHASE12.md` are implemented as code
+(modules under `src/`). **2,050 tests** are collected repo-wide; the **12
+offline-safe CI suites pass (785 tests)** — 904 when the Review-UI suites are
+included. The codebase is architecturally complete but **no real generation
+has occurred**; see the production-readiness note below.
 
 > **IMPORTANT: Production Readiness Note**
 >
 > The codebase is architecturally complete but **no real images exist**:
-> catalog.db holds 2,472 asset rows (all `scored`/`shortlisted`, **0
+> catalog.db holds 2,508 asset rows (all `scored`/`shortlisted`, **0
 > approved**), and every row is a solid-color mock placeholder from
 > MockBackend. No LoRA has been trained, no real images generated, no
 > songs produced, no video rendered. The pipeline has never executed
@@ -116,20 +118,28 @@ Optional extras:
 ## Running Tests
 
 ```bash
-# Full suite (quiet)
-python -m pytest tests/ -q
+# Offline-safe CI suites (12 suites, ~785 tests) — recommended
+python -m pytest \
+  tests/test_catalog_integrity.py tests/test_colab_notebooks.py \
+  tests/test_e2e_episode.py tests/test_animation_bible.py \
+  tests/test_animation.py tests/test_audio_bible.py \
+  tests/test_character_bio.py tests/test_identity_engine.py \
+  tests/test_production.py tests/test_studio.py \
+  tests/test_story_to_production_integration.py tests/test_universe_catalog.py \
+  -q --timeout=60
 
-# Verbose with failure short-report
-python -m pytest tests/ -v --tb=short
+# Add the Review-UI suites (5 more, total 904)
+python -m pytest tests/test_review_ui.py tests/test_review_ui_api.py \
+  tests/test_review_ui_generation.py tests/test_review_ui_music.py \
+  tests/test_review_ui_validation.py -q --timeout=60
 
-# Stop at first failure
-python -m pytest tests/ -x --quiet
+# Whole repo: 2,050 tests collected. NOTE: some suites are media/network-gated —
+# tests/test_generation_engine.py (network hangs) and tests/test_story_engine.py,
+# tests/test_generate_phase5.py have pre-existing environment-dependent failures.
 ```
 
-Expected: **1435 tests** (1432 passing; 3 slow seed/review tests exceed the
-30s global timeout under full-suite load but pass in isolation). Optional
-dependencies (`torch`, `cv2`, `timm`,
-aesthetics predictor) are lazily loaded — the suite passes without them via
+Optional dependencies (`torch`, `cv2`, `timm`,
+aesthetics predictor) are lazily loaded — the CI suites pass without them via
 mock/fallback values.
 
 ### Test coverage by module

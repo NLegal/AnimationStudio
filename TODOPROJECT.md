@@ -140,13 +140,14 @@
 - **Dependencies:** None
 - **Done:** `.planning/ROADMAP.md` rewritten to the canonical 12-phase structure (`PHASE1.md`–`PHASE12.md` are authoritative). GSD execution tracks mapped onto it: 01/01b/01c → Phase 1 (16/16 plans), 07/08 → Phase 5 music surface (4/4 plans); Phases 2–4, 6–12 documented as implemented-via-backlog with no GSD plans. Added the reconciling table up top (kills the GSD "Phase 7/8 = music" vs canonical `PHASE7.md` Production Planning / `PHASE8.md` Image Generation collision). `.planning/STATE.md` updated: frontmatter now tracks 12 phases (2 complete), new Canonical Phase Map section, metrics row for unplanned canonical phases, Roadmap Evolution notes the reconciliation.
 
-### M-02: README.md Claims vs Reality
+### ~~M-02: README.md Claims vs Reality~~ → ✅ **DONE 2026-09-11**
 - **Module:** `README.md`
 - **Severity:** MAJOR
 - **Description:** README claims "1435 tests (1432 passing)" and lists all 12 phases as "implemented and audited." However: (a) no actual generation has occurred, (b) Phase 7-8 plans are marked complete in ROADMAP but Phase 7 is listed under different numbering in PHASE*.md, (c) README doesn't mention the mock-placeholder state of all assets, (d) README doesn't warn users that GPU/ComfyUI is required for real output.
 - **Recommended Fix:** Add prominent disclaimer about mock state. Clarify that all 18,071 assets are placeholders. Add "Getting Real Output" section distinguishing mock pipeline from real pipeline.
 - **Estimated Effort:** M
 - **Dependencies:** None
+- **Done:** (a) Stale test counts corrected — README now states **2,050 collected**, **785 in the 12 offline-safe CI suites**, **904 with the Review-UI suites**, verified by collection runs; the old "1435/1432" claim removed. (b) Resolved by M-01 (roadmap now canonical 12-phase; README phase table already used canonical numbering). (c)+(d) The existing **Production Readiness Note** already discloses the mock-placeholder state (2,508 asset rows, 0 approved) and GPU/ComfyUI-for-real-output requirement — verified live against `catalog.db` and kept accurate. "Test coverage by module" table retained with corrected framing.
 
 ### M-03: 13 Documentation Gaps (Phase 1 + Phase 5 + Phase 6)
 - **Module:** `Universe/`, `Audio/`, `StoryEngine/`
@@ -619,7 +620,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | Category | Count | Notes |
 |----------|-------|-------|
 | Critical Issues | 9 | 6 core (C-*) + 3 notebook (N-01..N-03); all 3 notebook items closed 2026-09-09 |
-| Major Gaps | 6 | 6 module (M-02..M-06, M-08) + notebook (N-04..N-07) closed; M-01, M-07 closed 2026-09-11 |
+| Major Gaps | 5 | 5 module (M-03..M-06, M-08) + notebook (N-04..N-07) closed; M-01, M-02, M-07 closed 2026-09-11 |
 | Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15); N-08..N-14 closed 2026-09-09/11, N-15 blocked on C-01 |
 | Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17); both closed 2026-09-09 |
 | **Total Issues** | **52** | |
