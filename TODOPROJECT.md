@@ -131,13 +131,14 @@
 
 ---
 
-### M-01: Phase Roadmap Divergence (12 Phases vs 6-Phase Roadmap)
+### ~~M-01: Phase Roadmap Divergence (12 Phases vs 6-Phase Roadmap)~~ → ✅ **DONE 2026-09-11**
 - **Module:** `.planning/ROADMAP.md`, `PHASE*.md`
 - **Severity:** MAJOR
 - **Description:** `.planning/ROADMAP.md` defines 6 phases (1→1b→1c→2→3→4→5→6). The actual project has 12 PHASE*.md files with different numbering and scope. The ROADMAP has `TBD` for Phases 2-6 plans. The `STATE.md` says only phases 1, 1b, 1c, 7, 8 are planned. The ROADMAP and actual implementation are out of sync.
 - **Recommended Fix:** Reconcile ROADMAP.md with actual PHASE*.md structure. Update `.planning/STATE.md` to reflect all 12 phases.
 - **Estimated Effort:** S
 - **Dependencies:** None
+- **Done:** `.planning/ROADMAP.md` rewritten to the canonical 12-phase structure (`PHASE1.md`–`PHASE12.md` are authoritative). GSD execution tracks mapped onto it: 01/01b/01c → Phase 1 (16/16 plans), 07/08 → Phase 5 music surface (4/4 plans); Phases 2–4, 6–12 documented as implemented-via-backlog with no GSD plans. Added the reconciling table up top (kills the GSD "Phase 7/8 = music" vs canonical `PHASE7.md` Production Planning / `PHASE8.md` Image Generation collision). `.planning/STATE.md` updated: frontmatter now tracks 12 phases (2 complete), new Canonical Phase Map section, metrics row for unplanned canonical phases, Roadmap Evolution notes the reconciliation.
 
 ### M-02: README.md Claims vs Reality
 - **Module:** `README.md`
@@ -618,7 +619,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | Category | Count | Notes |
 |----------|-------|-------|
 | Critical Issues | 9 | 6 core (C-*) + 3 notebook (N-01..N-03); all 3 notebook items closed 2026-09-09 |
-| Major Gaps | 12 | 8 module (M-*) + 4 notebook (N-04..N-07); all 4 notebook items closed 2026-09-09/10/11 |
+| Major Gaps | 6 | 6 module (M-02..M-06, M-08) + notebook (N-04..N-07) closed; M-01, M-07 closed 2026-09-11 |
 | Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15); N-08..N-14 closed 2026-09-09/11, N-15 blocked on C-01 |
 | Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17); both closed 2026-09-09 |
 | **Total Issues** | **52** | |

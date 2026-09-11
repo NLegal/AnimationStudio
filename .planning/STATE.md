@@ -10,10 +10,11 @@ last_updated: "2026-08-27T13:28:30.449Z"
 last_activity: 2026-08-27
 last_activity_desc: Plan 01c-06 complete
 progress:
-  total_phases: 5
-  completed_phases: 5
+  total_phases: 12
+  completed_phases: 2
   total_plans: 20
   completed_plans: 20
+  note: "12 = canonical PHASE1-12.md structure (M-01 reconciliation). Executed GSD tracks 01/01b/01c map to canonical Phase 1; tracks 07/08 map to canonical Phase 5. Plans counted are GSD-tracked plans."
 ---
 
 # Project State
@@ -24,6 +25,25 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 
 **Core value:** Character consistency and asset reusability across every episode. Build once, reuse forever.
 **Current focus:** Phase 01c — Character Training System (Plans 01-06 complete, 6/6; deferred-human GPU run pending)
+
+## Canonical Phase Map (M-01 reconciliation, 2026-09-11)
+
+The repo's canonical roadmap is the 12-phase document set `PHASE1.md` … `PHASE12.md`. The GSD roadmap formerly used its own numbering (1, 1b, 1c, 2–6, 7, 8) that collided with the canonical phases (GSD "7/8 music" vs canonical `PHASE7.md` Production Planning and `PHASE8.md` Image Generation). It is now reconciled: this roadmap uses canonical numbering, and GSD execution tracks map into it as follows.
+
+| Canonical phase | GSD track(s) | GSD plans | Status |
+|-----------------|--------------|-----------|--------|
+| 1. Universe Creation & Character Bible (`PHASE1.md`) | 01, 01b, 01c | 16/16 executed | Complete (2026-08-27); LoRA GPU run deferred-human |
+| 2. World Building & Environment Bible (`PHASE2.md`) | — | — | Defined; implemented via scripts; no GSD plans |
+| 3. Global Asset Library & Production Kit (`PHASE3.md`) | — | — | Defined; implemented via scripts; no GSD plans |
+| 4. Animation Bible & Motion System (`PHASE4.md`) | — | — | Defined; implemented; no GSD plans |
+| 5. Audio Bible & Music Production System (`PHASE5.md`) | 07, 08 | 4/4 executed | Music tracks complete (2026-08-25) |
+| 6. Story Engine & Narrative Intelligence (`PHASE6.md`) | — | — | Defined; implemented; no GSD plans |
+| 7. Production Planning & Storyboard System (`PHASE7.md`) | — | — | Defined; implemented + notebook; no GSD plans |
+| 8. AI Image Generation & Visual Asset Pipeline (`PHASE8.md`) | — | — | Defined; implemented + notebook; no GSD plans |
+| 9. AI Animation Pipeline & Motion Generation (`PHASE9.md`) | — | — | Defined; implemented + video_generation; no GSD plans |
+| 10. Post-Production, Video Editing & Mastering (`PHASE10.md`) | — | — | Defined; implemented; no GSD plans |
+| 11. Publishing, Distribution & Channel Mgmt (`PHASE11.md`) | — | — | Defined; implemented; no GSD plans |
+| 12. Studio Automation & AI Orchestration (`PHASE12.md`) | — | — | Defined; implemented; no GSD plans |
 
 ## Current Position
 
@@ -51,6 +71,7 @@ Progress: [██████████] 100%
 | 01c-character-training-system | 6 | 622m | 104m |
 | 07 | 2 | - | - |
 | 08 | 2 | - | - |
+| 02–06, 09–12 (canonical) | 0 | - | - |
 
 **Recent Trend:**
 
@@ -156,3 +177,4 @@ Resume file: None
 
 - Phase 7 added: Music Generation Backend Integration (ACE-Step local-API adapter + Suno stub + mock backend; research in .planning/research/MUSIC-GENERATION.md)
 - Phase 8 added: Music Generation Pipeline Wiring (generate_phase5.py generation mode, Review UI hooks, Colab Phase 5 notebook, status updates)
+- **M-01 reconciliation (2026-09-11):** The GSD roadmap's separate numbering (1, 1b, 1c, 2–6, 7, 8) collided with the canonical 12-phase docs (`PHASE7.md` = Production Planning, `PHASE8.md` = Image Generation, while GSD "7/8" = music). ROADMAP.md now presents the canonical 12 phases as authoritative; GSD execution tracks 01/01b/01c (→ Phase 1) and 07/08 (→ Phase 5) are mapped onto them. Canonical Phase 5's non-music surface, and all of Phases 2–4, 6, 7–12, are implemented via the direct backlog (TODOPROJECT.md) rather than GSD plans.
