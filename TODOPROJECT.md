@@ -1,5 +1,5 @@
 # TODOPROJECT.md — Comprehensive Codebase Audit
-# Generated: 2026-09-09 | All 12 Phases Scanned | Updated: 2026-09-11 (VISION.md lyrics gap closed)
+# Generated: 2026-09-09 | All 12 Phases Scanned | Updated: 2026-09-11 (VISION.md lyrics + video gaps closed)
 
 ---
 
@@ -562,7 +562,7 @@ Disposition of the `VISION.md` Phase-6+ pipeline stages against the codebase (au
 | Scene/Prompt | `src/prompts/` + Phase 8 notebook | ✅ BUILT | |
 | Character Manager | IdentityLock notebook + `src/asset_repository/` | ✅ BUILT | 4 lock scripts + LoRA training |
 | Image Gen | MockBackend / ComfyUI + fp8 Flux | ✅ BUILT | real runs C-01 gated |
-| Image-to-Video | ❌ **NOT BUILT** | ❌ GAP | no Wan/Hunyuan/LTX adapter; `TaskType.ANIMATION`/RenderPipeline exist but no backend — open VISION Phase 9 gap |
+| Image-to-Video | `src/video_generation/` **NEW** + `RenderQueue` | ✅ **BUILT 2026-09-11** | Protocol + mock + Wan ComfyUI + Cloud fal/Replicate/HunyuanVideo adapters; closes VISION Phase 9 image-to-video gap |
 | Lip Sync | `src/animation/lipsync.py` | ⚠️ PLACEHOLDER | phoneme estimates only |
 | Subtitles | `src/post_production/subtitles.py` | ✅ BUILT | now directly consumable from generated lyrics |
 | Video Editor / Thumbnail / Upload / Upscaler | `src/studio/` + Phase 9-12 notebook | ⚠️ BUILT / PHP-only Upload | offline-verified, media-gated |
