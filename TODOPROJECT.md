@@ -1,5 +1,5 @@
 # TODOPROJECT.md — Comprehensive Codebase Audit
-# Generated: 2026-09-09 | All 12 Phases Scanned | Updated: 2026-09-09 17:00 (catalog.db recovered, branch policy, notebook deep-scan)
+# Generated: 2026-09-09 | All 12 Phases Scanned | Updated: 2026-09-11 (VISION.md lyrics gap closed)
 
 ---
 
@@ -546,6 +546,27 @@
 | `AnimationStudio_Validate.ipynb` | Pre-flight | ComfyUI | ❌ **Cannot run as shipped** — missing STEP 3 + STEP 6 cells, undefined vars, duplicate cells (N-01, N-12) | Sharpness gate logic OK |
 
 **Coverage gaps:** no notebooks for Phases 7–12 (N-04), Phase 1b lock scripts (N-05), or cloud backends fal/replicate/bfl (N-06). No disk guards (N-08). No multi-character training (N-07).
+
+---
+
+## VISION.md Pipeline Alignment Tracking (added 2026-09-11)
+
+Disposition of the `VISION.md` Phase-6+ pipeline stages against the codebase (audit run 2026-09-10; Lyrics item executed 2026-09-11).
+
+| VISION Stage | Code Module | Status | Notes |
+|--------------|-------------|--------|-------|
+| Story | `src/story_engine/` (EpisodeGenerator) | ✅ BUILT | full story grammar + curriculum + validation |
+| **Lyrics** | `src/story_engine/lyrics.py` **NEW** + `AudioProductionSystem._lyrics_for` | ✅ **BUILT 2026-09-11** | VISION "Idea→Lyrics→Verse→Chorus" gap closed: seeded nursery-rhyme generator produces section-marked lyric text on `SongEntry.lyrics`; feeds `MusicRequest.lyrics_override` (ACE-Step) + `SubtitleEngine.generate_from_lyrics` |
+| Music | `src/music_generation/` (ACE-Step/Suno) | ✅ BUILT | marker-scaffold fallback when no lyrics override |
+| Storyboard | `src/production/` + Phase 7 notebook | ✅ BUILT | |
+| Scene/Prompt | `src/prompts/` + Phase 8 notebook | ✅ BUILT | |
+| Character Manager | IdentityLock notebook + `src/asset_repository/` | ✅ BUILT | 4 lock scripts + LoRA training |
+| Image Gen | MockBackend / ComfyUI + fp8 Flux | ✅ BUILT | real runs C-01 gated |
+| Image-to-Video | ❌ **NOT BUILT** | ❌ GAP | no Wan/Hunyuan/LTX adapter; `TaskType.ANIMATION`/RenderPipeline exist but no backend — open VISION Phase 9 gap |
+| Lip Sync | `src/animation/lipsync.py` | ⚠️ PLACEHOLDER | phoneme estimates only |
+| Subtitles | `src/post_production/subtitles.py` | ✅ BUILT | now directly consumable from generated lyrics |
+| Video Editor / Thumbnail / Upload / Upscaler | `src/studio/` + Phase 9-12 notebook | ⚠️ BUILT / PHP-only Upload | offline-verified, media-gated |
+| Cloud backend notebooks (fal/replicate/bfl) | — | ❌ OPEN | tracked as N-06 (MAJOR) |
 
 ```bash
 # Local (no-GPU) jobs that ARE possible today for LoRA prep (after C-00 fix):

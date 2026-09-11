@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from src.animation.lipsync import LipSyncEngine, LipSyncTrack
-from src.story_engine import SongEngine
+from src.story_engine import SongEngine, LyricsGenerator
 
 from .bible import AudioBible
 from .models import MusicBrief, VoiceBrief
@@ -39,6 +39,7 @@ class SongEntry:
     topic: str
     brief: Optional[MusicBrief] = None
     validation: dict = field(default_factory=dict)
+    lyrics: Optional[str] = None
 
 
 @dataclass
@@ -78,6 +79,11 @@ class AudioProductionSystem:
         "transition": "Interactive Learning",
     }
 
+    _CATEGORY_TO_SONG_TYPE = {
+        category: song_type
+        for song_type, category in _SONG_TYPE_TO_CATEGORY.items()
+    }
+
     def __init__(self) -> None:
         self.bible = AudioBible()
         self.song_engine = SongEngine()
@@ -96,6 +102,27 @@ class AudioProductionSystem:
 
     def resolve_voice(self, character: str = "Narrator") -> VoiceBrief:
         return self.bible.build_voice_brief(character)
+
+    # ------------------------------------------------------------------
+    # Lyric generation (VISION Phase 6 loop: Idea -> Lyrics -> Verse ->
+    # Chorus -> Scene Breakdown)
+    # ------------------------------------------------------------------
+
+    def _lyrics_for(
+        self, song_type: str, topic: str, character: str,
+        duration_seconds: int, seed: Optional[int] = None,
+    ) -> str:
+        """Generate lyric text (marker-formatted) for a song entry.
+
+        Deterministic when ``seed`` is fixed; ties the story-engine song
+        placement to actual verse/chorus text consumable by the music
+        backend's ``MusicRequest.lyrics_override`` and the subtitles engine.
+        """
+        result = LyricsGenerator().generate(
+            song_type=song_type, topic=topic, character=character,
+            duration_seconds=duration_seconds, seed=seed,
+        )
+        return result.formatted
 
     def plan_song_with_engine(
         self, song_type: str, objective_name: str, main_character: str,
@@ -119,6 +146,10 @@ class AudioProductionSystem:
         return SongEntry(
             placement=placement.position, category=category,
             topic=placement.topic, brief=brief, validation=validation,
+            lyrics=self._lyrics_for(
+                placement.song_type, placement.topic, main_character,
+                brief.duration_seconds,
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -160,9 +191,11 @@ class AudioProductionSystem:
             brief = self.resolve_music(category=category, topic=topic,
                                        duration_label=duration_label)
             validation = self.bible.validate_music_brief(brief)
+            song_type = self._CATEGORY_TO_SONG_TYPE.get(category, "educational")
             song_entries.append(SongEntry(
                 placement="middle", category=category, topic=topic,
                 brief=brief, validation=validation,
+                lyrics=self._lyrics_for(song_type, topic, "", brief.duration_seconds),
             ))
 
         sfx = self._pick_sfx(scene)

@@ -14,6 +14,7 @@ from src.story_engine.plot import ConflictEngine, ResolutionEngine
 from src.story_engine.narrative import NarrativeEngine, StoryGrammarLibrary
 from src.story_engine.dialogue import DialogueEngine
 from src.story_engine.song import SongEngine
+from src.story_engine.lyrics import LyricsGenerator, LyricsResult, LyricsSection
 from src.story_engine.interaction import InteractionEngine, EmotionEngine, HumorEngine
 from src.story_engine.reinforcement import ReinforcementEngine, VocabularyEngine
 from src.story_engine.generator import EpisodeGenerator
@@ -373,6 +374,84 @@ class TestSongEngine:
         assert isinstance(song, SongPlacement)
         assert song.position == "middle"
         assert song.song_type == "counting"
+
+
+# ======================================================================
+# TestLyricsGenerator
+# ======================================================================
+
+class TestLyricsGenerator:
+    def setup_method(self):
+        self.engine = LyricsGenerator()
+
+    def test_generate_returns_result_with_text_and_formatted(self):
+        result = self.engine.generate(
+            song_type="counting", topic="count stars",
+            character="Lily Bunny", duration_seconds=60, seed=1,
+        )
+        assert isinstance(result, LyricsResult)
+        assert isinstance(result.text, str) and result.text
+        assert isinstance(result.formatted, str) and result.formatted
+
+    def test_text_is_clean_subtitle_lines(self):
+        result = self.engine.generate(song_type="alphabet", seed=1)
+        assert "[verse]" not in result.text
+        assert "[chorus]" not in result.text
+        assert len(result.sections) >= 2
+        first = result.sections[0]
+        assert isinstance(first, LyricsSection)
+        assert first.section_type in ("verse", "chorus")
+        assert all(isinstance(line, str) and line for line in first.lines)
+
+    def test_formatted_includes_section_markers(self):
+        result = self.engine.generate(song_type="colors", seed=2)
+        assert "[verse]" in result.formatted
+        assert "[chorus]" in result.formatted
+
+    def test_deterministic_with_same_seed(self):
+        a = self.engine.generate(song_type="animal", duration_seconds=60, seed=99)
+        b = self.engine.generate(song_type="animal", duration_seconds=60, seed=99)
+        assert a.text == b.text
+        assert a.formatted == b.formatted
+
+    def test_duration_drives_section_count(self):
+        short = self.engine.generate(song_type="counting", duration_seconds=20, seed=5)
+        long = self.engine.generate(song_type="counting", duration_seconds=120, seed=5)
+        assert len(short.sections) < len(long.sections)
+
+    def test_short_song_minimal_plan(self):
+        result = self.engine.generate(song_type="dance", duration_seconds=15, seed=7)
+        assert len(result.sections) == 2
+        assert [s.section_type for s in result.sections] == ["verse", "chorus"]
+
+    def test_charset_is_basic(self):
+        """Lyrics stay ASCII-clean for subtitle/backend transport."""
+        result = self.engine.generate(song_type="lullaby", seed=3)
+        assert result.text.isascii()
+
+    def test_unknown_song_type_falls_back_to_educational(self):
+        result = self.engine.generate(song_type="alien", seed=4)
+        assert result.sections
+        assert all(line for section in result.sections for line in section.lines)
+
+    def test_feeds_subtitle_engine(self):
+        """text output is directly consumable by SubtitleEngine.generate_from_lyrics."""
+        from src.post_production import SubtitleEngine
+        result = self.engine.generate(song_type="alphabet", duration_seconds=55, seed=6)
+        entries = SubtitleEngine().generate_from_lyrics(result.text, start_time=0.0, duration=55.0)
+        assert entries
+        assert len(entries) == len(result.text.split("\n"))
+        assert entries[0].is_highlight
+
+    def test_lyrics_feed_ace_step_as_override(self):
+        """formatted matches the ACE-Step lyrics_override contract (markers)."""
+        from src.music_generation.backends import build_music_request
+        result = self.engine.generate(song_type="counting", duration_seconds=60, seed=8)
+        request = build_music_request(
+            "Numbers", "count stars", lyrics_override=result.formatted,
+        )
+        assert request.lyrics_override is not None
+        assert request.lyrics_override.startswith("[verse]")
 
 
 # ======================================================================

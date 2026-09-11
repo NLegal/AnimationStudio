@@ -278,6 +278,23 @@ class TestProductionSystem:
         assert entry.placement == "middle"
         assert entry.brief is not None
         assert entry.validation["passed"]
+        assert entry.lyrics is not None
+        assert "[verse]" in entry.lyrics
+
+    def test_plan_song_lyrics_are_seed_reproducible(self, system):
+        a = system.plan_song_with_engine(
+            song_type="alphabet", objective_name="abc",
+            main_character="Lily Bunny",
+        )
+        b = system._lyrics_for(
+            song_type="alphabet", topic=a.topic, character="Lily Bunny",
+            duration_seconds=a.brief.duration_seconds, seed=7,
+        )
+        one = system._lyrics_for(
+            song_type="alphabet", topic=a.topic, character="Lily Bunny",
+            duration_seconds=a.brief.duration_seconds, seed=7,
+        )
+        assert b == one
 
     def test_plan_episode_full(self, system):
         plan = system.plan_episode(
@@ -301,6 +318,7 @@ class TestProductionSystem:
         assert "Playground" in plan.ambience
         assert plan.total_song_seconds == 180
         assert plan.mix_rules[0] == "Dialogue always takes priority"
+        assert all(song.lyrics and "[verse]" in song.lyrics for song in plan.songs)
 
     def test_plan_episode_empty_fails(self, system):
         plan = system.plan_episode(episode_id="E0", title="Empty",
