@@ -39,6 +39,16 @@ from src.animation_bible.prompts import (
     _CAMERA_STYLE_DESCRIPTORS,
 )
 from src.pipeline.job_queue import JobQueue
+from src.review_ui.input_validation import (
+    cap_text,
+    validate_action,
+    validate_asset_id,
+    validate_backend,
+    validate_count,
+    validate_limit,
+    validate_music_backend,
+    validate_scope,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -972,12 +982,12 @@ def create_app(
         no image generation.
         """
         form = await request.form()
-        character = str(form.get("character", "")).strip() or "Lily Bunny"
-        template = str(form.get("template", "")).strip() or "walk"
-        emotion = str(form.get("emotion", "")).strip() or "happiness"
-        environment = str(form.get("environment", "")).strip()
-        camera_shot = str(form.get("camera_shot", "")).strip() or "medium"
-        details = str(form.get("details", "")).strip()
+        character = cap_text(str(form.get("character", "")).strip() or "Lily Bunny")
+        template = cap_text(str(form.get("template", "")).strip() or "walk")
+        emotion = cap_text(str(form.get("emotion", "")).strip() or "happiness")
+        environment = cap_text(str(form.get("environment", "")).strip())
+        camera_shot = cap_text(str(form.get("camera_shot", "")).strip() or "medium")
+        details = cap_text(str(form.get("details", "")).strip())
 
         if template not in MOTION_PROMPT_TEMPLATES:
             template = "walk"
@@ -1070,7 +1080,8 @@ def create_app(
         from src.audio_bible.prompts import build_music_prompt, category_negative
         from src.music_generation.backends import resolve_music_params
 
-        topic = topic.strip()
+        category = cap_text(category)
+        topic = cap_text(topic)
         if not topic:
             topic = f"{category.lower()} fun"
 
@@ -1106,14 +1117,21 @@ def create_app(
         backend: str = Form(""),
     ):
         """Queue a single song generation job and redirect back."""
+        category = cap_text(category)
+        topic = cap_text(topic)
+        try:
+            valid_backend = validate_music_backend(backend) if backend else ""
+        except ValueError as exc:
+            logger.warning("Music generate validation rejected: %s", exc)
+            return RedirectResponse(url=_get_referer(request), status_code=303)
         job = jq.create_job(
             character_id="music",
             job_type="music",
-            config={"category": category, "topic": topic, "backend": backend},
+            config={"category": category, "topic": topic, "backend": valid_backend},
         )
         jq.update_status(job.id, "running")
         background_tasks.add_task(
-            _run_music_job, job.id, category, topic, backend,
+            _run_music_job, job.id, category, topic, valid_backend,
         )
         logger.info(
             "Music job queued: category=%s topic=%s backend=%s",
@@ -1226,6 +1244,10 @@ def create_app(
         by the export script).  Returns 404 when no image exists yet so the UI
         can show a placeholder instead of failing the whole page.
         """
+        try:
+            asset_id = validate_asset_id(asset_id)
+        except ValueError:
+            return HTMLResponse("Not found", status_code=404)
         getter = getattr(repo, "get", None)
         if getter is None:
             return HTMLResponse("Not found", status_code=404)
@@ -1311,7 +1333,23 @@ def create_app(
         variant: str = Form("front"),
         limit: int = Form(10),
     ):
-        """Queue a background generation batch for catalog seeds."""
+        """Queue a background generation batch for catalog seeds.
+
+        All form inputs are validated/capped before any seed discovery or
+        background dispatch (M-07); a malformed request redirects back with
+        nothing queued.
+        """
+        try:
+            scope = validate_scope(scope)
+            backend = validate_backend(backend)
+            count = validate_count(count)
+            limit = validate_limit(limit)
+        except ValueError as exc:
+            logger.warning("Generate validation rejected: %s", exc)
+            return RedirectResponse(url=_get_referer(request), status_code=303)
+        item = cap_text(item)
+        asset_type = cap_text(asset_type)
+        variant = cap_text(variant)
         if not _repo_can_generate():
             return RedirectResponse(
                 url=_get_referer(request), status_code=303
@@ -1355,7 +1393,13 @@ def create_app(
 
         Shared by the HTML form routes and the JSON API so both paths behave
         identically.  ``regenerate`` returns a job id instead of a state.
+
+        Both ``asset_id`` and ``action`` are validated here before they reach
+        the repo layer (M-07); ``ValueError`` bubbles to the route handlers.
         """
+        asset_id = validate_asset_id(asset_id)
+        action = validate_action(action)
+        reason = cap_text(reason)
         if action == "reject":
             await repo.update_state(asset_id, "draft")
             if reason:

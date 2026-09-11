@@ -182,13 +182,14 @@
 - **Estimated Effort:** L
 - **Dependencies:** None
 
-### M-07: No Input Validation on Review UI Endpoints
+### ~~M-07: No Input Validation on Review UI Endpoints~~ → ✅ **DONE 2026-09-11**
 - **Module:** `src/review_ui/app.py`
 - **Severity:** MAJOR
 - **Description:** POST endpoints (`/approve/{id}`, `/reject/{id}`, `/regenerate/{id}`, `/promote/{id}`, `/generate`, `/seed`) accept form data without input validation. The `id` parameter is passed directly to database queries. Potential for SQL injection through the asset_id parameter in SQLite queries.
 - **Recommended Fix:** Add Pydantic models for all POST inputs. Validate/sanitize asset_id parameters before DB queries.
 - **Estimated Effort:** M
 - **Dependencies:** None
+- **Done:** New `src/review_ui/input_validation.py` (pure, side-effect-free helpers): `validate_asset_id` (token charset `[A-Za-z0-9._-]`, ≤192 chars, rejects path traversal/whitespace/leading non-alnum — matches every real asset/character id), `validate_action` (D-15 allowlist), `validate_backend`/`validate_music_backend` (mirror the `resolve_backend` + `get_backend` registries), `validate_scope` (6 catalog scopes), `validate_count` (1–50), `validate_limit` (0–1000), `cap_text` (2 kB cap for reason/topic/details). Wired into every hazardous route in `app.py`: all 5 action handlers + the JSON `/api/assets/{id}/{action}` path validate `asset_id`+`action` before touching the repo (`_apply_action`), `/generate` validates scope/backend/count/limit and caps `item`/`asset_type`/`variant` (bad input → 303 redirect, nothing queued), `/asset-image` validates `asset_id` (404), `/music/generate` validates backend against the music registry + caps topic, `/motion/prompt` + `/music/prompt` cap free-text fields. SQLite layer was already parameterized; this closes the surface at the boundary. `tests/test_review_ui_validation.py` (31 tests) + endpoint hardening; full offline suite green (904 passed).
 
 ### M-08: Dual Database Patterns
 - **Module:** `src/asset_repository/sqlite_repo.py`, `src/studio/security.py`
@@ -623,7 +624,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | **Total Issues** | **52** | |
 | Documentation Gaps | 13 | Across Phases 1, 5, 6 |
 | Missing Script Wrappers | 2 | generate_phase7, train_lora |
-| Security Concerns | 3 | UI auth, input validation, persistent secrets |
+| Security Concerns | 3 | UI auth, input validation, persistent secrets; input validation closed 2026-09-11 (M-07) |
 | Vision Deviations | 1 | No real character consistency |
 | Notebook coverage boundaries | 1–8, 9-12, Cloud, Training, IdentityLock, Validate | All 13 notebooks sound; N-15 dataset prep pending approved assets (C-01) |
 
