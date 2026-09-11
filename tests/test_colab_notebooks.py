@@ -18,6 +18,7 @@ _IDLOCK_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_IdentityLock.ipynb"
 _PHASE7_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase7.ipynb"
 _PHASE8_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase8.ipynb"
 _PHASE9_12_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Phase9to12.ipynb"
+_CLOUD_NOTEBOOK = _COLAB_DIR / "AnimationStudio_Colab_Cloud.ipynb"
 _NOTEBOOKS = sorted(_COLAB_DIR.glob("*.ipynb"))
 
 _SECRET_PATTERNS = [
@@ -624,6 +625,91 @@ class TestPhaseNotebookModelDownloads:
         """GPU cell fails fast instead of silently degrading (N-09)."""
         text = _notebook_source_text(_load_notebook(notebook_path))
         assert "assert torch.cuda.is_available()" in text
+
+
+# ---------------------------------------------------------------------------
+# Cloud-backend generation notebook content contract (N-06)
+# ---------------------------------------------------------------------------
+
+class TestCloudNotebookStructure:
+    """The Phase 1-3 cloud notebook (N-06) drives fal/replicate/bfl APIs."""
+
+    _CLOUD_NOTEBOOK = _CLOUD_NOTEBOOK
+
+    def _code_cells(self, notebook: dict) -> list:
+        return [c for c in _iter_cells(notebook) if c.get("cell_type") == "code"]
+
+    def test_settings_cell_has_cloud_knobs(self):
+        """Cell 1 exposes provider, branch, and generation switches."""
+        notebook = _load_notebook(self._CLOUD_NOTEBOOK)
+        settings = next(
+            c for c in self._code_cells(notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 1. Settings")
+        )
+        source = _cell_source_text(settings)
+        assert "CLOUD_PROVIDER =" in source
+        assert "SYNC_EVERY =" in source
+        assert "PERSIST_IMAGES =" in source
+
+    def test_branch_restricted_to_colab_gpu(self):
+        """Settings offer only colab-gpu; master is deprecated (N-02)."""
+        text = _notebook_source_text(_load_notebook(self._CLOUD_NOTEBOOK))
+        assert "BRANCH = 'colab-gpu'" in text
+        assert '"master"' not in text
+
+    def test_provider_options_include_all_three(self):
+        """The provider dropdown lists fal, replicate, and bfl (N-06)."""
+        text = _notebook_source_text(_load_notebook(self._CLOUD_NOTEBOOK))
+        assert "'fal'" in text
+        assert "'replicate'" in text
+        assert "'bfl'" in text
+
+    def test_api_key_via_getpass(self):
+        """Secrets are entered at runtime via getpass, never stored."""
+        text = _notebook_source_text(_load_notebook(self._CLOUD_NOTEBOOK))
+        assert "getpass.getpass" in text
+        assert "os.environ[" in text
+
+    def test_cloud_backend_imports_cloud_module(self):
+        """The notebook drives CloudAPIBackend from generation_engine."""
+        text = _notebook_source_text(_load_notebook(self._CLOUD_NOTEBOOK))
+        assert "CloudAPIBackend" in text
+
+    def test_phase_library_scripts_invoked_with_cloud_flag(self):
+        """Phase 1-3 generation calls the library scripts with --backend cloud."""
+        text = _notebook_source_text(_load_notebook(self._CLOUD_NOTEBOOK))
+        assert "generate_phase1_library.py" in text
+        assert "generate_phase2_world.py" in text
+        assert "generate_phase3_assets.py" in text
+        assert "'--backend', 'cloud'" in text
+        assert "'--provider', CLOUD_PROVIDER" in text
+
+    def test_DRY_RUN_gate_present(self):
+        """Each generation cell is gated on DRY_RUN for offline validation."""
+        text = _notebook_source_text(_load_notebook(self._CLOUD_NOTEBOOK))
+        assert "if DRY_RUN:" in text
+
+    def test_gpu_assert_not_required(self):
+        """Cloud generation must NOT require a GPU (it runs on API servers)."""
+        text = _notebook_source_text(_load_notebook(self._CLOUD_NOTEBOOK))
+        assert "torch.cuda.is_available" not in text
+
+    def test_verification_and_sync_cells_present(self):
+        """The notebook closes with catalog verification + git sync."""
+        text = _notebook_source_text(_load_notebook(self._CLOUD_NOTEBOOK))
+        assert "verify_catalog.py" in text
+        assert "auto_sync" in text
+        assert "--sync-every-image" in text
+        assert "GITHUB_TOKEN" in text
+
+    def test_next_steps_markdown_present(self):
+        """The notebook closes with operator follow-up guidance."""
+        md_cells = [
+            _cell_source_text(c)
+            for c in _iter_cells(_load_notebook(self._CLOUD_NOTEBOOK))
+            if c.get("cell_type") == "markdown"
+        ]
+        assert any("Next steps" in md for md in md_cells)
 
 
 # ---------------------------------------------------------------------------

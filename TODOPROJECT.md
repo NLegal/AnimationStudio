@@ -1,5 +1,5 @@
 # TODOPROJECT.md — Comprehensive Codebase Audit
-# Generated: 2026-09-09 | All 12 Phases Scanned | Updated: 2026-09-11 (VISION.md lyrics + video gaps closed)
+# Generated: 2026-09-09 | All 12 Phases Scanned | Updated: 2026-09-11 (VISION.md lyrics + video + cloud-notebook gaps closed)
 
 ---
 
@@ -216,13 +216,14 @@
 - **Estimated Effort:** M
 - **Dependencies:** E-02/E-07 (parameterization) preferable first — done
 
-### N-06: No Cloud-Backend Notebook (fal/replicate/bfl)
+### ~~N-06: No Cloud-Backend Notebook (fal/replicate/bfl)~~ → ✅ **DONE 2026-09-11**
 - **Module:** `colab/`
 - **Severity:** MAJOR
 - **Description:** Every image-generation notebook is ComfyUI-only. There is no notebook path for `--backend cloud --provider fal|replicate|bfl`, even though (a) the CLI scripts default to those providers, (b) cloud backends need no 17 GB model download, and (c) the free-tier T4 cannot run fp8 Flux at production batch sizes (2 min/image; 12,472-props run = ~17 days). Cloud is the only realistic path to generating the full Phase 1–3 libraries.
 - **Recommended Fix:** Add a `CLOUD_PROVIDER` setting + a cloud-mode cell to the Phase 1/2/3 notebooks: install `usingenv`-free script deps, then call the phase script with `--backend cloud --provider fal --persist-images` and `--sync-every-image`; require `FAL_API_KEY` via `getpass` (secrets runtime-only, consistent with the secret-shape guard in `test_colab_notebooks.py`).
 - **Estimated Effort:** M
 - **Dependencies:** Cloud API keys
+- **Done:** `colab/AnimationStudio_Colab_Cloud.ipynb` (CELL 1 settings `CLOUD_PROVIDER`/`PERSIST_IMAGES`/`SYNC_EVERY`/`SYNC_EVERY_IMAGE`/`LIMIT`/`DRY_RUN`; secrets via getpass; `_gen_cmd` invokes all three phase scripts with `--backend cloud --provider {p} --persist-images --sync-every-[image] --sync-token ...`; `git_sync.auto_sync` final safety push; `verify_catalog.py` validation). Content contract enforced by `TestCloudNotebookStructure` (10 tests) in `tests/test_colab_notebooks.py`.
 
 ### N-07: Training Notebook is Single-Character Only (No 39-Character Batch)
 - **Module:** `colab/AnimationStudio_Colab_Training.ipynb`
@@ -545,13 +546,13 @@
 | `AnimationStudio_Colab_Training.ipynb` | 1c (LoRA) | GPU (kohya) | ❌ Push header broken (N-03); 1 character only (N-07); dead import (N-13); wrong downstream pointer (N-14) | All 4 model URLs valid |
 | `AnimationStudio_Validate.ipynb` | Pre-flight | ComfyUI | ❌ **Cannot run as shipped** — missing STEP 3 + STEP 6 cells, undefined vars, duplicate cells (N-01, N-12) | Sharpness gate logic OK |
 
-**Coverage gaps:** no notebooks for Phases 7–12 (N-04), Phase 1b lock scripts (N-05), or cloud backends fal/replicate/bfl (N-06). No disk guards (N-08). No multi-character training (N-07).
+**Coverage gaps:** no notebooks for Phases 7–12 (N-04; Phases 7, 8, 9-12 notebooks added 2026-09-09/10), Phase 1b lock scripts (N-05; IdentityLock notebook exists), cloud backends fal/replicate/bfl (N-06 → **done 2026-09-11**). No disk guards (N-08). No multi-character training (N-07).
 
 ---
 
 ## VISION.md Pipeline Alignment Tracking (added 2026-09-11)
 
-Disposition of the `VISION.md` Phase-6+ pipeline stages against the codebase (audit run 2026-09-10; Lyrics item executed 2026-09-11).
+Disposition of the `VISION.md` Phase-6+ pipeline stages against the codebase (audit run 2026-09-10; Lyrics item executed 2026-09-11; Image-to-Video + Cloud notebook items executed 2026-09-11).
 
 | VISION Stage | Code Module | Status | Notes |
 |--------------|-------------|--------|-------|
@@ -566,7 +567,7 @@ Disposition of the `VISION.md` Phase-6+ pipeline stages against the codebase (au
 | Lip Sync | `src/animation/lipsync.py` | ⚠️ PLACEHOLDER | phoneme estimates only |
 | Subtitles | `src/post_production/subtitles.py` | ✅ BUILT | now directly consumable from generated lyrics |
 | Video Editor / Thumbnail / Upload / Upscaler | `src/studio/` + Phase 9-12 notebook | ⚠️ BUILT / PHP-only Upload | offline-verified, media-gated |
-| Cloud backend notebooks (fal/replicate/bfl) | — | ❌ OPEN | tracked as N-06 (MAJOR) |
+| Cloud backend notebooks (fal/replicate/bfl) | `colab/AnimationStudio_Colab_Cloud.ipynb` **NEW** | ✅ **BUILT 2026-09-11** | Phase 1–3 generation via cloud providers (getpass secrets, `_gen_cmd` relay, `--sync-every-image` + `git_sync.auto_sync`); closes N-06 |
 
 ```bash
 # Local (no-GPU) jobs that ARE possible today for LoRA prep (after C-00 fix):
@@ -596,7 +597,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 10. **Reconcile ROADMAP.md** with actual PHASE*.md structure.
 
 ### Medium-Term (This Quarter)
-11. **Execute Phase 1 production runs** for all 39 characters — prioritize the cloud-backend notebook (N-06); T4-local fp8 Flux can't scale to 12,472 props (~17 days).
+11. **Execute Phase 1 production runs** for all 39 characters — use `colab/AnimationStudio_Colab_Cloud.ipynb` (N-06, done); T4-local fp8 Flux can't scale to 12,472 props (~17 days).
 12. **Set up ACE-Step** for music generation.
 13. **Add Phase 7/8 notebook(s)** (N-04) to drive episode-scene image generation + storyboard planning from Colab.
 14. **Build integration test suite** for real backends + notebook drift guards (N-17).
@@ -615,14 +616,14 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | Category | Count | Notes |
 |----------|-------|-------|
 | Critical Issues | 9 | 6 core (C-*) + 3 notebook (N-01..N-03) |
-| Major Gaps | 13 | 8 module (M-*) + 5 notebook (N-04..N-07) |
+| Major Gaps | 12 | 8 module (M-*) + 4 notebook (N-04..N-07); N-06 closed 2026-09-11, N-04/N-05 mostly covered |
 | Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15) |
 | Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17) |
-| **Total Issues** | **53** | |
+| **Total Issues** | **52** | |
 | Documentation Gaps | 13 | Across Phases 1, 5, 6 |
 | Missing Script Wrappers | 2 | generate_phase7, train_lora |
 | Security Concerns | 3 | UI auth, input validation, persistent secrets |
 | Vision Deviations | 1 | No real character consistency |
-| Notebook coverage boundaries | 1–6 (+1c) | No notebooks for Phases 7–12 |
+| Notebook coverage boundaries | 1c, 2–8, 9-12, Cloud, Training, IdentityLock | No multi-character training yet (N-07) |
 
 **Bottom Line:** The codebase is architecturally sound, well-tested in isolation, and comprehensive in scope. The critical gap is that it has never been executed end-to-end with real AI backends. The next step is not more code — it's running the pipeline once with real hardware.
