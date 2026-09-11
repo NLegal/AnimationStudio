@@ -225,13 +225,14 @@
 - **Dependencies:** Cloud API keys
 - **Done:** `colab/AnimationStudio_Colab_Cloud.ipynb` (CELL 1 settings `CLOUD_PROVIDER`/`PERSIST_IMAGES`/`SYNC_EVERY`/`SYNC_EVERY_IMAGE`/`LIMIT`/`DRY_RUN`; secrets via getpass; `_gen_cmd` invokes all three phase scripts with `--backend cloud --provider {p} --persist-images --sync-every-[image] --sync-token ...`; `git_sync.auto_sync` final safety push; `verify_catalog.py` validation). Content contract enforced by `TestCloudNotebookStructure` (10 tests) in `tests/test_colab_notebooks.py`.
 
-### N-07: Training Notebook is Single-Character Only (No 39-Character Batch)
+### ~~N-07: Training Notebook is Single-Character Only (No 39-Character Batch)~~ → ✅ **DONE 2026-09-11**
 - **Module:** `colab/AnimationStudio_Colab_Training.ipynb`
 - **Severity:** MAJOR
 - **Description:** Cells 5–8 operate on a single `CHARACTER_ID`/`CHARACTER_TITLE`; to train all 39 characters an operator must edit Cell 1 and re-run 39× (each with hours of T4 time and a ≥20-curated-asset prerequisite). No loop, no per-character dataset gate status, no registry of "pending characters".
 - **Recommended Fix:** Add a `CHARACTERS` list setting (reuse the 39-name dropdown from the Phase 1 notebook) and a driver cell that, per character: (a) runs `build-dataset` (fail-with-clear-message if <20 curated), (b) trains, (c) benchmarks, (d) registers/promotes, (e) syncs — skipping characters already in `training/lora_registry.json` with a passing gate. Keep a single send-ahead `--character-ids` mode for partial runs.
 - **Estimated Effort:** L
 - **Dependencies:** N/A
+- **Done:** `colab/AnimationStudio_Colab_Training.ipynb` (12 cells total): Settings cell (Cell 1) gains `CHARACTERS` 39-name/"all" dropdown, `MAX_CHARACTERS_PER_RUN`, `SKIP_ALREADY_TRAINED`, `SEND_AHEAD_IDS` knobs; Cells 5–9 are per-character functions (`build_dataset`, `train_lora`, `benchmark_lora`, `register_promote`, `sync_artifacts`); Cell 10 batch driver resolves CHARACTERS → seeds via `discover_characters`, skips already-passing registry entries (`get_promoted` + `benchmark_scores.get("passed")`), runs full pipeline per selected character, respects MAX cap and send-ahead override. Content contract enforced by `TestTrainingNotebookBatchDriver` (10 tests) in `tests/test_colab_notebooks.py`.
 
 ---
 
@@ -543,10 +544,10 @@
 | `AnimationStudio_Colab_Phase4.ipynb` | 4 (animation bible) | CPU-only | ✅ Sound | Regenerates `PHASE4_REPORT.md` |
 | `AnimationStudio_Colab_Phase5.ipynb` | 5 (music/ACE-Step) | mock / ace-step | ✅ Sound | Duplicate `ace_cmd` (N-16) |
 | `AnimationStudio_Colab_Phase6.ipynb` | 6 (story engine) | CPU-only | ✅ Sound | Documents known corrupt-DB test failures |
-| `AnimationStudio_Colab_Training.ipynb` | 1c (LoRA) | GPU (kohya) | ❌ Push header broken (N-03); 1 character only (N-07); dead import (N-13); wrong downstream pointer (N-14) | All 4 model URLs valid |
+| `AnimationStudio_Colab_Training.ipynb` | 1c (LoRA) | GPU (kohya) | ❌ Push header broken (N-03); dead import (N-13); wrong downstream pointer (N-14); ✅ N-07 batch driver built 2026-09-11 | All 4 model URLs valid |
 | `AnimationStudio_Validate.ipynb` | Pre-flight | ComfyUI | ❌ **Cannot run as shipped** — missing STEP 3 + STEP 6 cells, undefined vars, duplicate cells (N-01, N-12) | Sharpness gate logic OK |
 
-**Coverage gaps:** no notebooks for Phases 7–12 (N-04; Phases 7, 8, 9-12 notebooks added 2026-09-09/10), Phase 1b lock scripts (N-05; IdentityLock notebook exists), cloud backends fal/replicate/bfl (N-06 → **done 2026-09-11**). No disk guards (N-08). No multi-character training (N-07).
+**Coverage gaps:** no notebooks for Phases 7–12 (N-04; Phases 7, 8, 9-12 notebooks added 2026-09-09/10), Phase 1b lock scripts (N-05; IdentityLock notebook exists), cloud backends fal/replicate/bfl (N-06 → **done 2026-09-11**), multi-character training (N-07 → **done 2026-09-11**). No disk guards (N-08).
 
 ---
 
@@ -605,7 +606,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 
 ### Long-Term (This Year)
 16. **Full episode production** — story → music → images → animation → editing → publish.
-17. **Multi-character, multi-language training loop** (N-07) with localization TTS.
+17. **Multi-character, multi-language training loop** (N-07, notebook backend done 2026-09-11) with localization TTS.
 18. **YouTube/TikTok publishing** integration + publishing notebook (N-04).
 19. **Batch production pipeline** for multiple episodes.
 
@@ -616,7 +617,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | Category | Count | Notes |
 |----------|-------|-------|
 | Critical Issues | 9 | 6 core (C-*) + 3 notebook (N-01..N-03) |
-| Major Gaps | 12 | 8 module (M-*) + 4 notebook (N-04..N-07); N-06 closed 2026-09-11, N-04/N-05 mostly covered |
+| Major Gaps | 12 | 8 module (M-*) + 4 notebook (N-04..N-07); N-06 and N-07 closed 2026-09-11, N-04/N-05 mostly covered |
 | Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15) |
 | Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17) |
 | **Total Issues** | **52** | |
@@ -624,6 +625,6 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | Missing Script Wrappers | 2 | generate_phase7, train_lora |
 | Security Concerns | 3 | UI auth, input validation, persistent secrets |
 | Vision Deviations | 1 | No real character consistency |
-| Notebook coverage boundaries | 1c, 2–8, 9-12, Cloud, Training, IdentityLock | No multi-character training yet (N-07) |
+| Notebook coverage boundaries | 1c, 2–8, 9-12, Cloud, Training, IdentityLock | Multi-character training batch driver added 2026-09-11 (N-07) |
 
 **Bottom Line:** The codebase is architecturally sound, well-tested in isolation, and comprehensive in scope. The critical gap is that it has never been executed end-to-end with real AI backends. The next step is not more code — it's running the pipeline once with real hardware.

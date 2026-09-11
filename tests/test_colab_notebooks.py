@@ -179,6 +179,128 @@ class TestTrainingNotebookStructure:
 
 
 # ---------------------------------------------------------------------------
+# Training notebook batch-driver content contract (N-07)
+# ---------------------------------------------------------------------------
+
+class TestTrainingNotebookBatchDriver:
+    """The N-07 batch driver trains every selected character in one run."""
+
+    def _code_cells(self, notebook: dict) -> list:
+        return [c for c in _iter_cells(notebook) if c.get("cell_type") == "code"]
+
+    def test_settings_has_characters_dropdown(self, training_notebook):
+        """Cell 1 exposes the CHARACTERS 39-name dropdown (N-07)."""
+        settings = next(
+            c for c in self._code_cells(training_notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 1. Settings")
+        )
+        source = _cell_source_text(settings)
+        assert 'CHARACTERS = "Lily Bunny"' in source
+        assert '"all"' in source
+        assert '"Unicorn"' in source
+
+    def test_settings_has_batch_knobs(self, training_notebook):
+        """Cell 1 exposes cap, skip, and send-ahead partial-run knobs (N-07)."""
+        settings = next(
+            c for c in self._code_cells(training_notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 1. Settings")
+        )
+        source = _cell_source_text(settings)
+        assert "MAX_CHARACTERS_PER_RUN =" in source
+        assert "SKIP_ALREADY_TRAINED =" in source
+        assert "SEND_AHEAD_IDS =" in source
+
+    def test_sendahead_character_id_kept(self, training_notebook):
+        """Legacy CHARACTER_ID/CHARACTER_TITLE stay for backward compat."""
+        settings = next(
+            c for c in self._code_cells(training_notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 1. Settings")
+        )
+        source = _cell_source_text(settings)
+        assert 'CHARACTER_ID = "lily-bunny"' in source
+        assert 'CHARACTER_TITLE = "Lily Bunny"' in source
+
+    def test_percharacter_functions_defined(self, training_notebook):
+        """Cells 5-9 define per-character pipeline functions."""
+        text = _notebook_source_text(training_notebook)
+        for func in ["def build_dataset(", "def train_lora(",
+                      "def benchmark_lora(", "def register_promote(",
+                      "def sync_artifacts("]:
+            assert func in text, f"missing function {func}"
+
+    def test_driver_cell_present(self, training_notebook):
+        """Cell 10 is the batch driver using discover_characters (N-07)."""
+        code_cells = self._code_cells(training_notebook)
+        titles = [_cell_source_text(c).splitlines()[0] for c in code_cells]
+        driver = next(
+            (c for c in code_cells
+             if _cell_source_text(c).lstrip().startswith("#@title 10. Batch driver")),
+            None,
+        )
+        assert driver is not None, (
+            "Cell 10 batch driver with title '#@title 10. Batch driver...' not found"
+        )
+        driver_src = _cell_source_text(driver)
+        assert "discover_characters(" in driver_src
+        assert "get_promoted(" in driver_src
+
+    def test_driver_gate_uses_benchmark_passed(self, training_notebook):
+        """The skip gate checks benchmark_scores.get('passed') (N-07)."""
+        driver = next(
+            c for c in self._code_cells(training_notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 10. Batch driver")
+        )
+        src = _cell_source_text(driver)
+        assert 'benchmark_scores.get("passed")' in src
+        assert "SKIP_ALREADY_TRAINED" in src
+
+    def test_driver_calls_all_five_stages(self, training_notebook):
+        """The driver calls every pipeline stage for each selected character."""
+        driver = next(
+            c for c in self._code_cells(training_notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 10. Batch driver")
+        )
+        src = _cell_source_text(driver)
+        assert "build_dataset(character_id," in src
+        assert "train_lora(" in src
+        assert "benchmark_lora(" in src
+        assert "register_promote(" in src
+        assert "sync_artifacts(" in src
+
+    def test_driver_sendahead_cap_and_limit(self, training_notebook):
+        """SEND_AHEAD_IDS and MAX_CHARACTERS_PER_RUN are wired in the driver."""
+        driver = next(
+            c for c in self._code_cells(training_notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 10. Batch driver")
+        )
+        src = _cell_source_text(driver)
+        assert "send_ahead" in src
+        assert "MAX_CHARACTERS_PER_RUN" in src
+        assert "matched = matched[:MAX_CHARACTERS_PER_RUN]" in src
+
+    def test_driver_char_root_created(self, training_notebook):
+        """The driver creates per-character output root dirs (N-07)."""
+        driver = next(
+            c for c in self._code_cells(training_notebook)
+            if _cell_source_text(c).lstrip().startswith("#@title 10. Batch driver")
+        )
+        src = _cell_source_text(driver)
+        assert "char_root" in src
+        assert "pathlib.Path(char_root).mkdir" in src
+
+    def test_next_steps_references_batch(self, training_notebook):
+        """Next steps markdown mentions batch and CHARACTERS (N-07)."""
+        md_cells = [
+            _cell_source_text(c)
+            for c in _iter_cells(training_notebook)
+            if c.get("cell_type") == "markdown"
+        ]
+        next_md = next(m for m in md_cells if "Next steps" in m)
+        assert "CHARACTERS" in next_md
+        assert "batch" in next_md.lower()
+
+
+# ---------------------------------------------------------------------------
 # Identity Lock notebook content contract
 # ---------------------------------------------------------------------------
 
