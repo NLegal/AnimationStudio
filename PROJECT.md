@@ -56,7 +56,8 @@ Story Engine → Production Planning → Image Generation → Animation
 | Animation Bible | `src/animation_bible/` | 1,954 | 6 | Motion system + cycle libraries + prompt templates |
 | Audio Bible | `src/audio_bible/` | 1,312 | 6 | Music/voice standards + production system |
 | Music Generation | `src/music_generation/` | 1,075 | 6 | ACE-Step + Suno adapters + mock backend |
-| **TOTAL** | | **~25,400** | **178** | |
+| Voice Generation | `src/voice_generation/` | 796 | 7 | Kokoro TTS adapter + deterministic mock + Piper/XTTS license stubs |
+| **TOTAL** | | **~26,200** | **185** | |
 
 ---
 
@@ -142,7 +143,7 @@ Story Engine → Production Planning → Image Generation → Animation
 1. Zero real media produced (catalog.db holds 2,508 asset rows, **0 approved** — no real images yet)
 2. **No real-media consumer path**: post-generation modules (animation, post-production, publishing, studio) flip statuses instead of executing; only `video_generation` has real REST backends (Wan/Cloud) (TODOPROJECT A-01)
 3. No LoRA trained (character consistency system is code-only)
-4. No audio generated (audio_bible produces plans only; ACE-Step/Suno are the only real paths, both unproven live) (A-03)
+4. No real audio generated from the pipeline (A-03 fixed 2026-09-12: `src/voice_generation/` TTS adapter + `AudioPlan.songs[].lyrics → MusicRequest.lyrics_override` wiring now exist; Kokoro is the license-clean real engine, but the offline default is the deterministic mock and ACE-Step/Suno remain unproven live)
 5. No video pipeline execution (animation/post-production/publishing unvalidated)
 
 ### Major

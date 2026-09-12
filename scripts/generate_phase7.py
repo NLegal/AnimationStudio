@@ -50,6 +50,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Determinism seed; omit to let the backend choose its default",
     )
     parser.add_argument(
+        "--lyrics", default=None,
+        help="Inline lyric text (marker-formatted) passed verbatim as "
+             "MusicRequest.lyrics_override",
+    )
+    parser.add_argument(
+        "--lyrics-file", default=None, metavar="PATH",
+        help="Read lyric text from a file (marker-formatted) and pass it "
+             "verbatim as MusicRequest.lyrics_override",
+    )
+    parser.add_argument(
         "--out", default="Audio/Music",
         help="Output directory for the generated audio file",
     )
@@ -61,6 +71,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_lyrics(args) -> str | None:
+    """Return the lyrics_override string, or None when not provided.
+
+    ``--lyrics-file`` wins over ``--lyrics`` when both are given; file
+    contents are read as UTF-8 text.
+    """
+    if args.lyrics_file:
+        with open(args.lyrics_file, encoding="utf-8") as fh:
+            return fh.read()
+    return args.lyrics
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -69,14 +91,16 @@ def main(argv=None) -> int:
         # no transport touch. TestPhase7Cli enforces this with fail-loud
         # guards installed on every transport seam.
         request = build_music_request(args.category, args.topic,
-                                      seed=args.seed)
+                                      seed=args.seed,
+                                      lyrics_override=_resolve_lyrics(args))
         print(json.dumps(request.model_dump(), indent=2))
         return 0
 
     try:
         backend = get_backend(args.backend)
         request = build_music_request(args.category, args.topic,
-                                      seed=args.seed)
+                                      seed=args.seed,
+                                      lyrics_override=_resolve_lyrics(args))
         result = backend.generate(request)
     except MusicBackendError as exc:
         print(f"Music generation failed: {exc}", file=sys.stderr)

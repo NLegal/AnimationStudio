@@ -315,3 +315,91 @@ class AudioProductionSystem:
         if "night" in scene:
             return ["Night"]
         return ["Morning Birds"]
+
+    # ------------------------------------------------------------------
+    # Voice synthesis + music handoff (VISION Phase 5 Voices)
+    # ------------------------------------------------------------------
+
+    def _usable_backend_for(self, engine: str):
+        """Backend for a bible engine, with license-gate fallback.
+
+        XTTS v2 and Piper are refusing stubs until their license gates are
+        reviewed (see STACK.md), and Kokoro only works once installed. The
+        pipeline therefore drops through to the Kokoro backend (Apache-2.0)
+        when present, else the deterministic offline mock, so the CPU-only
+        build still produces voice without an operator override. An
+        explicit ``backend_name`` always wins over this resolution.
+        """
+        from src.voice_generation.backends import backend_for_engine, get_backend
+
+        backend = backend_for_engine(engine)
+        if backend.is_configured():
+            return backend
+        kokoro = get_backend("kokoro")
+        if kokoro.is_configured():
+            return kokoro
+        return get_backend("mock")
+
+    def synth_voice(
+        self, text: str, character: str = "Narrator",
+        *, backend_name=None, seed=None, brief=None,
+    ):
+        """Synthesize one spoken line via the character's voice brief.
+
+        Backend resolution: an explicit ``backend_name`` wins; otherwise
+        the bible-approved engine named on the voice brief, with the
+        fallback chain in ``_usable_backend_for`` (Kokoro → offline mock).
+        Returns a ``src.voice_generation.VoiceResult``.
+        """
+        from src.voice_generation.backends import build_voice_request
+
+        resolved = brief or self.bible.build_voice_brief(character)
+        request = build_voice_request(text, brief=resolved, seed=seed)
+        if backend_name is not None:
+            from src.voice_generation.backends import get_backend
+
+            backend = get_backend(backend_name)
+        else:
+            backend = self._usable_backend_for(resolved.tts_engine)
+        return backend.generate(request)
+
+    def synth_plan_voices(self, plan, *, backend_name=None, seed=None) -> list:
+        """Synthesize every dialogue line in an ``AudioPlan``.
+
+        Returns a list of per-clip dicts: ``speaker``, ``text``,
+        ``voice_code``, ``duration_s`` and ``result`` (a ``VoiceResult``).
+        Clips without a resolved voice brief are skipped.
+        """
+        entries = []
+        for clip in plan.dialogue:
+            if clip.voice_brief is None:
+                continue
+            result = self.synth_voice(
+                clip.text, brief=clip.voice_brief,
+                backend_name=backend_name, seed=seed,
+            )
+            entries.append({
+                "speaker": clip.speaker,
+                "text": clip.text,
+                "voice_code": result.request.voice_code,
+                "duration_s": result.duration_s,
+                "result": result,
+            })
+        return entries
+
+    def music_request_for(self, song, *, seed=None):
+        """Bridge one ``SongEntry`` into a ``MusicRequest``.
+
+        Feeds the song plan's generated ``lyrics`` into
+        ``MusicRequest.lyrics_override`` — the Phase 5 → Phase 7 handoff
+        the deep audit flagged as unwired. Imported lazily so the
+        audio_bible → music_generation dependency stays one-way.
+        """
+        from src.music_generation.backends import build_music_request
+
+        return build_music_request(
+            song.category,
+            song.topic,
+            seed=seed,
+            lyrics_override=song.lyrics,
+        )

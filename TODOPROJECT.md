@@ -511,6 +511,7 @@ Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ 
 - **Evidence:** `AudioProductionSystem.plan_episode` builds an `AudioPlan` (voice briefs, lip-sync tracks, SFX name lists) but never calls Kokoro/XTTS/Piper (referenced only as strings); lip-sync is a letter→mouth heuristic mapper; no orchestra wiring feeds `AudioPlan.songs[].lyrics` → `MusicRequest.lyrics_override` automatically (music_generation and audio_bible are disconnected).
 - **Recommended fix:** Add a TTS adapter + wire `AudioPlan → music_generation`; at minimum document the disconnect.
 - **Effort:** L
+- **Status:** **FIXED 2026-09-12 (voice adapter + wiring; lip-sync heuristic unchanged).** (1) **New `src/voice_generation/` package** mirroring `music_generation`: Pydantic `VoiceRequest/VoiceStatus/VoiceResult`; `@runtime_checkable VoiceGenerationBackend` protocol; typed taxonomy (`VoiceBackendError`/`NotConfigured`/`BackendUnavailable`/`GenerationFailed`); `get_backend` registry (env `TTS_BACKEND`, default `mock`); `backend_for_engine` mapping the bible's approved engines (Kokoro → real adapter, XTTS v2 → refusing stub citing CPML R&D-only, Piper → refusing stub citing GPL gate, unknown → mock); `build_voice_request` deriving voice code per character (seed map incl. Narrator `af_heart`, Lily Bunny `af_sarah`, Ben Bear `am_michael`, …) + pace per speech-speed label; deterministic offline `MockBackend` (seed chain: request.seed → ctor.seed → stable (speaker,text) hash); real `KokoroBackend` (lazy `pip install kokoro>=0.9.4 soundfile`, presence gate at submit, KPipeline synthesis + resample to requested rate). (2) **`AudioProductionSystem` wiring** (production.py): `synth_voice(text, character, *, backend_name/seed/brief)` — explicit backend wins, else bible engine with license-gate fallback (Kokoro if installed, else offline mock) so the CPU-only pipeline always produces voice; `synth_plan_voices(plan)` synthesizes every dialogue clip (voice_code/duration_s per line); `music_request_for(song)` bridges `SongEntry.lyrics → MusicRequest.lyrics_override` (lazy import keeps the audio_bible → music_generation dependency one-way). (3) **`scripts/generate_phase7.py`** now accepts `--lyrics` / `--lyrics-file` (explicit `lyrics_override`). **Added `tests/test_voice_generation.py` — 50 offline tests** (models, bible-aware request assembly, engine resolution, mock determinism/seed-chain/sample-rate, Kokoro presence+validation+scripted-pipeline path, Piper/XTTS refusal surfaces, file persistence, production wiring, phase7 CLI lyrics dry-runs). Remaining: lip-sync stays phoneme-estimate (no audio alignment — VISION's LatentSync/MuseTalk), and real Kokoro output is unproven until the engine is installed on operator hardware (C-01-gated).
 
 ### A-04 (MAJOR): UI has zero authentication/authorization + open-redirect via referer + unbounded API limit
 - **Module:** `src/review_ui/app.py`
@@ -579,6 +580,7 @@ Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ 
 | animation_bible | 6 | 1954 | 8 | 8 | 7 | 8 | 7 |
 | audio_bible | 6 | 1341 | 6 | 8 | 7 | 8 | 8 |
 | music_generation | 6 | 1075 | 7 | 9 | 9 | 9 | 9 |
+| voice_generation | 7 | 796 | 7 | 8 | 7 | 8 | 9 |
 
 **Overall: YELLOW→RED for real-media readiness.** Infrastructure quality is high (tests, docs, structure excellent); **real-content production readiness is ~2/10** — the only genuinely real media path is `video_generation` cloud/Wan, and even it is unproven end-to-end. Everything above the generation layer is framework code today.
 
@@ -654,14 +656,14 @@ Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ 
 
 ## VISION.md Pipeline Alignment Tracking (added 2026-09-11; refreshed 2026-09-12 against Deep Audit A-01..A-03, E-21)
 
-Disposition of the `VISION.md` "Final Architecture" pipeline + named tool-stack stages against the codebase. **Bottom line: 10/13 stages exist structurally; 3 are genuinely NOT implemented (Voices/TTS = zero audio, Lip Sync = phoneme heuristic only, Upload = status-flip only); Story and Upscaler diverge from VISION's letter (rule-based vs LLM, PIL vs Real-ESRGAN).**
+Disposition of the `VISION.md` "Final Architecture" pipeline + named tool-stack stages against the codebase. **Bottom line: 11/13 stages exist structurally; 2 are genuinely NOT implemented (Lip Sync = phoneme heuristic only, Upload = status-flip only); Story and Upscaler diverge from VISION's letter (rule-based vs LLM, PIL vs Real-ESRGAN).**
 
 | VISION Stage | Code Module | Status | Notes |
 |--------------|-------------|--------|-------|
 | **Story (Phase 6)** | `src/story_engine/` (EpisodeGenerator) | ⚠️ **DIVERGES** | **A-02:** template/rule-based grammar engine, NOT an AI/LM story generator (zero LLM imports anywhere in `src/`); conversation-style inputs are templated context, not prompts |
 | **Lyrics** | `src/story_engine/lyrics.py` **NEW** + `AudioProductionSystem._lyrics_for` | ✅ **BUILT 2026-09-11** | seeded nursery-rhyme generator → `SongEntry.lyrics` → `MusicRequest.lyrics_override` (ACE-Step) + `SubtitleEngine.generate_from_lyrics`. Known bug A-02: song_types `"color"/"animal"` never match bank keys `"colors"/"animals"` → silent fallback to generic `educational`; `topic` param unused |
 | Music (Phase 4) | `src/music_generation/` (ACE-Step/Suno) | ✅ BUILT | ACE-Step real (in-memory mock default); Suno stub (API-shape only) |
-| **Voices / TTS (Phase 5)** | `src/audio_bible/` (`libraries.py`, `bible.py`, `production.py`) | ❌ **NOT IMPLEMENTED** | **A-03:** `tts_engine="XTTS v2"` is a metadata string only (`libraries.py`); `bible.py:268` validates the label but no TTS engine is ever invoked → **zero audio produced**; Kokoro/XTTS/Piper named in VISION have no adapters; AudioPlan never feeds music/audio chain |
+| **Voices / TTS (Phase 5)** | `src/voice_generation/` **NEW** + `audio_bible/production.py` wiring | ✅ **BUILT 2026-09-12** | **A-03 closed:** TTS adapter package (mock default + real Kokoro `af_*`/`am_*` codes + Piper/XTTS license stubs); `AudioProductionSystem.synth_voice`/`synth_plan_voices`; voice codes seeded per character (Narrator `af_heart`, Lily `af_sarah`, …); real Kokoro output C-01-gated (CPU-capable) |
 | Storyboard (Phase 7) | `src/production/` + Phase 7 notebook | ✅ BUILT | |
 | Scene Planner / Prompt (Phase 6/8) | `src/prompts/` + Phase 8 notebook | ✅ BUILT | |
 | Character Manager | IdentityLock notebook + `src/asset_repository/` | ✅ BUILT | 4 lock scripts + LoRA training (gradient gated) |
@@ -725,7 +727,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | Major Gaps | 4 | M-04..M-06, M-08 open; M-01, M-02, M-07 closed 2026-09-11, M-03 VERIFIED CLOSED 2026-09-12; A-02..A-06 added 2026-09-12 |
 | Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15); most closed; E-21, E-22 added 2026-09-12 |
 | Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17); all closed 2026-09-09 |
-| Deep Audit 2026-09-12 | 6 | A-01..A-06 findings (see Deep Audit section); A-02 lyric-key, A-04 limit+auth+referer, A-05 comfy failure paths, A-06 seed/frames+poll semantics **fixed 2026-09-12** |
+| Deep Audit 2026-09-12 | 6 | A-01..A-06 findings (see Deep Audit section); A-02 lyric-key, A-03 TTS adapter+lyrics wiring, A-04 limit+auth+referer, A-05 comfy failure paths, A-06 seed/frames+poll semantics **fixed 2026-09-12** |
 | **Total Issues** | **58** | |
 | Documentation Gaps | 13 | Verified ALL CLOSED 2026-09-12 (M-03) |
 | Security Concerns | 3 | UI auth, input validation, persistent secrets; input validation closed 2026-09-11 (M-07); UI auth now A-04 |
