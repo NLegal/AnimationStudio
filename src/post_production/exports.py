@@ -1,3 +1,6 @@
+from typing import Optional
+
+from .export_executor import ExportExecutor, ExportResult, get_export_executor
 from .models import ExportPreset
 
 
@@ -94,3 +97,28 @@ class ExportEngine:
 
     def add_preset(self, name: str, preset: ExportPreset) -> None:
         EXPORT_PRESETS[name] = preset
+
+    def export(
+        self,
+        clips: list[str],
+        preset: "str | ExportPreset" = "youtube",
+        *,
+        output_path: Optional[str] = None,
+        audio: Optional[list[str]] = None,
+        executor: Optional[ExportExecutor] = None,
+    ) -> ExportResult:
+        """Render a list of clip files into one real output file.
+
+        ``preset`` may be a registered preset name or an ``ExportPreset``.
+        ``executor`` selects the producer explicitly (real ffmpeg or the
+        offline concat fallback); otherwise ``get_export_executor``
+        resolves ``FFMPEG_EXECUTOR`` (default ``auto`` → ffmpeg when
+        installed, else byte-copy fallback). Returns an ``ExportResult``
+        for the written file.
+        """
+        if isinstance(preset, str):
+            preset = self.get_preset(preset)
+        if executor is None:
+            executor = get_export_executor()
+        return executor.export(clips, preset,
+                               output_path=output_path, audio=audio)

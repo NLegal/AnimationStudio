@@ -133,6 +133,28 @@ class ExportPreset:
 
 
 @dataclass
+class ExportResult:
+    """Outcome of one export run — a real file on disk.
+
+    ``executor`` names the producer (``ffmpeg`` when the clips were
+    transcoded/muxed by a real ffmpeg binary, ``concat`` for the offline
+    byte-copy fallback); ``ffmpeg_used`` is the shorthand the audit's
+    "flip status instead of executing" check targets.
+    """
+    output_path: str = ""
+    preset_name: str = ""
+    format: str = "mp4"
+    clip_count: int = 0
+    size_bytes: int = 0
+    duration_s: float = 0.0
+    video_frames: int = 0
+    executor: str = "mock"
+    ffmpeg_used: bool = False
+    errors: list[str] = field(default_factory=list)
+    created_at: str = ""
+
+
+@dataclass
 class QCResult:
     passed: bool = False
     checks: dict[str, bool] = field(default_factory=dict)

@@ -46,7 +46,7 @@ Story Engine → Production Planning → Image Generation → Animation
 | Production | `src/production/` | 1,191 | 10 | Episodes, scenes, shots, manifests, continuity, API |
 | Image Generation | `src/image_generation/` | 706 | 9 | ConsistencyManager, model roles, thumbnails, validation |
 | Animation | `src/animation/` | 1,727 | 18 | Character/crowd/scene, camera, lipsync, physics, render |
-| Post-Production | `src/post_production/` | 1,390 | 17 | Timeline, editing, color, subtitles, QC, exports |
+| Post-Production | `src/post_production/` | 1,649 | 18 | Timeline, editing, color, subtitles, QC, exports; real ffmpeg export executor (A-01 stage 3) |
 | Publishing | `src/publishing/` | 1,550 | 14 | Metadata, compliance, scheduling, localization, analytics |
 | Studio | `src/studio/` | 1,796 | 20 | Orchestrator, workflow, agents, tasks, security, dashboard |
 | Universe | `src/universe/` | 1,410 | 5 | Catalog parsing, seeding, batch generation |
@@ -141,7 +141,7 @@ Story Engine → Production Planning → Image Generation → Animation
 
 ### Critical
 1. Zero real media produced (catalog.db holds 2,508 asset rows, **0 approved** — no real images yet)
-2. **No real-media consumer path**: post-generation modules (animation, post-production, publishing, studio) flip statuses instead of executing; only `video_generation` has real REST backends (Wan/Cloud) (TODOPROJECT A-01)
+2. **Real-media consumer path partially implemented**: post_generation modules (animation, publishing, studio) still flip statuses instead of executing; however `post_production` now has a real ffmpeg export stage — `ExportEngine.export()` concatenates clip files, re-encodes to preset (resolution/fps/bitrate), muxes audio stems, writes a real MP4; offline `ConcatExportExecutor` byte-copy fallback (TODOPROJECT A-01 stage 3 fixed 2026-09-12; stages 1–2 = prove one real image + one real i2v clip remain C-01/GPU-gated; YouTube upload stage 4 still a status-flip)
 3. No LoRA trained (character consistency system is code-only)
 4. No real audio generated from the pipeline (A-03 fixed 2026-09-12: `src/voice_generation/` TTS adapter + `AudioPlan.songs[].lyrics → MusicRequest.lyrics_override` wiring now exist; Kokoro is the license-clean real engine, but the offline default is the deterministic mock and ACE-Step/Suno remain unproven live)
 5. No video pipeline execution (animation/post-production/publishing unvalidated)

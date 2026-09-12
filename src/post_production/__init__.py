@@ -1,6 +1,6 @@
 from .models import (
     TimelineTrack, TimelineEvent, MasterTimeline, ClipReference,
-    SceneAssembly, ExportPreset, QCResult, ArchiveRecord,
+    SceneAssembly, ExportPreset, ExportResult, QCResult, ArchiveRecord,
     VideoTrackType, AudioTrackType, TransitionStyle,
 )
 from .timeline import TimelineEngine
@@ -12,6 +12,11 @@ from .graphics import GraphicsEngine, GraphicOverlay
 from .intro_outro import IntroOutroEngine, IntroTemplate, OutroTemplate
 from .thumbnail import ThumbnailSelector
 from .exports import ExportEngine
+from .export_executor import (
+    ConcatExportExecutor, ExportExecutor, ExportResult, ExportError,
+    ExportValidationError, FfmpegNotFound, FfmpegExportExecutor,
+    get_export_executor,
+)
 from .localization import LocalizationEngine, LocalizationPackage
 from .qc import PostProductionQC
 from .archive import ArchiveEngine
@@ -30,6 +35,9 @@ __all__ = [
     "GraphicsEngine", "GraphicOverlay",
     "IntroOutroEngine", "IntroTemplate", "OutroTemplate",
     "ThumbnailSelector", "ExportEngine",
+    "ExportExecutor", "FfmpegExportExecutor", "ConcatExportExecutor",
+    "ExportResult", "ExportError", "ExportValidationError",
+    "FfmpegNotFound", "get_export_executor",
     "LocalizationEngine", "LocalizationPackage",
     "PostProductionQC", "ArchiveEngine",
     "ColorCorrectionEngine", "ColorCorrectionSettings",

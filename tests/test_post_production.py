@@ -3,11 +3,16 @@
 Covers all 13 engine modules and supporting dataclasses.
 """
 
+import os
+import shutil
+import subprocess
+import tempfile
+
 import pytest
 
 from src.post_production import (
     TimelineTrack, TimelineEvent, MasterTimeline, ClipReference,
-    SceneAssembly, ExportPreset, QCResult, ArchiveRecord,
+    SceneAssembly, ExportPreset, ExportResult, QCResult, ArchiveRecord,
     VideoTrackType, AudioTrackType, TransitionStyle,
     TimelineEngine, EditingEngine, PacingEngine,
     TransitionLibrary, AudioSyncEngine,
@@ -16,6 +21,9 @@ from src.post_production import (
     IntroOutroEngine, IntroTemplate, OutroTemplate,
     ThumbnailSelector,
     ExportEngine,
+    ConcatExportExecutor, FfmpegExportExecutor,
+    ExportError, ExportValidationError, FfmpegNotFound,
+    get_export_executor,
     LocalizationEngine, LocalizationPackage,
     PostProductionQC, ArchiveEngine,
     ColorCorrectionEngine, ColorCorrectionSettings,
@@ -23,6 +31,8 @@ from src.post_production import (
     PostProductionAnalytics, AnalyticsReport,
     InteractiveElementEngine,
 )
+
+FFMPEG_BIN = shutil.which("ffmpeg")
 
 
 # ── Model Tests ─────────────────────────────────────────────────────────
@@ -947,6 +957,170 @@ class TestExportEngine:
         preset = ExportPreset(name="Test", resolution_width=640, resolution_height=480)
         engine.add_preset("test", preset)
         assert engine.get_preset("test").resolution_width == 640
+
+
+# ── Export Execution Tests ──────────────────────────────────────────────
+
+def _make_clip(duration: float = 1.0, size: str = "640x360",
+               out: str = "") -> str:
+    """Render a real 1-second test clip (testsrc + tone) via ffmpeg."""
+    cmd = [
+        FFMPEG_BIN, "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "lavfi", "-i", f"testsrc2=duration={duration}:size={size}:rate=24",
+        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100",
+        "-t", str(duration), "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", out,
+    ]
+    subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=True)
+    assert os.path.getsize(out) > 0
+    return out
+
+
+class TestExportResult:
+    def test_defaults(self):
+        result = ExportResult()
+        assert result.output_path == ""
+        assert result.executor == "mock"
+        assert result.ffmpeg_used is False
+        assert result.errors == []
+
+
+class TestExportExecutorRegistry:
+    def test_mock_mode(self):
+        assert isinstance(get_export_executor("mock"), ConcatExportExecutor)
+
+    def test_ffmpeg_mode(self):
+        assert isinstance(get_export_executor("ffmpeg"), FfmpegExportExecutor)
+
+    def test_auto_mode_is_configured(self):
+        executor = get_export_executor("auto")
+        assert executor.is_configured()
+
+    def test_auto_type(self):
+        executor = get_export_executor("auto")
+        assert isinstance(executor, (ConcatExportExecutor, FfmpegExportExecutor))
+
+    def test_env_override(self, monkeypatch):
+        monkeypatch.setenv("FFMPEG_EXECUTOR", "mock")
+        assert isinstance(get_export_executor(), ConcatExportExecutor)
+
+    def test_unknown_mode_raises(self):
+        with pytest.raises(ExportError):
+            get_export_executor("turbofancy")
+
+
+class TestExportValidation:
+    def test_empty_clips_raises(self):
+        engine = ExportEngine()
+        with pytest.raises(ExportValidationError):
+            engine.export([], executor=ConcatExportExecutor())
+
+    def test_missing_clip_raises(self):
+        engine = ExportEngine()
+        with pytest.raises(ExportValidationError) as exc:
+            engine.export(["nope-missing.mp4"], executor=ConcatExportExecutor())
+        assert "missing clip file" in str(exc.value)
+
+
+class TestConcatExportExecutor:
+    def test_writes_real_bytes(self, tmp_path):
+        a = tmp_path / "a.bin"
+        b = tmp_path / "b.bin"
+        a.write_bytes(b"AAA" * 100)
+        b.write_bytes(b"BBB" * 100)
+        out = str(tmp_path / "joined.mp4")
+        engine = ExportEngine()
+        result = engine.export(
+            [str(a), str(b)], "youtube",
+            output_path=out, executor=ConcatExportExecutor(),
+        )
+        assert os.path.isfile(out)
+        assert result.size_bytes == (len(a.read_bytes()) + len(b.read_bytes()))
+        assert result.clip_count == 2
+        assert result.executor == "concat"
+        assert result.ffmpeg_used is False
+        assert result.preset_name == "YouTube"
+        assert result.format == "mp4"
+        assert result.output_path == os.path.abspath(out)
+
+    def test_engine_default_resolves_mock(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("FFMPEG_EXECUTOR", "mock")
+        a = tmp_path / "frag.mp4"
+        a.write_bytes(b"FRAG" * 64)
+        result = ExportEngine().export([str(a)], "youtube")
+        assert os.path.isfile(result.output_path)
+        assert result.executor == "concat"
+        assert result.ffmpeg_used is False
+
+
+@pytest.mark.skipif(not FFMPEG_BIN, reason="ffmpeg binary not installed")
+class TestFfmpegExportExecutor:
+    def test_absent_binary_raises(self, tmp_path):
+        clip = _make_clip(out=str(tmp_path / "src.mp4"))
+        with pytest.raises(FfmpegNotFound):
+            FfmpegExportExecutor(ffmpeg_bin="missing-ffmpeg-binary"
+                                ).export([clip], ExportPreset(name="X"))
+
+    def test_transcodes_to_preset(self, tmp_path):
+        clip = _make_clip(out=str(tmp_path / "src.mp4"))
+        out = str(tmp_path / "episode_youtube.mp4")
+        result = FfmpegExportExecutor().export([clip], ExportPreset(
+            name="YouTube", resolution_width=1920, resolution_height=1080,
+            frame_rate=24, video_bitrate="16 Mbps", audio_bitrate="192 kbps",
+            format="mp4"), output_path=out)
+        assert os.path.isfile(out)
+        assert os.path.getsize(out) > 0
+        assert result.ffmpeg_used is True
+        assert result.executor == "ffmpeg"
+        assert result.clip_count == 1
+        assert result.format == "mp4"
+        assert 0.5 <= result.duration_s <= 1.6
+        assert 0 < result.video_frames
+        assert result.output_path == os.path.abspath(out)
+
+    def test_concatenates_two_real_clips(self, tmp_path):
+        clip_a = _make_clip(duration=1.0, size="320x240",
+                            out=str(tmp_path / "a.mp4"))
+        clip_b = _make_clip(duration=1.0, size="640x360",
+                            out=str(tmp_path / "b.mp4"))
+        result = FfmpegExportExecutor().export(
+            [clip_a, clip_b],
+            ExportPreset(name="Web", resolution_width=1280,
+                         resolution_height=720, frame_rate=24,
+                         video_bitrate="5 Mbps", audio_bitrate="128 kbps",
+                         format="mp4"),
+            output_path=str(tmp_path / "joined.mp4"),
+        )
+        assert os.path.isfile(result.output_path)
+        assert result.clip_count == 2
+        assert 1.5 <= result.duration_s <= 2.6
+        assert result.ffmpeg_used is True
+
+    def test_missing_audio_stem_raises(self, tmp_path):
+        clip = _make_clip(out=str(tmp_path / "src.mp4"))
+        with pytest.raises(ExportValidationError) as exc:
+            FfmpegExportExecutor().export(
+                [clip], ExportPreset(name="X"),
+                audio=[str(tmp_path / "missing.wav")],
+            )
+        assert "audio stem" in str(exc.value)
+
+    def test_mixes_one_audio_stem(self, tmp_path):
+        clip = _make_clip(out=str(tmp_path / "src.mp4"))
+        wav = str(tmp_path / "music.wav")
+        subprocess.run(
+            [FFMPEG_BIN, "-y", "-hide_banner", "-loglevel", "error",
+             "-f", "lavfi", "-i", "sine=frequency=220:duration=1",
+             "-c:a", "pcm_s16le", wav],
+            capture_output=True, text=True, timeout=120, check=True,
+        )
+        result = FfmpegExportExecutor().export(
+            [clip], ExportPreset(name="X"),
+            output_path=str(tmp_path / "mixed.mp4"), audio=[wav],
+        )
+        assert os.path.isfile(result.output_path)
+        assert result.ffmpeg_used is True
+        assert result.clip_count == 1
 
 
 # ── LocalizationEngine Tests ────────────────────────────────────────────

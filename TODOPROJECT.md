@@ -497,6 +497,7 @@ Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ 
 - **Impact:** Today the ONLY path that can produce real media is `video_generation` (`WanVideoBackend`/`CloudVideoBackend` — real ComfyUI/fal/Replicate REST clients). Everything downstream is planning/framework code. End-to-end "episode" runs are simulations (test_e2e_episode.py), and tests explicitly assert only wiring.
 - **Recommended fix:** This is the single most important gap vs. the VISION. Stage the work: (1) prove one real image (ComfyUI/cloud), (2) prove one real i2v clip, (3) wire a real ffmpeg export step that consumes clips, (4) attach a real uploader (YouTube Data API) behind a config flag. Do NOT build more frameworks until the chain produces bytes.
 - **Effort:** XL · **Dependencies:** C-01 (GPU/cloud), C-04
+- **Status:** **Stage 3 partially FIXED 2026-09-12 (real-media consumer path).** `post_production` now has a byte-producing export stage: new `src/post_production/export_executor.py` + `ExportEngine.export()` — `FfmpegExportExecutor` concatenates clip files, re-encodes to the preset resolution/fps/bitrate, muxes audio stems, and writes a real MP4 (subprocess ffmpeg + ffprobe duration probe); `ConcatExportExecutor` is the offline byte-copy fallback that still writes a real file; resolver honors explicit `executor=` → `FFMPEG_EXECUTOR` env (`auto`/`ffmpeg`/`mock`) → auto (ffmpeg if installed, else concat). **16 new tests** (registry modes, input/audio validation, offline byte-copy, real ffmpeg transcode from generated `testsrc` clips, 2-clip concat, audio-stem mux, missing-binary/missing-stem errors) — full `test_post_production.py` = 184 passed. Remaining A-01 stages: (1) prove one real image, (2) prove one real i2v clip — both C-01 (GPU/cloud) gated; (4) YouTube/cloud uploader behind a config flag — `publishing.py` still only flips `status→PUBLISHED` (VISION Phase 14 unmet). `animation/render.py`, `studio/*` and `publishing/*` remain framework state machines.
 
 ### A-02 (MAJOR): "AI" story engine is template/rule-based, not LLM — documentation overstates capability
 - **Module:** `story_engine`, `lyrics.py`
@@ -571,7 +572,7 @@ Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ 
 | image_generation | 9 | 666 | 6 | 7 | 7 | 6 | 8 |
 | animation | 18 | 1691 | 3 | 6 | 7 | 4 | 7 |
 | video_generation | 7 | 913 | 6 | 7 | 8 | 9 | 6 |
-| post_production | 17 | 1370 | 3 | 6 | 7 | 5 | 7 |
+| post_production | 18 | 1649 | 3 | 6 | 7 | 5 | 7 |
 | publishing | 14 | 1358 | 3 | 6 | 5 | 5 | 7 |
 | studio | 20 | 1710 | 3 | 5 | 4 | 6 | 7 |
 | universe | 5 | 1410 | 9 | 9 | – | 8 | 8 |
@@ -623,7 +624,7 @@ Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ 
 | production | 10 | 1,191 | 9/10 | 9/10 | N/A | 8/10 | **8.5** |
 | image_generation | 9 | 706 | 8/10 | 8/10 | 6/10 | 8/10 | **7.5** |
 | animation | 18 | 1,727 | 9/10 | 8/10 | N/A | 8/10 | **8.3** |
-| post_production | 17 | 1,390 | 9/10 | 8/10 | N/A | 8/10 | **8.3** |
+| post_production | 18 | 1,649 | 9/10 | 8/10 | N/A | 8/10 | **8.3** |
 | publishing | 14 | 1,550 | 9/10 | 8/10 | 5/10 | 8/10 | **7.5** |
 | studio | 20 | 1,796 | 8/10 | 7/10 | 5/10 | 7/10 | **6.8** |
 | universe | 5 | 1,410 | 9/10 | 9/10 | N/A | 8/10 | **8.5** |
@@ -656,7 +657,7 @@ Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ 
 
 ## VISION.md Pipeline Alignment Tracking (added 2026-09-11; refreshed 2026-09-12 against Deep Audit A-01..A-03, E-21)
 
-Disposition of the `VISION.md` "Final Architecture" pipeline + named tool-stack stages against the codebase. **Bottom line: 11/13 stages exist structurally; 2 are genuinely NOT implemented (Lip Sync = phoneme heuristic only, Upload = status-flip only); Story and Upscaler diverge from VISION's letter (rule-based vs LLM, PIL vs Real-ESRGAN).**
+Disposition of the `VISION.md` "Final Architecture" pipeline + named tool-stack stages against the codebase. **Bottom line: 11/13 stages exist structurally; 2 are genuinely NOT implemented (Lip Sync = phoneme heuristic only, Upload = status-flip only); Story and Upscaler diverge from VISION's letter (rule-based vs LLM, PIL vs Real-ESRGAN); Video Editor keeps timeline/editing as data structures but now has a real ffmpeg export stage (A-01 stage 3, 2026-09-12).**
 
 | VISION Stage | Code Module | Status | Notes |
 |--------------|-------------|--------|-------|
@@ -671,7 +672,7 @@ Disposition of the `VISION.md` "Final Architecture" pipeline + named tool-stack 
 | Image-to-Video (Phase 9) | `src/video_generation/` **NEW** + `RenderQueue` | ✅ **BUILT 2026-09-11** | Protocol + mock + Wan ComfyUI + Cloud fal/Replicate/HunyuanVideo adapters |
 | **Lip Sync (Phase 10)** | `src/animation/lipsync.py` | ⚠️ **PLACEHOLDER / DIVERGES** | letter→phoneme heuristic only; VISION's LatentSync/MuseTalk/Hallo/SadTalker named but have no adapter seam (A-03); output is phoneme estimate, no audio+video alignment |
 | Subtitles (Phase 12) | `src/post_production/subtitles.py` | ✅ BUILT | consumable directly from generated lyrics |
-| **Video Editor (Phase 11)** | `src/post_production/` editing/timeline models | ⚠️ **STRUCTURE-ONLY** | builds timeline/editing data structures; no DaVinci Resolve pipeline (VISION's named tool), no real media assembly — `exports.py:88` returns canned dict (A-01) |
+| **Video Editor (Phase 11)** | `src/post_production/` editing/timeline models + `export_executor.py` | ⚠️ **PARTIAL** | **A-01 stage 3 (2026-09-12):** timeline/editing remain data structures (no VISION's DaVinci Resolve), but `ExportEngine.export()` now consumes clip files and writes **real MP4 bytes** — ffmpeg concat → preset re-encode (resolution/fps/bitrate) → audio-stem mux (`FFMPEG_EXECUTOR=auto\|ffmpeg\|mock`; offline byte-copy `ConcatExportExecutor` fallback) |
 | Thumbnail (Phase 13) | `src/image_generation/thumbnail.py` + `publishing/thumbnail` | ✅ BUILT | functional compositing |
 | **Upscaler (Best-Stack)** | `src/image_generation/upscaler.py` | ⚠️ **DIVERGES** | **E-21:** VISION names Real-ESRGAN; implementation is PIL LANCZOS resize |
 | **Upload (Phase 14)** | `src/publishing/publishing.py` | ❌ **NOT IMPLEMENTED** | **A-01:** `PublishingEngine.publish()` only flips `status → PUBLISHED` + stores a manually-passed `video_url`; **no YouTube/TikTok/Instagram/Facebook/Pinterest client exists** (note in table previously said "PHP-only Upload") — VISION Phase 14 is wholly unmet |
@@ -727,7 +728,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | Major Gaps | 4 | M-04..M-06, M-08 open; M-01, M-02, M-07 closed 2026-09-11, M-03 VERIFIED CLOSED 2026-09-12; A-02..A-06 added 2026-09-12 |
 | Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15); most closed; E-21, E-22 added 2026-09-12 |
 | Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17); all closed 2026-09-09 |
-| Deep Audit 2026-09-12 | 6 | A-01..A-06 findings (see Deep Audit section); A-02 lyric-key, A-03 TTS adapter+lyrics wiring, A-04 limit+auth+referer, A-05 comfy failure paths, A-06 seed/frames+poll semantics **fixed 2026-09-12** |
+| Deep Audit 2026-09-12 | 6 | A-01..A-06 findings (see Deep Audit section); **A-01 stage-3 export stage** (real ffmpeg bytes-producing executor + offline fallback), A-02 lyric-key, A-03 TTS adapter+lyrics wiring, A-04 limit+auth+referer, A-05 comfy failure paths, A-06 seed/frames+poll semantics **fixed 2026-09-12** |
 | **Total Issues** | **58** | |
 | Documentation Gaps | 13 | Verified ALL CLOSED 2026-09-12 (M-03) |
 | Security Concerns | 3 | UI auth, input validation, persistent secrets; input validation closed 2026-09-11 (M-07); UI auth now A-04 |
