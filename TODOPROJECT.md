@@ -530,7 +530,7 @@ Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ 
 ### A-06 (MAJOR): Cloud video backend corrupts request metadata + masks failures
 - **Module:** `src/video_generation/cloud.py`
 - **Evidence:** After download, `seed=0, frames=0` were set (request metadata lost); transient-poll swallows `GenerationFailed→running`, masking persistent API errors until the 900s deadline.
-- **Status:** **Seed/frames preservation FIXED 2026-09-12** — `submit()` now stashes the `VideoInput` per job_id; both `_download_fal`/`_download_replicate` echo `request.seed`/`request.frames` (regression test added). **Transient-vs-terminal poll masking remains OPEN.**
+- **Status:** **FIXED 2026-09-12.** (1) **Seed/frames preservation** — `submit()` stashes the `VideoInput` per job_id; both `_download_fal`/`_download_replicate` echo `request.seed`/`request.frames` (regression test added). (2) **Transient-vs-terminal poll** — `_poll_fal`/`_poll_replicate` now catch only `BackendUnavailable` (timeout/reset/DNS) and keep returning `"running"`; a `GenerationFailed` (persistent HTTP 4xx/5xx or malformed body from the status endpoint) propagates immediately so the persistence loop surfaces it instead of masking it as `"running"` until the 900s deadline. **Added 5 regression tests** (transient→running ×2 providers, persistent→raise ×2 providers, and a `generate()`-level test proving a persistent HTTP error aborts on the first poll).
 - **Recommended fix:** Preserve seed/frames from the request; distinguish transient (network) vs terminal (GenerationFailed) when retrying.
 - **Effort:** S/M
 
@@ -725,7 +725,7 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 | Major Gaps | 4 | M-04..M-06, M-08 open; M-01, M-02, M-07 closed 2026-09-11, M-03 VERIFIED CLOSED 2026-09-12; A-02..A-06 added 2026-09-12 |
 | Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15); most closed; E-21, E-22 added 2026-09-12 |
 | Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17); all closed 2026-09-09 |
-| Deep Audit 2026-09-12 | 6 | A-01..A-06 findings (see Deep Audit section); A-02 lyric-key, A-04 limit+auth+referer, A-05 comfy failure paths, A-06 seed/frames **fixed 2026-09-12** |
+| Deep Audit 2026-09-12 | 6 | A-01..A-06 findings (see Deep Audit section); A-02 lyric-key, A-04 limit+auth+referer, A-05 comfy failure paths, A-06 seed/frames+poll semantics **fixed 2026-09-12** |
 | **Total Issues** | **58** | |
 | Documentation Gaps | 13 | Verified ALL CLOSED 2026-09-12 (M-03) |
 | Security Concerns | 3 | UI auth, input validation, persistent secrets; input validation closed 2026-09-11 (M-07); UI auth now A-04 |

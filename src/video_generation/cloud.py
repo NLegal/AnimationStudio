@@ -144,8 +144,13 @@ class CloudVideoBackend:
     def _poll_fal(self, job_id: str) -> str:
         try:
             body = self._get_json(f"https://fal.run/{self.model}/requests/{job_id}")
-        except GenerationFailed:
+        except BackendUnavailable:
+            # Transient network failure (timeout / reset / DNS) — the job may
+            # still be running, so keep polling rather than aborting.
             return "running"
+        # GenerationFailed (persistent HTTP 4xx/5xx, malformed body) is
+        # terminal for this poll: let it propagate so a persistent API error
+        # surfaces immediately instead of being masked until the 900s deadline.
         status = body.get("status", "")
         if status == "COMPLETED":
             return "completed"
@@ -200,8 +205,11 @@ class CloudVideoBackend:
             body = self._get_json(
                 f"https://api.replicate.com/v1/predictions/{job_id}"
             )
-        except GenerationFailed:
+        except BackendUnavailable:
+            # Transient network failure (timeout / reset / DNS) — keep polling.
             return "running"
+        # GenerationFailed (persistent HTTP 4xx/5xx, malformed body) is
+        # terminal for this poll: propagate immediately (see _poll_fal).
         status = body.get("status", "")
         if status == "succeeded":
             return "completed"

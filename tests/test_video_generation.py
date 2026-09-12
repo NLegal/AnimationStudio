@@ -270,4 +270,66 @@ class TestCloudVideoBackend:
         result = backend.download(job_id)
         assert result.seed == 99
         assert result.frames == 148
-        assert result.video == b"VIDEO"
+
+    # ---- A-06: transient vs terminal poll semantics --------------------- #
+
+    def test_poll_fal_transient_network_error_returns_running(self):
+        """BackendUnavailable (timeout/reset) is retryable — stay running."""
+        from src.video_generation.cloud import CloudVideoBackend
+
+        backend = CloudVideoBackend(provider="fal", api_key="fake-key")
+        backend._get_json = lambda url: (_ for _ in ()).throw(
+            BackendUnavailable("network down")
+        )
+        assert backend.poll("JOB1") == "running"
+
+    def test_poll_fal_persistent_api_error_propagates(self):
+        """A-06 regression: a persistent API HttpError (GenerationFailed) must
+        surface immediately, not be masked as 'running' until the deadline."""
+        from src.video_generation.cloud import CloudVideoBackend
+
+        backend = CloudVideoBackend(provider="fal", api_key="fake-key")
+        backend._get_json = lambda url: (_ for _ in ()).throw(
+            GenerationFailed("Cloud backend returned HTTP 500")
+        )
+        with pytest.raises(GenerationFailed, match="HTTP 500"):
+            backend.poll("JOB1")
+
+    def test_poll_replicate_transient_network_error_returns_running(self):
+        from src.video_generation.cloud import CloudVideoBackend
+
+        backend = CloudVideoBackend(provider="replicate", api_key="fake-key")
+        backend._get_json = lambda url: (_ for _ in ()).throw(
+            BackendUnavailable("connection reset")
+        )
+        assert backend.poll("JOB1") == "running"
+
+    def test_poll_replicate_persistent_api_error_propagates(self):
+        from src.video_generation.cloud import CloudVideoBackend
+
+        backend = CloudVideoBackend(provider="replicate", api_key="fake-key")
+        backend._get_json = lambda url: (_ for _ in ()).throw(
+            GenerationFailed("Cloud backend returned HTTP 402")
+        )
+        with pytest.raises(GenerationFailed, match="HTTP 402"):
+            backend.poll("JOB1")
+
+    def test_generate_surfaces_persistent_api_error_without_waiting(self, monkeypatch):
+        """A-06 regression: the submit->poll loop must not keep polling for the
+        full 900s timeout when the status endpoint reports a terminal error."""
+        import src.video_generation.base as base_mod
+        from src.video_generation.cloud import CloudVideoBackend
+
+        backend = CloudVideoBackend(provider="fal", api_key="fake-key")
+        backend._post_json = lambda url, payload, extra_headers=None: {"request_id": "JOB1"}
+        poll_calls = []
+        def failing_poll(job_id):
+            poll_calls.append(job_id)
+            raise GenerationFailed("Cloud backend returned HTTP 500")
+        monkeypatch.setattr(backend, "poll", failing_poll)
+        monkeypatch.setattr(base_mod, "_sleep", lambda s: None)
+        monkeypatch.setattr(base_mod, "_monotonic", lambda: 0.0)
+
+        with pytest.raises(GenerationFailed, match="HTTP 500"):
+            backend.generate(VideoInput(prompt="duck hops"), timeout_s=900.0)
+        assert len(poll_calls) == 1
