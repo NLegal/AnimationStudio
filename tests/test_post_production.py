@@ -976,6 +976,18 @@ def _make_clip(duration: float = 1.0, size: str = "640x360",
     return out
 
 
+def _make_still(size: str = "320x240", out: str = "") -> str:
+    """Render a single test frame (testsrc) via ffmpeg."""
+    subprocess.run(
+        [FFMPEG_BIN, "-y", "-hide_banner", "-loglevel", "error",
+         "-f", "lavfi", "-i", f"testsrc=size={size}:rate=1",
+         "-frames:v", "1", out],
+        capture_output=True, text=True, timeout=120, check=True,
+    )
+    assert os.path.getsize(out) > 0
+    return out
+
+
 class TestExportResult:
     def test_defaults(self):
         result = ExportResult()
@@ -1020,6 +1032,16 @@ class TestExportValidation:
         with pytest.raises(ExportValidationError) as exc:
             engine.export(["nope-missing.mp4"], executor=ConcatExportExecutor())
         assert "missing clip file" in str(exc.value)
+
+    def test_image_sequence_requires_ffmpeg(self, tmp_path):
+        img = tmp_path / "still.png"
+        img.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+        with pytest.raises(ExportValidationError) as exc:
+            ExportEngine().export(
+                [], "youtube", images=[str(img)],
+                executor=ConcatExportExecutor(),
+            )
+        assert "image-sequence" in str(exc.value)
 
 
 class TestConcatExportExecutor:
@@ -1121,6 +1143,47 @@ class TestFfmpegExportExecutor:
         assert os.path.isfile(result.output_path)
         assert result.ffmpeg_used is True
         assert result.clip_count == 1
+
+    def test_image_sequence_assembles_mp4(self, tmp_path):
+        stills = [_make_still(out=str(tmp_path / f"still{i}.png"))
+                  for i in range(3)]
+        result = FfmpegExportExecutor().export(
+            [], ExportPreset(name="Web", resolution_width=1280,
+                             resolution_height=720, frame_rate=24,
+                             video_bitrate="5 Mbps", audio_bitrate="128 kbps",
+                             format="mp4"),
+            images=stills, seconds_per_frame=1.0,
+            output_path=str(tmp_path / "slideshow.mp4"),
+        )
+        assert os.path.isfile(result.output_path)
+        assert result.clip_count == 3
+        assert result.ffmpeg_used is True
+        assert result.executor == "ffmpeg"
+        assert 2.4 <= result.duration_s <= 3.6
+        assert 40 < result.video_frames < 110
+
+    def test_image_sequence_missing_image_raises(self, tmp_path):
+        still = _make_still(out=str(tmp_path / "one.png"))
+        with pytest.raises(ExportValidationError) as exc:
+            FfmpegExportExecutor().export(
+                [], ExportPreset(name="X"),
+                images=[still, str(tmp_path / "missing.png")],
+            )
+        assert "missing image" in str(exc.value)
+
+    def test_clips_and_images_rejected(self, tmp_path):
+        clip = _make_clip(out=str(tmp_path / "src.mp4"))
+        still = _make_still(out=str(tmp_path / "one.png"))
+        with pytest.raises(ExportValidationError):
+            FfmpegExportExecutor().export(
+                [clip], ExportPreset(name="X"), images=[still])
+
+    def test_image_sequence_bad_hold_time(self, tmp_path):
+        still = _make_still(out=str(tmp_path / "one.png"))
+        with pytest.raises(ExportValidationError):
+            FfmpegExportExecutor().export(
+                [], ExportPreset(name="X"), images=[still],
+                seconds_per_frame=0.001)
 
 
 # ── LocalizationEngine Tests ────────────────────────────────────────────

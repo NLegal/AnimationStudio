@@ -105,11 +105,16 @@ class ExportEngine:
         *,
         output_path: Optional[str] = None,
         audio: Optional[list[str]] = None,
+        images: Optional[list[str]] = None,
+        seconds_per_frame: float = 2.0,
         executor: Optional[ExportExecutor] = None,
     ) -> ExportResult:
-        """Render a list of clip files into one real output file.
+        """Render clips or stills into one real output file.
 
         ``preset`` may be a registered preset name or an ``ExportPreset``.
+        ``clips`` are video fragments (ffmpeg concat); ``images`` are still
+        frames assembled into an MP4 image-sequence with
+        ``seconds_per_frame`` of hold time each (pass ``clips=[]``).
         ``executor`` selects the producer explicitly (real ffmpeg or the
         offline concat fallback); otherwise ``get_export_executor``
         resolves ``FFMPEG_EXECUTOR`` (default ``auto`` → ffmpeg when
@@ -121,4 +126,5 @@ class ExportEngine:
         if executor is None:
             executor = get_export_executor()
         return executor.export(clips, preset,
-                               output_path=output_path, audio=audio)
+                               output_path=output_path, audio=audio,
+                               images=images, seconds_per_frame=seconds_per_frame)
