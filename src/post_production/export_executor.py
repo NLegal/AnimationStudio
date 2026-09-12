@@ -28,8 +28,10 @@ def _slug(name: str) -> str:
 
 
 def _default_output_path(clips: list[str], preset: ExportPreset) -> str:
-    stem = os.path.splitext(os.path.basename(clips[0]))[0] or "export"
-    return f"{stem}_{_slug(preset.name)}.{preset.format}"
+    first = clips[0]
+    stem = os.path.splitext(os.path.basename(first))[0] or "export"
+    return os.path.join(os.path.dirname(first) or ".",
+                        f"{stem}_{_slug(preset.name)}.{preset.format}")
 
 
 def _validated_clips(clips) -> list[str]:
