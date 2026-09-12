@@ -82,6 +82,7 @@ class CloudVideoBackend:
                 f"No API key for cloud provider {self.provider!r}. "
                 f"Set {_PROVIDER_ENV.get(self.provider, '?')} environment variable."
             )
+        self._requests: dict[str, VideoInput] = {}
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -89,10 +90,13 @@ class CloudVideoBackend:
     def submit(self, request: VideoInput) -> str:
         """Submit a generation job to the cloud provider; return a job id."""
         if self.provider == "fal":
-            return self._submit_fal(request)
-        if self.provider == "replicate":
-            return self._submit_replicate(request)
-        raise GenerationFailed(f"Unknown cloud provider: {self.provider}")
+            job_id = self._submit_fal(request)
+        elif self.provider == "replicate":
+            job_id = self._submit_replicate(request)
+        else:
+            raise GenerationFailed(f"Unknown cloud provider: {self.provider}")
+        self._requests[job_id] = request
+        return job_id
 
     def poll(self, job_id: str) -> str:
         """Return ``"completed"`` / ``"running"`` / ``"failed"`` for a job."""
@@ -155,11 +159,12 @@ class CloudVideoBackend:
         if not video_url:
             raise GenerationFailed("fal job returned no video URL")
         video_bytes = self._download_url(video_url)
+        request = self._requests.get(job_id, VideoInput())
         return VideoOutput(
             video=video_bytes,
             format="mp4",
-            seed=0,
-            frames=0,
+            seed=request.seed,
+            frames=request.frames,
             job_id=job_id,
             backend=self.BACKEND_NAME,
             metadata={"provider": "fal", "model": self.model},
@@ -213,11 +218,12 @@ class CloudVideoBackend:
         if not video_url:
             raise GenerationFailed("Replicate prediction returned no output")
         video_bytes = self._download_url(video_url)
+        request = self._requests.get(job_id, VideoInput())
         return VideoOutput(
             video=video_bytes,
             format="mp4",
-            seed=0,
-            frames=0,
+            seed=request.seed,
+            frames=request.frames,
             job_id=job_id,
             backend=self.BACKEND_NAME,
             metadata={"provider": "replicate", "model": self.model},

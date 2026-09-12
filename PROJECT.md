@@ -1,5 +1,5 @@
 # PROJECT.md — AI Nursery Rhyme Studio
-# Last Updated: 2026-09-09 (Audit)
+# Last Updated: 2026-09-12 (full-module deep audit)
 
 ---
 
@@ -50,8 +50,9 @@ Story Engine → Production Planning → Image Generation → Animation
 | Publishing | `src/publishing/` | 1,550 | 14 | Metadata, compliance, scheduling, localization, analytics |
 | Studio | `src/studio/` | 1,796 | 20 | Orchestrator, workflow, agents, tasks, security, dashboard |
 | Universe | `src/universe/` | 1,410 | 5 | Catalog parsing, seeding, batch generation |
-| Review UI | `src/review_ui/` | 1,316 | 2 | FastAPI + Jinja2 web UI |
+| Review UI | `src/review_ui/` | 1,546 | 4 | FastAPI + Jinja2 web UI |
 | Pipeline | `src/pipeline/` | 591 | 4 | JobQueue, GenerationJob, DiversityFilter |
+| Video Generation | `src/video_generation/` | 913 | 7 | Mock / Wan ComfyUI / Cloud (fal, Replicate, Hunyuan) i2v backends |
 | Animation Bible | `src/animation_bible/` | 1,954 | 6 | Motion system + cycle libraries + prompt templates |
 | Audio Bible | `src/audio_bible/` | 1,312 | 6 | Music/voice standards + production system |
 | Music Generation | `src/music_generation/` | 1,075 | 6 | ACE-Step + Suno adapters + mock backend |
@@ -67,7 +68,7 @@ Story Engine → Production Planning → Image Generation → Animation
 | World zones | 10 |
 | World locations | 138 |
 | Reusable props | 1,559 (20 categories) |
-| Approved assets (mock) | 0 (DB holds 2,472 scored/shortlisted rows; "18,071" doc claim overstated) |
+| Approved assets (mock) | 0 (DB holds 2,508 scored/shortlisted rows; "18,071" doc claim overstated) |
 | Animation motion types | 21 |
 | Facial expressions | 13 |
 | Gestures | 23 |
@@ -82,7 +83,7 @@ Story Engine → Production Planning → Image Generation → Animation
 | Test LOC | ~17,700 |
 | Test functions | ~1,695 |
 | Scripts | 19 Python + 3 setup |
-| Colab notebooks | 8 |
+| Colab notebooks | 13 |
 
 ---
 
@@ -135,31 +136,24 @@ Story Engine → Production Planning → Image Generation → Animation
 
 ---
 
-## Known Gaps (from 2026-09-09 Audit)
+## Known Gaps (refreshed 2026-09-12 — see TODOPROJECT.md for authoritative list)
 
 ### Critical
-1. Zero real media produced (catalog.db recovered 2026-09-09; holds 2,472 asset rows, **0 approved** — no real images yet)
-2. No LoRA trained (character consistency system is code-only)
-3. No audio generated (no songs, voices, or SFX)
-4. No video pipeline execution (animation/post-production/publishing unvalidated)
-5. No real character consistency (VISION.md's core promise unfulfilled)
+1. Zero real media produced (catalog.db holds 2,508 asset rows, **0 approved** — no real images yet)
+2. **No real-media consumer path**: post-generation modules (animation, post-production, publishing, studio) flip statuses instead of executing; only `video_generation` has real REST backends (Wan/Cloud) (TODOPROJECT A-01)
+3. No LoRA trained (character consistency system is code-only)
+4. No audio generated (audio_bible produces plans only; ACE-Step/Suno are the only real paths, both unproven live) (A-03)
+5. No video pipeline execution (animation/post-production/publishing unvalidated)
 
 ### Major
-6. ROADMAP.md diverges from actual PHASE*.md structure
-7. README.md doesn't warn about mock state
-8. 13 documentation gaps (Phases 1, 5, 6)
-9. Review UI is a 1,305-line monolith with zero authentication
-10. No integration tests against real backends
-11. Security module is in-memory only (lost on restart)
-12. No input validation on Review UI POST endpoints
-13. Dual persistence patterns (SQLite vs in-memory vs pure Python)
-
-### Minor
-14. Missing wrappers for generate_phase7.py and train_lora.py
-15. Hardcoded character name in 4 lock scripts
-16. Duplicated _CombinedRepo class across 4 scripts
-17. Empty ColorPalette/ and Fonts/ directories
-18. get-pip.py committed to repo root
+6. "AI" story engine is template/rule-based, not LLM (A-02)
+7. UI has zero authentication/authorization + open-redirect via referer (A-04)
+8. 13 documentation gaps (Phases 1, 5, 6) — **all verified closed 2026-09-12** (M-03)
+9. Review UI monolith (1,520-line app.py) — M-04 open
+10. No integration tests against real backends — M-05 open (blocked on approved assets)
+11. Security module is in-memory only (lost on restart) — M-06 open
+12. ComfyUI backend failure-path NameErrors + hardcoded node IDs (A-05)
+13. Dual persistence patterns (SQLite vs in-memory vs pure Python) — M-08 open
 
 ---
 

@@ -255,3 +255,19 @@ class TestCloudVideoBackend:
         from src.video_generation.hunyuan import HunyuanVideoBackend
         b = HunyuanVideoBackend(api_key="fake-key")
         assert "hunyuan" in b.model.lower() or "hunyuan" in b.model
+
+    def test_download_echoes_request_seed_and_frames(self):
+        """A-06 regression: cloud downloads must echo the submitted request's
+        seed/frames instead of hardcoded seed=0, frames=0."""
+        from src.video_generation.cloud import CloudVideoBackend
+
+        backend = CloudVideoBackend(provider="fal", api_key="fake-key")
+        backend._post_json = lambda url, payload, extra_headers=None: {"request_id": "JOB1"}
+        backend._get_json = lambda url: {"output": {"video": {"url": "https://x/v.mp4"}}}
+        backend._download_url = lambda url: b"VIDEO"
+        request = VideoInput(prompt="duck hops", seed=99, frames=148)
+        job_id = backend.submit(request)
+        result = backend.download(job_id)
+        assert result.seed == 99
+        assert result.frames == 148
+        assert result.video == b"VIDEO"

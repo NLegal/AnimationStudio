@@ -35,6 +35,16 @@ _WORKFLOW_ALIASES: dict[str, str] = {
     "lighting": "reference_sheet",
 }
 
+# Node-role IDs shared by every bundled workflow template
+# (src/generation_engine/workflows/*.json) and the built-in default graph.
+# Centralized so a template renumbering needs a single edit + test update
+# (audit A-05: these were previously hardcoded inline in _build_workflow).
+_NODE_KSAMPLER = "3"
+_NODE_POSITIVE_CLIP = "6"
+_NODE_NEGATIVE_CLIP = "7"
+_NODE_LATENT = "5"
+_NODE_LOADER = "4"
+
 # Default minimal workflow JSON template for single-image generation.
 # Flux-family models are guidance-based: CFG must stay 1.0 and the "simple"
 # scheduler is the recommended one (SD-style CFG values over-saturate/blur
@@ -204,6 +214,12 @@ class ComfyUIBackend(GenerationBackend):
         """Fallback generation using raw ComfyUI REST API.
 
         POSTs a workflow JSON to /prompt, then polls /history for results.
+
+        Failure handling (audit A-05): every error path returns a
+        ``GenerationOutput`` with ``images=[]`` and descriptive
+        ``metadata["error"]`` instead of raising — a crashed server, a
+        rejected workflow, or a transient poll gap must never surface as an
+        uncaught exception from the REST layer.
         """
         import requests
 
@@ -211,35 +227,89 @@ class ComfyUIBackend(GenerationBackend):
         payload = {"prompt": workflow, "client_id": f"character-studio-{uuid.uuid4().hex[:8]}"}
 
         resp = requests.post(f"{self.server_url}/prompt", json=payload, timeout=10)
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = ""
+            try:
+                detail = str(resp.json())
+            except (ValueError, AttributeError):
+                detail = resp.text[:200]
+            return GenerationOutput(
+                images=[],
+                seed=input.seed,
+                metadata={
+                    "error": f"ComfyUI rejected workflow (HTTP {resp.status_code}): {detail}",
+                    "backend": "ComfyUIBackend",
+                    "server_url": self.server_url,
+                },
+            )
         prompt_result = resp.json()
+        if not isinstance(prompt_result, dict) or "prompt_id" not in prompt_result:
+            return GenerationOutput(
+                images=[],
+                seed=input.seed,
+                metadata={
+                    "error": (
+                        f"ComfyUI /prompt returned no prompt_id "
+                        f"(validation failure): {prompt_result!r}"
+                    ),
+                    "backend": "ComfyUIBackend",
+                    "server_url": self.server_url,
+                },
+            )
         prompt_id = prompt_result["prompt_id"]
 
         # Poll /history for completion
         images = []
         for _attempt in range(60):
-            hist_resp = requests.get(
-                f"{self.server_url}/history/{prompt_id}", timeout=10
-            )
+            try:
+                hist_resp = requests.get(
+                    f"{self.server_url}/history/{prompt_id}", timeout=10
+                )
+            except Exception:
+                # Transient poll failure — keep polling; do not abort.
+                time.sleep(5)
+                continue
             if hist_resp.status_code == 200:
                 history = hist_resp.json()
-                if prompt_id in history:
-                    outputs = history[prompt_id].get("outputs", {})
-                    # Extract images from node outputs
-                    for _node_id, node_output in outputs.items():
-                        for img_info in node_output.get("images", []):
-                            img_filename = img_info.get("filename", "")
-                            img_subfolder = img_info.get("subfolder", "")
+                if prompt_id not in history:
+                    time.sleep(5)
+                    continue
+                entry = history[prompt_id]
+                # A failing job is recorded in history with a non-empty
+                # status_str — surface it instead of reporting zero images.
+                status_str = (
+                    (entry.get("status") or {}).get("status_str") or ""
+                ).lower()
+                if status_str in ("error", "failed"):
+                    return GenerationOutput(
+                        images=[],
+                        seed=input.seed,
+                        metadata={
+                            "error": f"ComfyUI job {prompt_id} failed: {status_str}",
+                            "backend": "ComfyUIBackend",
+                            "server_url": self.server_url,
+                            "prompt_id": prompt_id,
+                        },
+                    )
+                outputs = entry.get("outputs", {})
+                # Extract images from node outputs
+                for _node_id, node_output in outputs.items():
+                    for img_info in node_output.get("images", []):
+                        img_filename = img_info.get("filename", "")
+                        img_subfolder = img_info.get("subfolder", "")
+                        try:
                             img_resp = requests.get(
                                 f"{self.server_url}/view",
                                 params={"filename": img_filename, "subfolder": img_subfolder, "type": "output"},
                                 timeout=10,
                             )
-                            if img_resp.status_code == 200:
-                                from PIL import Image
-                                import io
-                                images.append(Image.open(io.BytesIO(img_resp.content)))
-                    break
+                        except Exception:
+                            continue
+                        if img_resp.status_code == 200:
+                            from PIL import Image
+                            import io
+                            images.append(Image.open(io.BytesIO(img_resp.content)))
+                break
             time.sleep(5)
 
         return GenerationOutput(
@@ -280,26 +350,26 @@ class ComfyUIBackend(GenerationBackend):
             elif cls == "UnetLoaderGGUF" and not inputs.get("unet_name"):
                 inputs["unet_name"] = _DEFAULT_CKPT_NAME
 
-        # Inject positive prompt into CLIPTextEncode node (node 6)
-        if "6" in workflow and workflow["6"].get("class_type") == "CLIPTextEncode":
-            workflow["6"]["inputs"]["text"] = input.prompt
+        # Inject positive prompt into CLIPTextEncode node
+        if _NODE_POSITIVE_CLIP in workflow and workflow[_NODE_POSITIVE_CLIP].get("class_type") == "CLIPTextEncode":
+            workflow[_NODE_POSITIVE_CLIP]["inputs"]["text"] = input.prompt
 
-        # Inject negative prompt into CLIPTextEncode node (node 7)
-        if "7" in workflow and workflow["7"].get("class_type") == "CLIPTextEncode":
-            workflow["7"]["inputs"]["text"] = input.negative_prompt
+        # Inject negative prompt into CLIPTextEncode node
+        if _NODE_NEGATIVE_CLIP in workflow and workflow[_NODE_NEGATIVE_CLIP].get("class_type") == "CLIPTextEncode":
+            workflow[_NODE_NEGATIVE_CLIP]["inputs"]["text"] = input.negative_prompt
 
-        # Inject seed into KSampler node (node 3)
-        if "3" in workflow and workflow["3"].get("class_type") == "KSampler":
-            workflow["3"]["inputs"]["seed"] = input.seed
+        # Inject seed into KSampler node
+        if _NODE_KSAMPLER in workflow and workflow[_NODE_KSAMPLER].get("class_type") == "KSampler":
+            workflow[_NODE_KSAMPLER]["inputs"]["seed"] = input.seed
 
-        # Inject dimensions into the empty-latent node (node 5).  Flux-family
+        # Inject dimensions into the empty-latent node.  Flux-family
         # models use EmptySD3LatentImage; SD-family use EmptyLatentImage.
-        if "5" in workflow and workflow["5"].get("class_type") in (
+        if _NODE_LATENT in workflow and workflow[_NODE_LATENT].get("class_type") in (
             "EmptyLatentImage",
             "EmptySD3LatentImage",
         ):
-            workflow["5"]["inputs"]["width"] = input.width
-            workflow["5"]["inputs"]["height"] = input.height
+            workflow[_NODE_LATENT]["inputs"]["width"] = input.width
+            workflow[_NODE_LATENT]["inputs"]["height"] = input.height
 
         # GGUF checkpoints (master branch: flux1-dev-Q4_K_S.gguf) cannot be
         # loaded by CheckpointLoaderSimple.  Rewire the graph onto the GGUF

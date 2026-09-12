@@ -231,9 +231,9 @@ python scripts/generate_universe.py --scope all --backend mock --serve --port 80
 
 ### Phase 3 — Global Asset Library & Production Kit
 
-The reusable production prop library (12,472 approved assets: references,
-turnaround views, material/color variants, and lighting studies for all 1,559
-props) is produced and maintained by the Phase 3 pipeline:
+The reusable production prop library (references, turnaround views, material/color
+variants, and lighting studies for all 1,559 props) is produced and maintained
+by the Phase 3 pipeline:
 
 ```bash
 # Generate every prop variant (idempotent — existing variants are skipped)

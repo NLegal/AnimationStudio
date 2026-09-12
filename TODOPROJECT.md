@@ -1,5 +1,5 @@
 # TODOPROJECT.md — Comprehensive Codebase Audit
-# Generated: 2026-09-09 | All 12 Phases Scanned | Updated: 2026-09-11 (VISION.md lyrics + video + cloud-notebook gaps closed)
+# Generated: 2026-09-09 | All 12 Phases Scanned | Updated: 2026-09-12 (full-module deep audit — see "Deep Audit 2026-09-12")
 
 ---
 
@@ -149,7 +149,7 @@
 - **Dependencies:** None
 - **Done:** (a) Stale test counts corrected — README now states **2,050 collected**, **785 in the 12 offline-safe CI suites**, **904 with the Review-UI suites**, verified by collection runs; the old "1435/1432" claim removed. (b) Resolved by M-01 (roadmap now canonical 12-phase; README phase table already used canonical numbering). (c)+(d) The existing **Production Readiness Note** already discloses the mock-placeholder state (2,508 asset rows, 0 approved) and GPU/ComfyUI-for-real-output requirement — verified live against `catalog.db` and kept accurate. "Test coverage by module" table retained with corrected framing.
 
-### M-03: 13 Documentation Gaps (Phase 1 + Phase 5 + Phase 6)
+### ~~M-03: 13 Documentation Gaps (Phase 1 + Phase 5 + Phase 6)~~ → ✅ **VERIFIED CLOSED 2026-09-12**
 - **Module:** `Universe/`, `Audio/`, `StoryEngine/`
 - **Severity:** MAJOR
 - **Description:**
@@ -159,6 +159,7 @@
 - **Recommended Fix:** Create the 13 missing documentation files.
 - **Estimated Effort:** M
 - **Dependencies:** None
+- **Done:** Audit 2026-09-12 verified all 13 items are now present with real content: `Universe/ReferenceSheets/CHARACTER_REFERENCE_GUIDE.md`, `Universe/ModelSheets/MODEL_SHEET_GUIDE.md`, `Universe/ColorPalette/brand-palette.json`, `Universe/{Community,Families,Fantasy,Friends}/INDEX.md`, `Audio/Vocals/.gitkeep`, `StoryEngine/{Humor,Emotions,Seasons,Metadata}/*_GUIDE.md` — all exist (committed 2026-07-28/30 in `07ab57cc`/`64b5bb60`); Fonts guide lives at root `Fonts/FONT_GUIDE.md` (61 lines) with `Universe/Fonts/` holding only `.gitkeep` (acceptable — no code path reads it). The M-03 ticket was stale: the gap list predated those commits.
 
 ### M-04: Review UI Monolith (1,305 lines, 64 functions)
 - **Module:** `src/review_ui/app.py`
@@ -486,6 +487,103 @@
 
 ---
 
+## Deep Audit 2026-09-12 (full-module scan — every src/ module, UI deep dive, all 13 notebooks validated)
+
+Performed a full-module audit scanning all **20 src packages (~27,000 LOC, 200+ py files)**, all 36 test files, all 13 Colab notebooks, CI, config, and every PHASE/VISION/doc claim. Findings below are **new or sharpened** since 2026-09-11; previously-tracked items (C-*, M-*, N-*, T-*, E-*) remain assigned.
+
+### A-01 (CRITICAL): No real-media consumer path exists — post-generation modules flip status instead of executing
+- **Module:** `animation`, `post_production`, `publishing`, `studio`
+- **Evidence:** `animation/render.py` `RenderQueue/RenderPipeline` is a pure state machine (`process_next()` marks RENDERING, no renderer invoked); `post_production/exports.py:88` only returns preset dicts (no encode/ffmpeg/file write); `post_production/color.py:107` `apply()` ignores input & returns a canned dict; `publishing/publishing.py:59` `publish()` flips an enum (no YouTube/upload client); `studio/orchestrator.py:71` `execute_ready_steps()` immediately marks tasks COMPLETED without executing; `studio/resources.py:120` RenderFarm moves `_pending→_rendered` without rendering; `studio/api.py:24` `StudioAPI.call()` returns a dict (no HTTP server); `animation/regeneration.py:68` always returns `regenerated=True`; `post_production/enhancement.py` frame_interpolation never calls RIFE.
+- **Impact:** Today the ONLY path that can produce real media is `video_generation` (`WanVideoBackend`/`CloudVideoBackend` — real ComfyUI/fal/Replicate REST clients). Everything downstream is planning/framework code. End-to-end "episode" runs are simulations (test_e2e_episode.py), and tests explicitly assert only wiring.
+- **Recommended fix:** This is the single most important gap vs. the VISION. Stage the work: (1) prove one real image (ComfyUI/cloud), (2) prove one real i2v clip, (3) wire a real ffmpeg export step that consumes clips, (4) attach a real uploader (YouTube Data API) behind a config flag. Do NOT build more frameworks until the chain produces bytes.
+- **Effort:** XL · **Dependencies:** C-01 (GPU/cloud), C-04
+
+### A-02 (MAJOR): "AI" story engine is template/rule-based, not LLM — documentation overstates capability
+- **Module:** `story_engine`, `lyrics.py`
+- **Evidence:** Zero LLM imports anywhere in `src/` (no openai/httpx/requests/transformers-LLM usage). `EpisodeGenerator` = `random.choice` over hardcoded banks; title/description are f-string templates; dialogue = canned phrase tables; `LyricsGenerator` = template-bank picker (`_VERSE_BANKS`/`_CHORUS_BANKS`) with seeded `random.Random`. Deterministic per seed, combinatorial.
+- **Status:** **Lyric-key mismatch FIXED 2026-09-12** (`lyrics.py` `_SONG_TYPE_ALIASES` maps `color→colors`, `animal→animals`; 3 regression tests added). The **core LLM-vs-template gap remains OPEN** (VISION Phase 6 story generator).
+- **Impact:** Any reader of VISION.md / README ("AI story generation") expects generative output. The system is a variant/template engine — fine as scaffolding, mislabeled as AI. Remaining `topic` param of `LyricsGenerator.generate` is still **unused** (documented, S).
+- **Recommended fix:** Either (a) integrate a real LLM adapter (OpenAI/Anthropic/transformers) behind the `EpisodeGenerator` Protocol with the template engine as the offline fallback, or (b) re-scope docs to "rule-based generative scaffolding".
+- **Effort:** L (LLM) or M (re-scope)
+
+### A-03 (MAJOR): `audio_bible` produces zero audio — TTS/voice engines named but never invoked
+- **Module:** `audio_bible/production.py`, `animation/lipsync.py`, `music_generation`
+- **Evidence:** `AudioProductionSystem.plan_episode` builds an `AudioPlan` (voice briefs, lip-sync tracks, SFX name lists) but never calls Kokoro/XTTS/Piper (referenced only as strings); lip-sync is a letter→mouth heuristic mapper; no orchestra wiring feeds `AudioPlan.songs[].lyrics` → `MusicRequest.lyrics_override` automatically (music_generation and audio_bible are disconnected).
+- **Recommended fix:** Add a TTS adapter + wire `AudioPlan → music_generation`; at minimum document the disconnect.
+- **Effort:** L
+
+### A-04 (MAJOR): UI has zero authentication/authorization + open-redirect via referer + unbounded API limit
+- **Module:** `src/review_ui/app.py`
+- **Evidence:** No auth on ANY route (POST `/approve/`, `/reject/`, `/promote/`, `/regenerate/`, `/generate`, `/seed`, `/api/assets/...` are all unauthenticated; any webpage can drive state changes/GPU jobs if the UI is reachable — it is, via LocalTunnel in the Colab notebooks). `_get_referer` (app.py:1387) redirects to the raw `referer` header (open-redirect). `GET /api/candidates` `limit=Query(50)` had no `ge/le` bounds (M-07 validated `/generate` but not this).
+- **Status:** **FIXED 2026-09-12.** (1) **Limit bounded** — `limit=Query(50, ge=1, le=500)` + 422 regression test. (2) **Token auth** — `create_app(ui_token=...)` optional gate; all 10 POST routes (`/motion/prompt`, `/music/prompt`, `/music/generate`, `/generate`, `/seed`, `/approve/`, `/reject/`, `/regenerate/`, `/promote/`, `/api/assets/...`) accept `?token=` or `X-UI-Token` header, 401 otherwise; GETs stay public so the UI remains browsable; default `ui_token=None` keeps local runs unchanged. (3) **Open-redirect closed** — `_get_referer` only accepts a same-origin absolute URL (host:port must match the server) or a local `/path` (not `//host`); scheme-relative `//host`, `javascript:`/other schemes, and malformed values like `:::` fall back to `/`. (4) **Notebook tunnels secured** — the 6 UI-launch notebooks (Colab, IdentityLock, Phase2, Phase3, Phase8, Phase9to12) now generate a per-run `secrets.token_urlsafe(18)` token, pass it via `ui_token=UI_TOKEN`, and print the tunnel URL with `?token=<token>` appended. **Added `tests/test_review_ui_security.py` — 33 tests** (token gate on every POST route × wrong/correct token/header, GETs public, referer allowlist incl. foreign-host, javascript:, scheme-relative, garbage, same-host, relative-path).
+- **Impact:** If the tunnel URL leaks or is guessed, an attacker can mutate the production DB and queue expensive batches. Local tool → medium risk; tunneled → critical.
+- **Recommended fix:** Add a simple token auth (header/query `?token=` generated at startup, default off behind a flag) + CSRF, and replace referer redirects with explicit success/error responses or a bounded internal referer allowlist.
+- **Effort:** M
+
+### A-05 (MAJOR): `comfy_backend` failure paths & hardcoded node IDs (core real-backend bug — blocks C-01)
+- **Module:** `src/generation_engine/comfy_backend.py`
+- **Evidence:** Undefined-variable `NameError`s in ComfyUI failure paths (fallback confirmations reference names that don't exist when the server errors); hardcoded workflow node IDs (e.g. `"8"`) make the backend brittle to template changes.
+- **Status:** **FIXED 2026-09-12.** (1) REST generate now handles terminal HTTP errors, validation-error bodies, and missing `prompt_id` with structured `metadata["error"]` (was `KeyError: 'prompt_id'`); history poll treats failed `status_str` (`error`/`failed`) jobs as failures, tolerates transient poll errors, and skips failed image views without aborting. (2) Node-role IDs centralized into `_NODE_KSAMPLER`/`_NODE_POSITIVE_CLIP`/`_NODE_NEGATIVE_CLIP`/`_NODE_LATENT`/`_NODE_LOADER` constants. **Added `tests/test_comfy_backend.py` — 9 offline failure-path tests** (refused / HTTP 500 / validation-body / non-dict body / failed history / view failure / success / load-model nonfatal) — the audit's recommended "unit-test the failure paths (mock transport that raises)" was previously missing.
+- **Recommended fix:** Next hardening when C-01 setup begins: integration-test against a real (or containerized) ComfyUI with a live template export.
+- **Effort:** M
+
+### A-06 (MAJOR): Cloud video backend corrupts request metadata + masks failures
+- **Module:** `src/video_generation/cloud.py`
+- **Evidence:** After download, `seed=0, frames=0` were set (request metadata lost); transient-poll swallows `GenerationFailed→running`, masking persistent API errors until the 900s deadline.
+- **Status:** **Seed/frames preservation FIXED 2026-09-12** — `submit()` now stashes the `VideoInput` per job_id; both `_download_fal`/`_download_replicate` echo `request.seed`/`request.frames` (regression test added). **Transient-vs-terminal poll masking remains OPEN.**
+- **Recommended fix:** Preserve seed/frames from the request; distinguish transient (network) vs terminal (GenerationFailed) when retrying.
+- **Effort:** S/M
+
+### E-21 (ENHANCEMENT): `UpscalingPipeline` is PIL resize, misnamed as AI; validator "has_seed" is hardcoded True
+- **Module:** `src/image_generation/upscaler.py`, `validator.py:62`
+- **Evidence:** `upscale_to_4k()` = `Image.resize(LANCZOS)` — no Real-ESRGAN/GFPGAN; `"has_seed": True` is hard-coded (no seed field checked). `ReferenceImageManager` leaks file handles (`Image.open` never closed).
+- **Recommended fix:** Rename docs to "high-res resize"; wire Real-ESRGAN when GPU available; check seed; use context managers.
+- **Effort:** S/M
+
+### E-22 (ENHANCEMENT): README/PROJECT.md still contain stale claims
+- **Evidence:**
+  - README §Phase 3 says "12,472 approved assets" — **false**; catalog.db has **2,508 rows, 0 approved** (README's own Production note says the correct number — internal contradiction).
+  - README "Available routes" table omits `/motion`, `/music`, `/api/assets/...`, `/asset-image/{id}`, `/api/overview`, `/api/jobs`, `/api/candidates`, `/api/music/jobs`.
+  - PROJECT.md says "Colab notebooks: 8" — there are **13**; "review_ui: 1,316 LOC / 2 files" — actually 4 files (~1,546 LOC incl. app.py 1,520); DB row count "2,472" — stale (2,508); `video_generation` package is missing from the module inventory table entirely.
+  - `.env.example` documents only 4 vars but code reads `ACESTEP_BASE_URL`, `ACESTEP_API_KEY`, `MUSIC_BACKEND`, `KOHYA_SS_PATH`, `VIDEO_BACKEND`, `CUDA_VISIBLE_DEVICES` (in setup scripts), `FAL/REPLICATE/BFL_API_KEY`.
+  - CI's test job runs only the 12 offline-safe suites (785) and skips the 5 Review-UI suites (≈119 more, 904 total) for environment/stability reasons documented in README; acceptable, but note review_ui validation now makes them safe to add if desired.
+- **Recommended fix:** Fix the README Phase-3 "12,472" claim; refresh PROJECT.md module inventory (LOC, file counts, notebook count, add video_generation); align `.env.example`.
+
+### A-07 (OBSERVATION): Simulation-shade consistency across the codebase (9/20 modules)
+- Pattern: Protocol/base + typed errors + in-memory registry + factory is clean and testable, but engines consistently return canned dicts/metadata/flags that "describe" results instead of producing them (`regenerate()→regenerated=True`, `apply()→"applied"`, `compliance.check→True` rubber-stamps, `publish()→PUBLISHED`). This is the root of most "gap" findings and is **structurally fine** — it makes the whole system mock-testable — but the naming/expectation gap should be surfaced in README (which already does so in the Production Readiness Note). Compliance layer offering hard-coded PASS booleans is the one genuinely misleading part.
+
+### Notebook validation result (2026-09-12) — ALL 13 sound
+- Re-ran import-resolution over every cell in every notebook: every `src.*` / `scripts.*` / `colab/comfy_helpers`, `colab/git_sync` reference resolves to a real file; each notebook has real (non-stub) code cells (no `pass`-only, no TODO stubs — only the Validate notebook contains one intentional TODO marker); GPU/disk/size guards present; `colab-gpu`-only enforced. Verdict matches the existing "ALL 13 notebooks sound" table below. The 13 include: base Colab, Cloud, IdentityLock, Phase2–Phase8, Phase9to12, Training, Validate.
+
+### Revised module health scores (deep audit 2026-09-12)
+
+| Module | Files | LOC | Complete | Quality | Security | Docs | Tests |
+|---|---|---|---|---|---|---|---|
+| models | 2 | 72 | 9 | 9 | – | 7 | 7 |
+| identity_engine | 11 | 870 | 9 | 8 | 7 | 8 | 8 |
+| asset_repository | 5 | 647 | 9 | 9 | 7 | 8 | 8 |
+| generation_engine | 8 | 1063 | 7 | 7 | 6 | 8 | 7 |
+| prompt_builder | 4 | 783 | 9 | 9 | – | 9 | 8 |
+| training_engine | 8 | 1705 | 7 | 8 | 5 | 7 | 8 |
+| story_engine | 23 | 4824 | 8 | 7 | 6 | 5 | 8 |
+| production | 10 | 1291 | 8 | 8 | – | 7 | 8 |
+| image_generation | 9 | 666 | 6 | 7 | 7 | 6 | 8 |
+| animation | 18 | 1691 | 3 | 6 | 7 | 4 | 7 |
+| video_generation | 7 | 913 | 6 | 7 | 8 | 9 | 6 |
+| post_production | 17 | 1370 | 3 | 6 | 7 | 5 | 7 |
+| publishing | 14 | 1358 | 3 | 6 | 5 | 5 | 7 |
+| studio | 20 | 1710 | 3 | 5 | 4 | 6 | 7 |
+| universe | 5 | 1410 | 9 | 9 | – | 8 | 8 |
+| review_ui | 4 | 1546 | 7 | 7 | 3 | 7 | 8 |
+| pipeline | 4 | 591 | 8 | 8 | – | 8 | 7 |
+| animation_bible | 6 | 1954 | 8 | 8 | 7 | 8 | 7 |
+| audio_bible | 6 | 1341 | 6 | 8 | 7 | 8 | 8 |
+| music_generation | 6 | 1075 | 7 | 9 | 9 | 9 | 9 |
+
+**Overall: YELLOW→RED for real-media readiness.** Infrastructure quality is high (tests, docs, structure excellent); **real-content production readiness is ~2/10** — the only genuinely real media path is `video_generation` cloud/Wan, and even it is unproven end-to-end. Everything above the generation layer is framework code today.
+
+---
+
 ## Cross-Module Integration Analysis
 
 ### API Contract Consistency
@@ -554,24 +652,28 @@
 
 ---
 
-## VISION.md Pipeline Alignment Tracking (added 2026-09-11)
+## VISION.md Pipeline Alignment Tracking (added 2026-09-11; refreshed 2026-09-12 against Deep Audit A-01..A-03, E-21)
 
-Disposition of the `VISION.md` Phase-6+ pipeline stages against the codebase (audit run 2026-09-10; Lyrics item executed 2026-09-11; Image-to-Video + Cloud notebook items executed 2026-09-11).
+Disposition of the `VISION.md` "Final Architecture" pipeline + named tool-stack stages against the codebase. **Bottom line: 10/13 stages exist structurally; 3 are genuinely NOT implemented (Voices/TTS = zero audio, Lip Sync = phoneme heuristic only, Upload = status-flip only); Story and Upscaler diverge from VISION's letter (rule-based vs LLM, PIL vs Real-ESRGAN).**
 
 | VISION Stage | Code Module | Status | Notes |
 |--------------|-------------|--------|-------|
-| Story | `src/story_engine/` (EpisodeGenerator) | ✅ BUILT | full story grammar + curriculum + validation |
-| **Lyrics** | `src/story_engine/lyrics.py` **NEW** + `AudioProductionSystem._lyrics_for` | ✅ **BUILT 2026-09-11** | VISION "Idea→Lyrics→Verse→Chorus" gap closed: seeded nursery-rhyme generator produces section-marked lyric text on `SongEntry.lyrics`; feeds `MusicRequest.lyrics_override` (ACE-Step) + `SubtitleEngine.generate_from_lyrics` |
-| Music | `src/music_generation/` (ACE-Step/Suno) | ✅ BUILT | marker-scaffold fallback when no lyrics override |
-| Storyboard | `src/production/` + Phase 7 notebook | ✅ BUILT | |
-| Scene/Prompt | `src/prompts/` + Phase 8 notebook | ✅ BUILT | |
-| Character Manager | IdentityLock notebook + `src/asset_repository/` | ✅ BUILT | 4 lock scripts + LoRA training |
-| Image Gen | MockBackend / ComfyUI + fp8 Flux | ✅ BUILT | real runs C-01 gated |
-| Image-to-Video | `src/video_generation/` **NEW** + `RenderQueue` | ✅ **BUILT 2026-09-11** | Protocol + mock + Wan ComfyUI + Cloud fal/Replicate/HunyuanVideo adapters; closes VISION Phase 9 image-to-video gap |
-| Lip Sync | `src/animation/lipsync.py` | ⚠️ PLACEHOLDER | phoneme estimates only |
-| Subtitles | `src/post_production/subtitles.py` | ✅ BUILT | now directly consumable from generated lyrics |
-| Video Editor / Thumbnail / Upload / Upscaler | `src/studio/` + Phase 9-12 notebook | ⚠️ BUILT / PHP-only Upload | offline-verified, media-gated |
-| Cloud backend notebooks (fal/replicate/bfl) | `colab/AnimationStudio_Colab_Cloud.ipynb` **NEW** | ✅ **BUILT 2026-09-11** | Phase 1–3 generation via cloud providers (getpass secrets, `_gen_cmd` relay, `--sync-every-image` + `git_sync.auto_sync`); closes N-06 |
+| **Story (Phase 6)** | `src/story_engine/` (EpisodeGenerator) | ⚠️ **DIVERGES** | **A-02:** template/rule-based grammar engine, NOT an AI/LM story generator (zero LLM imports anywhere in `src/`); conversation-style inputs are templated context, not prompts |
+| **Lyrics** | `src/story_engine/lyrics.py` **NEW** + `AudioProductionSystem._lyrics_for` | ✅ **BUILT 2026-09-11** | seeded nursery-rhyme generator → `SongEntry.lyrics` → `MusicRequest.lyrics_override` (ACE-Step) + `SubtitleEngine.generate_from_lyrics`. Known bug A-02: song_types `"color"/"animal"` never match bank keys `"colors"/"animals"` → silent fallback to generic `educational`; `topic` param unused |
+| Music (Phase 4) | `src/music_generation/` (ACE-Step/Suno) | ✅ BUILT | ACE-Step real (in-memory mock default); Suno stub (API-shape only) |
+| **Voices / TTS (Phase 5)** | `src/audio_bible/` (`libraries.py`, `bible.py`, `production.py`) | ❌ **NOT IMPLEMENTED** | **A-03:** `tts_engine="XTTS v2"` is a metadata string only (`libraries.py`); `bible.py:268` validates the label but no TTS engine is ever invoked → **zero audio produced**; Kokoro/XTTS/Piper named in VISION have no adapters; AudioPlan never feeds music/audio chain |
+| Storyboard (Phase 7) | `src/production/` + Phase 7 notebook | ✅ BUILT | |
+| Scene Planner / Prompt (Phase 6/8) | `src/prompts/` + Phase 8 notebook | ✅ BUILT | |
+| Character Manager | IdentityLock notebook + `src/asset_repository/` | ✅ BUILT | 4 lock scripts + LoRA training (gradient gated) |
+| Image Gen (Phase 8) | MockBackend / ComfyUI + fp8 Flux | ✅ BUILT | real runs C-01 gated |
+| Image-to-Video (Phase 9) | `src/video_generation/` **NEW** + `RenderQueue` | ✅ **BUILT 2026-09-11** | Protocol + mock + Wan ComfyUI + Cloud fal/Replicate/HunyuanVideo adapters |
+| **Lip Sync (Phase 10)** | `src/animation/lipsync.py` | ⚠️ **PLACEHOLDER / DIVERGES** | letter→phoneme heuristic only; VISION's LatentSync/MuseTalk/Hallo/SadTalker named but have no adapter seam (A-03); output is phoneme estimate, no audio+video alignment |
+| Subtitles (Phase 12) | `src/post_production/subtitles.py` | ✅ BUILT | consumable directly from generated lyrics |
+| **Video Editor (Phase 11)** | `src/post_production/` editing/timeline models | ⚠️ **STRUCTURE-ONLY** | builds timeline/editing data structures; no DaVinci Resolve pipeline (VISION's named tool), no real media assembly — `exports.py:88` returns canned dict (A-01) |
+| Thumbnail (Phase 13) | `src/image_generation/thumbnail.py` + `publishing/thumbnail` | ✅ BUILT | functional compositing |
+| **Upscaler (Best-Stack)** | `src/image_generation/upscaler.py` | ⚠️ **DIVERGES** | **E-21:** VISION names Real-ESRGAN; implementation is PIL LANCZOS resize |
+| **Upload (Phase 14)** | `src/publishing/publishing.py` | ❌ **NOT IMPLEMENTED** | **A-01:** `PublishingEngine.publish()` only flips `status → PUBLISHED` + stores a manually-passed `video_url`; **no YouTube/TikTok/Instagram/Facebook/Pinterest client exists** (note in table previously said "PHP-only Upload") — VISION Phase 14 is wholly unmet |
+| Cloud backend notebooks (fal/replicate/bfl) | `colab/AnimationStudio_Colab_Cloud.ipynb` **NEW** | ✅ **BUILT 2026-09-11** | Phase 1–3 generation via cloud providers; closes N-06 |
 
 ```bash
 # Local (no-GPU) jobs that ARE possible today for LoRA prep (after C-00 fix):
@@ -619,15 +721,15 @@ python scripts/train_lora.py benchmark --lora <v>.safetensors --images <dir>  # 
 
 | Category | Count | Notes |
 |----------|-------|-------|
-| Critical Issues | 9 | 6 core (C-*) + 3 notebook (N-01..N-03); all 3 notebook items closed 2026-09-09 |
-| Major Gaps | 5 | 5 module (M-03..M-06, M-08) + notebook (N-04..N-07) closed; M-01, M-02, M-07 closed 2026-09-11 |
-| Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15); N-08..N-14 closed 2026-09-09/11, N-15 blocked on C-01 |
-| Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17); both closed 2026-09-09 |
-| **Total Issues** | **52** | |
-| Documentation Gaps | 13 | Across Phases 1, 5, 6 |
-| Missing Script Wrappers | 2 | generate_phase7, train_lora |
-| Security Concerns | 3 | UI auth, input validation, persistent secrets; input validation closed 2026-09-11 (M-07) |
+| Critical Issues | 9 | 6 core (C-*) + 3 notebook (N-01..N-03); all closed 2026-09-09; **A-01 adds "no real-media consumer path"** |
+| Major Gaps | 4 | M-04..M-06, M-08 open; M-01, M-02, M-07 closed 2026-09-11, M-03 VERIFIED CLOSED 2026-09-12; A-02..A-06 added 2026-09-12 |
+| Enhancements | 19 | 10 module (E-*) + 9 notebook (N-08..N-15); most closed; E-21, E-22 added 2026-09-12 |
+| Technical Debt | 12 | 10 module (T-*) + 2 notebook (N-16, N-17); all closed 2026-09-09 |
+| Deep Audit 2026-09-12 | 6 | A-01..A-06 findings (see Deep Audit section); A-02 lyric-key, A-04 limit+auth+referer, A-05 comfy failure paths, A-06 seed/frames **fixed 2026-09-12** |
+| **Total Issues** | **58** | |
+| Documentation Gaps | 13 | Verified ALL CLOSED 2026-09-12 (M-03) |
+| Security Concerns | 3 | UI auth, input validation, persistent secrets; input validation closed 2026-09-11 (M-07); UI auth now A-04 |
 | Vision Deviations | 1 | No real character consistency |
-| Notebook coverage boundaries | 1–8, 9-12, Cloud, Training, IdentityLock, Validate | All 13 notebooks sound; N-15 dataset prep pending approved assets (C-01) |
+| Notebook coverage boundaries | 1–8, 9-12, Cloud, Training, IdentityLock, Validate | ALL 13 notebooks sound (re-verified 2026-09-12); N-15 dataset prep pending approved assets (C-01) |
 
-**Bottom Line:** The codebase is architecturally sound, well-tested in isolation, and comprehensive in scope. The critical gap is that it has never been executed end-to-end with real AI backends. The next step is not more code — it's running the pipeline once with real hardware.
+**Bottom Line:** The codebase is architecturally sound, well-tested in isolation, and comprehensive in scope. The critical gap is that it has never been executed end-to-end with real AI backends — and the deep audit (2026-09-12) shows the modules BELOW image/video generation are planning/framework code that do not yet consume or produce real media. The next step is not more code — it is (1) proving one real image, (2) proving one real i2v clip, (3) wiring a real ffmpeg export, then running the pipeline once with real hardware.

@@ -434,6 +434,27 @@ class TestLyricsGenerator:
         assert result.sections
         assert all(line for section in result.sections for line in section.lines)
 
+    def test_singular_color_uses_color_bank_not_educational(self):
+        """A-02: SongEngine emits 'color' (singular) but banks are 'colors'.
+        Must NOT silently fall back to generic educational lyrics."""
+        result = self.engine.generate(song_type="color", duration_seconds=60, seed=11)
+        assert any("Color" in line or "Red" in line
+                   for section in result.sections for line in section.lines)
+
+    def test_singular_animal_uses_animal_bank_not_educational(self):
+        """A-02: SongEngine emits 'animal' (singular) but banks are 'animals'."""
+        result = self.engine.generate(song_type="animal", duration_seconds=60, seed=12)
+        assert any("cat" in line or "dog" in line or "cow" in line or "sheep" in line
+                   for section in result.sections for line in section.lines)
+
+    def test_plural_and_singular_forms_pick_same_bank(self):
+        """A-02 regression: both accepted forms select the same vocabulary."""
+        plural = self.engine.generate(song_type="colors", duration_seconds=60, seed=13)
+        singular = self.engine.generate(song_type="color", duration_seconds=60, seed=14)
+        plural_words = {w for line in plural.text.lower().split("\n")
+                        for w in line.split()}
+        assert any(w in plural_words for w in ("red", "blue", "green", "orange", "purple"))
+
     def test_feeds_subtitle_engine(self):
         """text output is directly consumable by SubtitleEngine.generate_from_lyrics."""
         from src.post_production import SubtitleEngine

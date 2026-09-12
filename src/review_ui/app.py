@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 import jinja2
-from fastapi import BackgroundTasks, FastAPI, Form, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -251,6 +251,7 @@ def create_app(
     persist_generated_images: bool = False,
     music_backend=None,
     music_dir: Optional[str] = None,
+    ui_token: Optional[str] = None,
 ) -> FastAPI:
     """Application factory with optional dependency injection.
 
@@ -332,6 +333,20 @@ def create_app(
     seeded = False
 
     app = FastAPI(title="Animation Studio")
+
+    # Optional bearer-token gate for state-changing routes (audit A-04).
+    # When ``ui_token`` is set, every POST route requires ``?token=`` (or an
+    # ``X-UI-Token`` header) set in the URL.  Defaults to off so the local
+    # stack and existing tests keep working unchanged; tunnels should pass one.
+    def _require_ui_token(
+        request: Request,
+        token: str = Query(""),
+    ) -> None:
+        if not ui_token:
+            return
+        supplied = token or request.headers.get("X-UI-Token", "")
+        if not supplied or supplied != ui_token:
+            raise HTTPException(status_code=401, detail="Missing or invalid UI token")
 
     # Mount static files
     _STATIC.mkdir(parents=True, exist_ok=True)
@@ -726,7 +741,7 @@ def create_app(
         asset_type: str = Query(""),
         category: str = Query(""),
         state: str = Query(""),
-        limit: int = Query(50),
+        limit: int = Query(50, ge=1, le=500, description="Max candidate rows to render"),
     ):
         """The pending review queue as JSON (filters optional)."""
         await _maybe_seed()
@@ -974,7 +989,7 @@ def create_app(
             request, "motion.html", _motion_page_context()
         )
 
-    @app.post("/motion/prompt", response_class=HTMLResponse)
+    @app.post("/motion/prompt", response_class=HTMLResponse, dependencies=[Depends(_require_ui_token)])
     async def motion_prompt(request: Request):
         """Build an animation prompt from the bible templates (text only).
 
@@ -1068,7 +1083,7 @@ def create_app(
             request, "music.html", _music_page_context()
         )
 
-    @app.post("/music/prompt")
+    @app.post("/music/prompt", dependencies=[Depends(_require_ui_token)])
     async def music_prompt_preview(
         request: Request,
         category: str = Form("Alphabet"),
@@ -1108,7 +1123,7 @@ def create_app(
         ctx["form_values"] = {"category": category, "topic": topic}
         return templates.TemplateResponse(request, "music.html", ctx)
 
-    @app.post("/music/generate")
+    @app.post("/music/generate", dependencies=[Depends(_require_ui_token)])
     async def music_generate(
         request: Request,
         background_tasks: BackgroundTasks,
@@ -1321,7 +1336,7 @@ def create_app(
                 result["total_generated"], result["total_shortlisted"],
             )
 
-    @app.post("/generate")
+    @app.post("/generate", dependencies=[Depends(_require_ui_token)])
     async def generate(
         request: Request,
         background_tasks: BackgroundTasks,
@@ -1364,7 +1379,7 @@ def create_app(
         logger.info("Generate queued: scope=%s item=%r count=%s backend=%s", scope, item, count, backend)
         return RedirectResponse(url=_get_referer(request), status_code=303)
 
-    @app.post("/seed")
+    @app.post("/seed", dependencies=[Depends(_require_ui_token)])
     async def seed(request: Request, background_tasks: BackgroundTasks):
         """Seed the universe catalog from the markdown docs (idempotent)."""
         if seed_catalog is None or not hasattr(char_repo, "save_character"):
@@ -1385,8 +1400,36 @@ def create_app(
     # ------------------------------------------------------------------ #
 
     def _get_referer(request: Request) -> str:
-        """Extract the referer URL from the request (with safe fallback)."""
-        return request.headers.get("referer", "/")
+        """Extract a safe post-action redirect target.
+
+        Only two shapes are allowed (audit A-04 — open-redirect mitigation):
+         - a same-origin absolute URL (host/port matches this server), or
+         - a local absolute path starting with ``/`` (and not ``//host``,
+           which is scheme-relative and could point at an external host).
+        Anything else — foreign hosts, ``javascript:``/other schemes, or
+        malformed values like ``:::`` — falls back to ``/``.
+        """
+        referer = request.headers.get("referer", "/")
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(referer)
+        except ValueError:
+            return "/"
+        # Scheme-relative (//host) and non-http(s) schemes are rejected.
+        if not parsed.scheme:
+            if referer.startswith("//"):
+                return "/"
+            if referer.startswith("/"):
+                return referer
+            return "/"
+        if parsed.scheme not in ("http", "https"):
+            return "/"
+        # Absolute http(s) URL must match this server's host:port.
+        from urllib.parse import urlsplit
+        server_host = urlsplit(str(request.base_url)).netloc.lower()
+        if (parsed.netloc or "").lower() != server_host:
+            return "/"
+        return referer
 
     async def _apply_action(asset_id: str, action: str, reason: str = ""):
         """Run a lifecycle action and return ``(ok, message, new_state)``.
@@ -1440,7 +1483,7 @@ def create_app(
             return True, "No seed to regenerate from", ""
         raise ValueError(f"Unknown action: {action}")
 
-    @app.post("/approve/{asset_id}")
+    @app.post("/approve/{asset_id}", dependencies=[Depends(_require_ui_token)])
     async def approve_asset(asset_id: str, request: Request):
         """Approve: any candidate state → approved (D-15, shortlist implied)."""
         try:
@@ -1449,7 +1492,7 @@ def create_app(
             logger.warning("Approve failed for %s: %s", asset_id, exc)
         return RedirectResponse(url=_get_referer(request), status_code=303)
 
-    @app.post("/reject/{asset_id}")
+    @app.post("/reject/{asset_id}", dependencies=[Depends(_require_ui_token)])
     async def reject_asset(
         asset_id: str,
         request: Request,
@@ -1462,7 +1505,7 @@ def create_app(
             logger.warning("Reject failed for %s: %s", asset_id, exc)
         return RedirectResponse(url=_get_referer(request), status_code=303)
 
-    @app.post("/regenerate/{asset_id}")
+    @app.post("/regenerate/{asset_id}", dependencies=[Depends(_require_ui_token)])
     async def regenerate_similar(asset_id: str, request: Request):
         """Regenerate similar: queue a new generation job with nearby seeds."""
         try:
@@ -1471,7 +1514,7 @@ def create_app(
             logger.warning("Regenerate failed for %s: %s", asset_id, exc)
         return RedirectResponse(url=_get_referer(request), status_code=303)
 
-    @app.post("/promote/{asset_id}")
+    @app.post("/promote/{asset_id}", dependencies=[Depends(_require_ui_token)])
     async def promote_asset(asset_id: str, request: Request):
         """Approve & Promote: any candidate state → production (two-step)."""
         try:
@@ -1484,7 +1527,7 @@ def create_app(
     #  Realtime JSON action API  (used by studio.js)
     # ------------------------------------------------------------------ #
 
-    @app.post("/api/assets/{asset_id}/{action}")
+    @app.post("/api/assets/{asset_id}/{action}", dependencies=[Depends(_require_ui_token)])
     async def api_asset_action(
         asset_id: str,
         action: str,

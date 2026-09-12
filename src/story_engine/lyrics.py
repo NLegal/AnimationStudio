@@ -203,6 +203,19 @@ _BRIDGE_BANKS: dict[str, list[list[str]]] = {
     ],
 }
 
+# `SongEngine.select_song_type` emits singular forms ("color", "animal")
+# while the vocabulary banks above are plural-keyed ("colors", "animals").
+# Without this alias the banks silently fall back to the generic
+# "educational" lyrics (audit A-02).
+_SONG_TYPE_ALIASES: dict[str, str] = {
+    "color": "colors",
+    "animal": "animals",
+}
+
+
+def _normalize_song_type(song_type: str) -> str:
+    return _SONG_TYPE_ALIASES.get(song_type, song_type)
+
 _OUTRO_BANKS: dict[str, list[list[str]]] = {
     "default": [
         ["And that is how the story goes",
@@ -245,9 +258,9 @@ def _pick_section_bank(
 ) -> list[str]:
     """Pick a random line set from the appropriate bank."""
     if section_type == "verse":
-        bank = _VERSE_BANKS.get(song_type, _VERSE_BANKS["educational"])
+        bank = _VERSE_BANKS.get(_normalize_song_type(song_type), _VERSE_BANKS["educational"])
     elif section_type == "chorus":
-        bank = _CHORUS_BANKS.get(song_type, _CHORUS_BANKS["educational"])
+        bank = _CHORUS_BANKS.get(_normalize_song_type(song_type), _CHORUS_BANKS["educational"])
     elif section_type == "bridge":
         bank = _BRIDGE_BANKS["default"]
     else:
@@ -290,8 +303,10 @@ class LyricsGenerator:
         song_type:
             One of the ``SongEngine`` type values (educational, dance,
             lullaby, alphabet, counting, color, animal, transition).
+            Singular/plural forms are both accepted.
         topic:
             Free-text topic string (e.g. ``"Lily Bunny consonant song"``).
+            Not yet interpolated into lyric banks (audit A-02, S).
         character:
             Main character name to weave into the outro if present.
         duration_seconds:
@@ -303,6 +318,7 @@ class LyricsGenerator:
         -------
         LyricsResult with both ``text`` and ``formatted`` fields populated.
         """
+        song_type = _normalize_song_type(song_type)
         rng = random.Random(seed)
         plan = _build_section_plan(song_type, duration_seconds)
 

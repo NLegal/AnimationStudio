@@ -72,6 +72,13 @@ class TestApiCandidates:
         data = client.get("/api/candidates?limit=2").json()
         assert len(data["candidates"]) == 2
 
+    def test_limit_is_bounded(self, client):
+        """A-04 regression: limit must be bounded (FastAPI returns 422 for
+        out-of-range instead of accepting arbitrary values)."""
+        assert client.get("/api/candidates?limit=0").status_code == 422
+        assert client.get("/api/candidates?limit=-5").status_code == 422
+        assert client.get("/api/candidates?limit=99999").status_code == 422
+
     def test_state_filter(self, client):
         data = client.get("/api/candidates?state=scored").json()
         assert len(data["candidates"]) == 6
